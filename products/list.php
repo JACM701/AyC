@@ -142,7 +142,7 @@
         <?php if (isset($_GET['error']) && $_GET['error'] === 'stock'): ?>
             <div class="alert alert-warning alert-dismissible fade show" role="alert">
                 <i class="bi bi-exclamation-triangle"></i>
-                No puedes eliminar un producto que aún tiene stock. Da de baja el inventario primero.
+                No puedes eliminar un producto que aún tiene stock. Debes de dar de baja el inventario primero.
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
