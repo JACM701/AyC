@@ -286,6 +286,27 @@
                         <textarea class="form-control" name="description" id="description" rows="3" required><?= htmlspecialchars($product['description']) ?></textarea>
                     </div>
 
+                    <div class="mb-3">
+                        <label class="form-label">Comparador de precios</label>
+                        <button type="button" class="btn btn-warning btn-sm mb-2" id="btnCompararPrecios">
+                            <i class="bi bi-arrow-repeat"></i> Actualizar precios
+                        </button>
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-sm align-middle" id="tablaComparadorPrecios">
+                                <thead>
+                                    <tr>
+                                        <th>Tienda</th>
+                                        <th>Precio</th>
+                                        <th>Enlace</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td colspan="3" class="text-center text-muted">Sin datos</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-primary flex-fill">
                             <i class="bi bi-check-circle"></i> Actualizar producto
@@ -298,5 +319,43 @@
             </div>
             <script src="../assets/js/script.js"></script>
             <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+            <script>
+                // Comparador de precios
+                const btnComparar = document.getElementById('btnCompararPrecios');
+                const tablaComparador = document.getElementById('tablaComparadorPrecios').querySelector('tbody');
+                btnComparar.addEventListener('click', function() {
+                    btnComparar.disabled = true;
+                    btnComparar.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Buscando...';
+                    const nombre = document.getElementById('product_name').value;
+                    const descripcion = document.getElementById('description').value;
+                    fetch('comparar_precios.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ nombre, descripcion })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        tablaComparador.innerHTML = '';
+                        if (data.length > 0) {
+                            data.forEach(tienda => {
+                                tablaComparador.innerHTML += `<tr>
+                                    <td>${tienda.tienda}</td>
+                                    <td>${tienda.precio ? '$' + tienda.precio : '-'}</td>
+                                    <td>${tienda.enlace ? `<a href="${tienda.enlace}" target="_blank">Ver producto</a>` : '-'}</td>
+                                </tr>`;
+                            });
+                        } else {
+                            tablaComparador.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Sin resultados</td></tr>';
+                        }
+                        btnComparar.disabled = false;
+                        btnComparar.innerHTML = '<i class="bi bi-arrow-repeat"></i> Actualizar precios';
+                    })
+                    .catch(() => {
+                        tablaComparador.innerHTML = '<tr><td colspan="3" class="text-center text-danger">Error al buscar precios</td></tr>';
+                        btnComparar.disabled = false;
+                        btnComparar.innerHTML = '<i class="bi bi-arrow-repeat"></i> Actualizar precios';
+                    });
+                });
+            </script>
         </body>
     </html>
