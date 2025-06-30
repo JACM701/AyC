@@ -175,7 +175,18 @@
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
-        <form action="" method="POST">
+        <form action="" method="POST" id="formAgregarProducto">
+            <div class="mb-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="1" id="buscarTiendasCheck">
+                    <label class="form-check-label" for="buscarTiendasCheck">
+                        Buscar en tiendas y autollenar nombre y descripción
+                    </label>
+                </div>
+                <button type="button" class="btn btn-info mt-2" id="btnBuscarTiendas" style="display:none;">
+                    <i class="bi bi-search"></i> Buscar en tiendas
+                </button>
+            </div>
             <div class="mb-3">
                 <label for="product_name" class="form-label">Nombre del producto:</label>
                 <input type="text" class="form-control" name="product_name" id="product_name" required>
@@ -290,6 +301,38 @@
             if (this.value.trim() !== '') {
                 supplierSelect.value = '';
             }
+        });
+
+        // Mostrar/ocultar botón de buscar en tiendas
+        const buscarCheck = document.getElementById('buscarTiendasCheck');
+        const btnBuscar = document.getElementById('btnBuscarTiendas');
+        buscarCheck.addEventListener('change', function() {
+            btnBuscar.style.display = this.checked ? 'inline-block' : 'none';
+        });
+
+        // Lógica de búsqueda en tiendas (simulada)
+        btnBuscar.addEventListener('click', function() {
+            btnBuscar.disabled = true;
+            btnBuscar.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Buscando...';
+            // Puedes usar el valor del SKU o nombre si ya está escrito
+            const nombre = document.getElementById('product_name').value;
+            fetch('buscar_tiendas.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nombre })
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('product_name').value = data.nombre;
+                document.getElementById('description').value = data.descripcion;
+                btnBuscar.disabled = false;
+                btnBuscar.innerHTML = '<i class="bi bi-search"></i> Buscar en tiendas';
+            })
+            .catch(() => {
+                alert('Error al buscar en tiendas.');
+                btnBuscar.disabled = false;
+                btnBuscar.innerHTML = '<i class="bi bi-search"></i> Buscar en tiendas';
+            });
         });
     </script>
 </body>
