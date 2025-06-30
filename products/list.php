@@ -153,10 +153,10 @@
                         <th scope="col">#</th>
                         <th scope="col">Nombre</th>
                         <th scope="col">SKU</th>
-                        <th scope="col">Precio</th>
-                        <th scope="col">Cantidad</th>
                         <th scope="col">Categoría</th>
                         <th scope="col">Proveedor</th>
+                        <th scope="col">Precio Unitario</th>
+                        <th scope="col">Cantidad</th>
                         <th scope="col">Fecha de alta</th>
                         <th scope="col" style="text-align:center;">Acciones</th>
                     </tr>
@@ -172,16 +172,6 @@
                                 <?php endif; ?>
                             </td>
                             <td><span class="badge bg-secondary"><?= htmlspecialchars($row['sku']) ?></span></td>
-                            <td><strong>$<?= number_format($row['price'], 2, ',', '.') ?></strong></td>
-                            <td>
-                                <?php if ($row['quantity'] <= 5): ?>
-                                    <span class="badge bg-danger"><?= htmlspecialchars($row['quantity']) ?></span>
-                                <?php elseif ($row['quantity'] <= 15): ?>
-                                    <span class="badge bg-warning text-dark"><?= htmlspecialchars($row['quantity']) ?></span>
-                                <?php else: ?>
-                                    <span class="badge bg-success"><?= htmlspecialchars($row['quantity']) ?></span>
-                                <?php endif; ?>
-                            </td>
                             <td>
                                 <?php if ($row['category_name']): ?>
                                     <span class="badge bg-info"><?= htmlspecialchars($row['category_name']) ?></span>
@@ -194,6 +184,16 @@
                                     <small><?= htmlspecialchars($row['supplier']) ?></small>
                                 <?php else: ?>
                                     <span class="text-muted">Sin proveedor</span>
+                                <?php endif; ?>
+                            </td>
+                            <td><strong>$<?= number_format($row['price'], 2, ',', '.') ?></strong></td>
+                            <td>
+                                <?php if ($row['quantity'] <= 5): ?>
+                                    <span class="badge bg-danger"><?= htmlspecialchars($row['quantity']) ?></span>
+                                <?php elseif ($row['quantity'] <= 15): ?>
+                                    <span class="badge bg-warning text-dark"><?= htmlspecialchars($row['quantity']) ?></span>
+                                <?php else: ?>
+                                    <span class="badge bg-success"><?= htmlspecialchars($row['quantity']) ?></span>
                                 <?php endif; ?>
                             </td>
                             <td><?= date('d/m/Y', strtotime($row['created_at'])) ?></td>

@@ -37,7 +37,7 @@
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $product_name = trim($_POST['product_name']);
         $sku = trim($_POST['sku']);
-        $price = floatval($_POST['price']);
+        $price = isset($_POST['price']) && $_POST['price'] !== '' ? floatval($_POST['price']) : 0.00;
         $quantity = intval($_POST['quantity']);
         
         // Manejar categoría (existente o nueva)
@@ -237,7 +237,7 @@
 
                     <div class="mb-3">
                         <label for="price" class="form-label">Precio:</label>
-                        <input type="number" step="0.01" class="form-control" name="price" id="price" value="<?= $product['price'] ?>" required>
+                        <input type="number" step="0.01" class="form-control" name="price" id="price" value="<?= $product['price'] ?>">
                     </div>
 
                     <div class="mb-3">
