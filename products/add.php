@@ -23,7 +23,7 @@
         
         // Manejar categoría (existente o nueva)
         $category_id = intval($_POST['category']);
-        $new_category = trim($_POST['new_category']);
+        $new_category = trim($_POST['new_category'] ?? '');
         
         if (!empty($new_category)) {
             // Insertar nueva categoría
@@ -37,7 +37,7 @@
         
         // Manejar proveedor (existente o nuevo)
         $supplier = trim($_POST['supplier']);
-        $new_supplier = trim($_POST['new_supplier']);
+        $new_supplier = trim($_POST['new_supplier'] ?? '');
         if (!empty($new_supplier)) {
             $supplier = $new_supplier;
         }
