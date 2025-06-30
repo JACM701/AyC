@@ -177,15 +177,20 @@
         <?php endif; ?>
         <form action="" method="POST" id="formAgregarProducto">
             <div class="mb-3">
+                <div class="alert alert-info py-2" style="font-size:0.97rem;">
+                    ¿Quieres autollenar el nombre y la descripción del producto buscando en tiendas mayoristas? Marca la opción y haz clic en <b>Buscar y autollenar desde tiendas</b>. Se usará el nombre o SKU que escribas para buscar el producto en Syscom, TVC, Tecnosinergia y PCH.
+                </div>
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" value="1" id="buscarTiendasCheck">
                     <label class="form-check-label" for="buscarTiendasCheck">
-                        Buscar en tiendas y autollenar nombre y descripción
+                        Autollenar nombre y descripción desde tiendas mayoristas
                     </label>
                 </div>
-                <button type="button" class="btn btn-info mt-2" id="btnBuscarTiendas" style="display:none;">
-                    <i class="bi bi-search"></i> Buscar en tiendas
+                <button type="button" class="btn btn-info mt-2" id="btnBuscarTiendas" style="display:none;" disabled>
+                    <i class="bi bi-search"></i> Buscar y autollenar desde tiendas
                 </button>
+                <div id="mensajeBuscarTiendas" class="mt-2"></div>
+                <div id="resultadosBuscarTiendas" class="mt-2"></div>
             </div>
             <div class="mb-3">
                 <label for="product_name" class="form-label">Nombre del producto:</label>
@@ -326,32 +331,74 @@
         // Mostrar/ocultar botón de buscar en tiendas
         const buscarCheck = document.getElementById('buscarTiendasCheck');
         const btnBuscar = document.getElementById('btnBuscarTiendas');
+        const inputNombre = document.getElementById('product_name');
+        const inputSKU = document.getElementById('sku');
+        const mensajeBuscar = document.getElementById('mensajeBuscarTiendas');
+        const resultadosBuscar = document.getElementById('resultadosBuscarTiendas');
         buscarCheck.addEventListener('change', function() {
             btnBuscar.style.display = this.checked ? 'inline-block' : 'none';
+            mensajeBuscar.innerHTML = '';
+            resultadosBuscar.innerHTML = '';
         });
-
-        // Lógica de búsqueda en tiendas (simulada)
+        // Deshabilitar botón si el campo nombre y/o SKU están vacíos
+        function toggleBtnBuscar() {
+            btnBuscar.disabled = (inputNombre.value.trim() === '' && inputSKU.value.trim() === '');
+        }
+        inputNombre.addEventListener('input', toggleBtnBuscar);
+        inputSKU.addEventListener('input', toggleBtnBuscar);
+        toggleBtnBuscar();
+        // Lógica de búsqueda en tiendas (real, varios resultados)
         btnBuscar.addEventListener('click', function() {
             btnBuscar.disabled = true;
             btnBuscar.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Buscando...';
-            // Puedes usar el valor del SKU o nombre si ya está escrito
-            const nombre = document.getElementById('product_name').value;
+            mensajeBuscar.innerHTML = '';
+            resultadosBuscar.innerHTML = '';
+            const nombre = inputNombre.value;
+            const sku = inputSKU.value;
             fetch('buscar_tiendas.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ nombre })
+                body: JSON.stringify({ nombre, sku })
             })
             .then(res => res.json())
             .then(data => {
-                document.getElementById('product_name').value = data.nombre;
-                document.getElementById('description').value = data.descripcion;
+                if (!data || data.length === 0) {
+                    mensajeBuscar.innerHTML = `<div class='alert alert-danger py-2 mb-0'>No se encontraron resultados en las tiendas. Puedes escribir los datos manualmente.</div>`;
+                    btnBuscar.disabled = false;
+                    btnBuscar.innerHTML = '<i class="bi bi-search"></i> Buscar y autollenar desde tiendas';
+                    return;
+                }
+                let html = '';
+                data.forEach(tienda => {
+                    html += `<div class='mb-2'><b>${tienda.tienda}</b><div class='table-responsive'><table class='table table-bordered table-sm align-middle mb-0'><thead><tr><th>Nombre</th><th>Precio</th><th>Enlace</th><th>Acción</th></tr></thead><tbody>`;
+                    if (tienda.resultados.length > 0) {
+                        tienda.resultados.forEach(res => {
+                            html += `<tr><td>${res.nombre}</td><td>${res.precio ? '$' + res.precio : '-'}</td><td>${res.enlace ? `<a href='${res.enlace}' target='_blank'>Ver</a>` : '-'}</td><td><button type='button' class='btn btn-success btn-sm usar-resultado' data-nombre='${encodeURIComponent(res.nombre)}' data-desc='${encodeURIComponent(res.descripcion)}'>Usar este</button></td></tr>`;
+                        });
+                    } else {
+                        html += `<tr><td colspan='4' class='text-center text-muted'>Sin resultados</td></tr>`;
+                    }
+                    html += '</tbody></table></div></div>';
+                });
+                resultadosBuscar.innerHTML = html;
+                // Asignar eventos a los botones "Usar este"
+                document.querySelectorAll('.usar-resultado').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        inputNombre.value = decodeURIComponent(this.getAttribute('data-nombre'));
+                        document.getElementById('description').value = decodeURIComponent(this.getAttribute('data-desc'));
+                        mensajeBuscar.innerHTML = `<div class='alert alert-success py-2 mb-0'>¡Producto autollenado!</div>`;
+                        resultadosBuscar.innerHTML = '';
+                        btnBuscar.disabled = false;
+                        btnBuscar.innerHTML = '<i class="bi bi-search"></i> Buscar y autollenar desde tiendas';
+                    });
+                });
                 btnBuscar.disabled = false;
-                btnBuscar.innerHTML = '<i class="bi bi-search"></i> Buscar en tiendas';
+                btnBuscar.innerHTML = '<i class="bi bi-search"></i> Buscar y autollenar desde tiendas';
             })
             .catch(() => {
-                alert('Error al buscar en tiendas.');
+                mensajeBuscar.innerHTML = `<div class='alert alert-danger py-2 mb-0'>No se encontró el producto en las tiendas. Puedes escribir los datos manualmente.</div>`;
                 btnBuscar.disabled = false;
-                btnBuscar.innerHTML = '<i class="bi bi-search"></i> Buscar en tiendas';
+                btnBuscar.innerHTML = '<i class="bi bi-search"></i> Buscar y autollenar desde tiendas';
             });
         });
 
