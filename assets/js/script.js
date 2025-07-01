@@ -41,18 +41,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Sidebar dinámico
-    const sidebar = document.getElementById('sidebar');
-    const toggleBtn = document.getElementById('toggleSidebar');
-    if (sidebar && toggleBtn) {
-        toggleBtn.addEventListener('click', () => {
-            sidebar.classList.toggle('collapsed');
-            // Ajustar main-content
-            const main = document.querySelector('.main-content');
-            if (sidebar.classList.contains('collapsed')) {
-                main.style.marginLeft = '70px';
-            } else {
-                main.style.marginLeft = '250px';
-            }
-        });
-    }
+    // const sidebar = document.getElementById('sidebar');
+    // const toggleBtn = document.getElementById('toggleSidebar');
+    // if (sidebar && toggleBtn) {
+    //     toggleBtn.addEventListener('click', () => {
+    //         sidebar.classList.toggle('collapsed');
+    //     });
+    // }
 });

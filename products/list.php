@@ -175,14 +175,12 @@
         <?php endif; ?>
         <?php if ($result && $result->num_rows > 0): ?>
             <div class="table-responsive">
-                <table class="table table-striped table-hover">
+                <table class="table table-striped table-hover table-productos">
                     <thead class="table-dark">
                         <tr>
                             <th scope="col">#</th>
-                            <th scope="col">Nombre</th>
-                            <th scope="col">SKU</th>
+                            <th scope="col">Producto</th>
                             <th scope="col" class="barcode-col">Código de barras</th>
-                            <th scope="col" class="img-col">Imagen</th>
                             <th scope="col">Categoría</th>
                             <th scope="col">Proveedor</th>
                             <th scope="col">Precio Unitario</th>
@@ -196,22 +194,26 @@
                             <tr>
                                 <td><?= htmlspecialchars($row['product_id']) ?></td>
                                 <td>
-                                    <strong><?= htmlspecialchars($row['product_name']) ?></strong>
-                                    <?php if ($row['description']): ?>
-                                        <br><small class="text-muted"><?= htmlspecialchars(substr($row['description'], 0, 50)) ?><?= strlen($row['description']) > 50 ? '...' : '' ?></small>
-                                    <?php endif; ?>
+                                    <div class="img-nombre-wrap">
+                                        <?php if (isset($row['image']) && $row['image']): ?>
+                                            <img src="<?= htmlspecialchars($row['image']) ?>" alt="Imagen" class="img-col-img">
+                                        <?php else: ?>
+                                            <span class="img-placeholder"><i class="bi bi-box"></i></span>
+                                        <?php endif; ?>
+                                        <div>
+                                            <span class="nombre-producto"><?= htmlspecialchars($row['product_name']) ?></span>
+                                            <?php if ($row['sku']): ?>
+                                                <br><span class="sku-badge" title="Código interno SKU">SKU: <?= htmlspecialchars($row['sku']) ?></span>
+                                            <?php endif; ?>
+                                            <?php if ($row['description']): ?>
+                                                <br><span class="desc-producto"><?= htmlspecialchars(substr($row['description'], 0, 50)) ?><?= strlen($row['description']) > 50 ? '...' : '' ?></span>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
                                 </td>
-                                <td><span class="badge bg-secondary"><?= htmlspecialchars($row['sku']) ?></span></td>
                                 <td class="barcode-col">
                                     <?php if (isset($row['barcode']) && $row['barcode']): ?>
                                         <?= htmlspecialchars($row['barcode']) ?>
-                                    <?php else: ?>
-                                        <span>-</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td class="img-col">
-                                    <?php if (isset($row['image']) && $row['image']): ?>
-                                        <img src="<?= htmlspecialchars($row['image']) ?>" alt="Imagen">
                                     <?php else: ?>
                                         <span>-</span>
                                     <?php endif; ?>
@@ -271,58 +273,49 @@
             const busqueda = document.getElementById('busquedaProducto').value.toLowerCase();
             const categoriaId = document.getElementById('filtroCategoria').value;
             const proveedor = document.getElementById('filtroProveedor').value.toLowerCase();
-            
             let productosVisibles = 0;
-            
             document.querySelectorAll('table tbody tr').forEach(row => {
-                const nombre = row.cells[1].textContent.toLowerCase();
-                const sku = row.cells[2].textContent.toLowerCase();
-                
+                const nombreCell = row.cells[1];
+                const nombreDiv = nombreCell.querySelector('.nombre-producto');
+                const nombre = nombreDiv ? nombreDiv.textContent.toLowerCase() : '';
+                const skuBadge = nombreCell.querySelector('.sku-badge');
+                const sku = skuBadge ? skuBadge.textContent.toLowerCase() : '';
                 // Extraer texto de categoría (puede estar en badge o texto normal)
                 let categoriaFila = '';
-                const categoriaCell = row.cells[5];
+                const categoriaCell = row.cells[3];
                 const categoriaBadge = categoriaCell.querySelector('.badge');
                 if (categoriaBadge) {
                     categoriaFila = categoriaBadge.textContent.toLowerCase().trim();
                 } else {
                     categoriaFila = categoriaCell.textContent.toLowerCase().trim();
                 }
-                
                 // Extraer texto de proveedor
                 let proveedorFila = '';
-                const proveedorCell = row.cells[6];
+                const proveedorCell = row.cells[4];
                 const proveedorSmall = proveedorCell.querySelector('small');
                 if (proveedorSmall) {
                     proveedorFila = proveedorSmall.textContent.toLowerCase().trim();
                 } else {
                     proveedorFila = proveedorCell.textContent.toLowerCase().trim();
                 }
-                
                 const coincideBusqueda = nombre.includes(busqueda) || 
                                        sku.includes(busqueda) || 
                                        categoriaFila.includes(busqueda) || 
                                        proveedorFila.includes(busqueda);
-                
                 // Para categorías, comparamos el texto del badge con el texto del option seleccionado
                 const categoriaSelect = document.getElementById('filtroCategoria');
                 const categoriaSeleccionada = categoriaSelect.options[categoriaSelect.selectedIndex].text.toLowerCase();
                 const coincideCategoria = categoriaId === '' || categoriaFila === categoriaSeleccionada;
-                
                 const coincideProveedor = proveedor === '' || proveedorFila === proveedor;
-                
                 const coincide = coincideBusqueda && coincideCategoria && coincideProveedor;
                 row.style.display = coincide ? '' : 'none';
-                
                 if (coincide) productosVisibles++;
             });
-            
             // Actualizar contador
             document.getElementById('contadorProductos').textContent = productosVisibles;
-            
             // Mostrar/ocultar botón de limpiar filtros
             const hayFiltros = busqueda !== '' || categoriaId !== '' || proveedor !== '';
             document.getElementById('limpiarFiltros').style.display = hayFiltros ? 'block' : 'none';
-            
             // Debug: mostrar en consola para verificar
             console.log('Filtros aplicados:', {
                 busqueda: busqueda,

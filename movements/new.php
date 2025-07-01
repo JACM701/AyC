@@ -85,27 +85,7 @@
     </style>
 </head>
 <body>
-    <aside class="sidebar">
-        <h1>Gestor de inventarios<br>Alarmas y Cámaras de seguridad del sureste</h1>
-        <nav>
-            <a href="../dashboard/index.php">
-                <i class="bi bi-grid-3x3-gap-fill"></i>
-                <span class="nav-text">Dashboard</span>
-            </a>
-            <a href="../products/list.php">
-                <i class="bi bi-box-seam-fill"></i>
-                <span class="nav-text">Productos</span>
-            </a>
-            <a href="../movements/index.php" class="active">
-                <i class="bi bi-arrow-left-right"></i>
-                <span class="nav-text">Movimientos</span>
-            </a>
-        </nav>
-        <a href="../auth/logout.php" class="logout">
-            <i class="bi bi-box-arrow-right"></i>
-            <span class="nav-text">Cerrar sesión</span>
-        </a>
-    </aside>
+    <?php include '../includes/sidebar.php'; ?>
     <main class="main-content">
         <h2>Registrar movimiento de inventario</h2>
         <?php if ($success): ?>

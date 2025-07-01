@@ -1,7 +1,7 @@
 <aside class="sidebar" id="sidebar">
-    <div class="sidebar-toggle-container" style="width:100%;display:flex;justify-content:center;align-items:center;margin-bottom:10px;">
-        <button id="toggleSidebar" aria-label="Mostrar/ocultar menú" style="background:transparent;border:none;outline:none;cursor:pointer;z-index:20;display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;transition:background 0.18s;">
-            <i class="bi bi-list" style="font-size:2rem;color:#fff;transition:color 0.18s;"></i>
+    <div class="sidebar-toggle-container">
+        <button id="toggleSidebar" aria-label="Mostrar/ocultar menú">
+            <i class="bi bi-list"></i>
         </button>
     </div>
     <h1>Gestor de inventarios<br>Alarmas y Cámaras de seguridad del sureste</h1>
@@ -23,4 +23,19 @@
         <i class="bi bi-box-arrow-right"></i>
         <span class="nav-text">Cerrar sesión</span>
     </a>
-</aside> 
+</aside>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.getElementById('toggleSidebar');
+    if (!sidebar || !toggleBtn) return;
+    // Cargar estado guardado
+    if (localStorage.getItem('sidebar-collapsed') === 'true') {
+        sidebar.classList.add('collapsed');
+    }
+    toggleBtn.addEventListener('click', function() {
+        sidebar.classList.toggle('collapsed');
+        localStorage.setItem('sidebar-collapsed', sidebar.classList.contains('collapsed'));
+    });
+});
+</script> 
