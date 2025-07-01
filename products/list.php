@@ -36,6 +36,11 @@
             width: calc(100vw - 250px);
             box-sizing: border-box;
         }
+        .sidebar.collapsed ~ .main-content {
+            margin-left: 70px !important;
+            width: calc(100vw - 70px) !important;
+            transition: margin-left 0.25s cubic-bezier(.4,2,.6,1), width 0.25s;
+        }
          /* Sobrescribe el fondo del thead de las tablas de productos */
         .table thead,
         .table thead th,
