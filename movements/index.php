@@ -79,7 +79,7 @@
         <a href="new.php"><button class="btn btn-primary"><i class="bi bi-plus-circle"></i> Registrar movimiento</button></a>
         <?php if ($result && $result->num_rows > 0): ?>
             <table class="table table-striped table-hover">
-                <thead class="table-dark">
+                <thead>
                     <tr>
                         <th scope="col">#</th>
                         <th scope="col">Producto</th>

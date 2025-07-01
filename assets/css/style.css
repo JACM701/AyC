@@ -8,7 +8,7 @@
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background-color: #f4f6fb;
-    color: #222;
+    color: #4843d5;
     line-height: 1.6;
     /* padding: 20px; */
     display: flex;
@@ -29,6 +29,7 @@ body {
     top: 0;
     bottom: 0;
     z-index: 10;
+    transition: width 0.25s cubic-bezier(.4,2,.6,1), min-width 0.25s;
 }
 .sidebar h1 {
     font-size: 1.1rem;
@@ -111,12 +112,16 @@ body {
     margin-left: 250px;
     width: 100%;
     padding: 40px 24px 24px 24px;
+    transition: margin-left 0.25s cubic-bezier(.4,2,.6,1);
 }
 @media (max-width: 900px) {
-    .sidebar { width: 70px; padding-top: 18px; }
+    .sidebar { width: 70px; min-width: 70px; padding-top: 18px; }
     .sidebar h1 { display: none; }
     .sidebar nav a { padding: 13px 10px; justify-content: center; }
     .main-content { margin-left: 70px; padding: 18px 4vw; }
+}
+.sidebar.collapsed ~ .main-content {
+    margin-left: 70px !important;
 }
 
 /* Login & Form Container */
@@ -208,34 +213,104 @@ button:hover {
     border: 1px solid #badbcc;
 }
 
-/* Table (for product list later) */
+/* --- ESTILO GLOBAL PARA TODAS LAS TABLAS DEL SISTEMA --- */
+
+/* Tabla base */
 table {
     width: 100%;
-    border-collapse: collapse;
-    margin-top: 22px;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-top: 2px;
     background: #fff;
-    border-radius: 10px;
+    border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 2px 12px rgba(18,24,102,0.07);
+    box-shadow: 0 4px 24px rgba(18,24,102,0.10);
+    font-size: 1rem;
 }
 
-th,
-td {
-    padding: 13px 10px;
+th, td {
+    padding: 14px 12px;
     border-bottom: 1px solid #e3e6f0;
     text-align: left;
+    vertical-align: middle;
 }
 
-th {
-    background-color: #121866;
-    color: #fff;
+/* Encabezado azul corporativo */
+.table thead th,
+thead th {
+    background: #121866 !important;
+    color: #fff !important;
     font-weight: 700;
-    font-size: 1rem;
+    font-size: 1.05rem;
+    border: none;
+    letter-spacing: 0.5px;
 }
 
 tr:last-child td {
     border-bottom: none;
 }
+
+/* Filas alternas y hover */
+tbody tr:nth-child(even) {
+    background: #f7f9fc;
+}
+tbody tr:hover {
+    background: #e3e6fa;
+    transition: background 0.18s;
+}
+
+/* Badges globales */
+.badge {
+    font-size: 0.95rem;
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+.badge.bg-secondary { background: #757575; color: #fff; }
+.badge.bg-info { background: #00bcd4; color: #fff; }
+.badge.bg-success { background: #43a047; color: #fff; }
+.badge.bg-danger { background: #e53935; color: #fff; }
+.badge.bg-warning { background: #ffc107; color: #232a7c; }
+
+/* Miniaturas de imagen en tablas */
+.table td.img-col img {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 10px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+    display: block;
+    margin: 0 auto;
+}
+.table td.img-col span, .table td.barcode-col span {
+    color: #bbb;
+    font-size: 1.5rem;
+    display: block;
+    text-align: center;
+}
+.table td.barcode-col {
+    font-size: 1.1rem;
+    text-align: center;
+}
+.table th.img-col, .table td.img-col {
+    width: 80px;
+    min-width: 70px;
+    max-width: 100px;
+    text-align: center;
+}
+.table th.barcode-col, .table td.barcode-col {
+    width: 120px;
+    min-width: 90px;
+    max-width: 140px;
+    text-align: center;
+}
+
+/* --- Personalización por tabla: agrega una clase extra si necesitas algo especial --- */
+/*
+.table-movimientos th, .table-movimientos td { ... }
+.table-productos th, .table-productos td { ... }
+*/
 
 .input-error {
     border: 1.5px solid #e53935 !important;
@@ -371,4 +446,59 @@ tr:last-child td {
     display: inline;
     margin-left: 4px;
     font-size: 1rem;
+}
+
+.sidebar.collapsed {
+    width: 70px !important;
+    min-width: 70px !important;
+}
+.sidebar.collapsed h1 {
+    display: none;
+}
+.sidebar.collapsed .nav-text,
+.sidebar.collapsed .logout .nav-text {
+    display: none !important;
+}
+.sidebar.collapsed nav a {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+}
+.sidebar.collapsed a.logout {
+    justify-content: center;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+.sidebar-toggle-container {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 10px;
+}
+#toggleSidebar {
+    background: transparent;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    transition: background 0.18s;
+}
+#toggleSidebar:hover, #toggleSidebar:focus {
+    background: rgba(255,255,255,0.13);
+}
+#toggleSidebar i {
+    font-size: 2rem;
+    color: #fff;
+    transition: color 0.18s;
+}
+#toggleSidebar:hover i, #toggleSidebar:focus i {
+    color: #ffc107;
 }

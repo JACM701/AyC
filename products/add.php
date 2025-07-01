@@ -167,27 +167,7 @@
     </style>
 </head>
 <body>
-    <aside class="sidebar">
-        <h1>Gestor de inventarios<br>Alarmas y Cámaras de seguridad del sureste</h1>
-        <nav>
-            <a href="../dashboard/index.php">
-                <i class="bi bi-grid-3x3-gap-fill"></i>
-                <span class="nav-text">Dashboard</span>
-            </a>
-            <a href="../products/list.php" class="active">
-                <i class="bi bi-box-seam-fill"></i>
-                <span class="nav-text">Productos</span>
-            </a>
-            <a href="../movements/index.php">
-                <i class="bi bi-arrow-left-right"></i>
-                <span class="nav-text">Movimientos</span>
-            </a>
-        </nav>
-        <a href="../auth/logout.php" class="logout">
-            <i class="bi bi-box-arrow-right"></i>
-            <span class="nav-text">Cerrar sesión</span>
-        </a>
-    </aside>
+<?php include '../includes/sidebar.php'; ?>
     <main class="main-content">
         <div class="card-form">
             <h2><i class="bi bi-plus-circle"></i> Agregar producto</h2>
@@ -211,7 +191,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             <?php endif; ?>
-            <form action="" method="POST" id="formAgregarProducto">
+            <form action="" method="POST" id="formAgregarProducto" enctype="multipart/form-data">
                 <div class="form-section">
                     <div class="mb-3">
                         <label for="product_name" class="form-label">Nombre del producto</label>
@@ -230,6 +210,17 @@
                             <i class="bi bi-info-circle"></i>
                             Si dejas este campo vacío, el sistema generará un SKU automáticamente al guardar.
                         </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="barcode" class="form-label">Código de barras <span class="text-muted" style="font-weight:400;">(opcional)</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-upc"></i></span>
+                            <input type="text" class="form-control" name="barcode" id="barcode" placeholder="Escanea o escribe el código de barras">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="image" class="form-label">Imagen del producto <span class="text-muted" style="font-weight:400;">(opcional)</span></label>
+                        <input type="file" class="form-control" name="image" id="image" accept="image/*">
                     </div>
                     <div class="mb-3">
                         <label for="description" class="form-label">Descripción</label>

@@ -37,6 +37,7 @@
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $product_name = trim($_POST['product_name']);
         $sku = trim($_POST['sku']);
+        $barcode = isset($_POST['barcode']) ? trim($_POST['barcode']) : null;
         $price = isset($_POST['price']) && $_POST['price'] !== '' ? floatval($_POST['price']) : 0.00;
         $quantity = intval($_POST['quantity']);
         
@@ -224,7 +225,7 @@
                     </div>
                 <?php endif; ?>
 
-                <form action="" method="POST">
+                <form action="" method="POST" enctype="multipart/form-data">
                     <div class="mb-3">
                         <label for="product_name" class="form-label">Nombre del producto:</label>
                         <input type="text" class="form-control" name="product_name" id="product_name" value="<?= htmlspecialchars($product['product_name']) ?>" required>
@@ -233,6 +234,25 @@
                     <div class="mb-3">
                         <label for="sku" class="form-label">SKU:</label>
                         <input type="text" class="form-control" name="sku" id="sku" value="<?= htmlspecialchars($product['sku']) ?>" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="barcode" class="form-label">Código de barras <span class="text-muted" style="font-weight:400;">(opcional)</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-upc"></i></span>
+                            <input type="text" class="form-control" name="barcode" id="barcode" value="<?= isset($product['barcode']) ? htmlspecialchars($product['barcode']) : '' ?>" placeholder="Escanea o escribe el código de barras">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="image" class="form-label">Imagen del producto <span class="text-muted" style="font-weight:400;">(opcional)</span></label>
+                        <?php if (isset($product['image']) && $product['image']): ?>
+                            <div class="mb-2">
+                                <img src="<?= htmlspecialchars($product['image']) ?>" alt="Imagen actual" style="width:48px;height:48px;object-fit:cover;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,0.08);">
+                                <span class="text-muted ms-2">Imagen actual</span>
+                            </div>
+                        <?php endif; ?>
+                        <input type="file" class="form-control" name="image" id="image" accept="image/*">
                     </div>
 
                     <div class="mb-3">
