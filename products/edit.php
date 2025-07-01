@@ -320,42 +320,68 @@
             <script src="../assets/js/script.js"></script>
             <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
             <script>
-                // Comparador de precios
+                // Comparador de precios - CON SCRAPING REAL
                 const btnComparar = document.getElementById('btnCompararPrecios');
-                const tablaComparador = document.getElementById('tablaComparadorPrecios').querySelector('tbody');
-                btnComparar.addEventListener('click', function() {
-                    btnComparar.disabled = true;
-                    btnComparar.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Buscando...';
-                    const nombre = document.getElementById('product_name').value;
-                    const descripcion = document.getElementById('description').value;
-                    fetch('comparar_precios.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ nombre, descripcion })
-                    })
-                    .then(res => res.json())
-                    .then(data => {
-                        tablaComparador.innerHTML = '';
-                        if (data.length > 0) {
-                            data.forEach(tienda => {
-                                tablaComparador.innerHTML += `<tr>
-                                    <td>${tienda.tienda}</td>
-                                    <td>${tienda.precio ? '$' + tienda.precio : '-'}</td>
-                                    <td>${tienda.enlace ? `<a href="${tienda.enlace}" target="_blank">Ver producto</a>` : '-'}</td>
-                                </tr>`;
-                            });
-                        } else {
-                            tablaComparador.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Sin resultados</td></tr>';
-                        }
-                        btnComparar.disabled = false;
-                        btnComparar.innerHTML = '<i class="bi bi-arrow-repeat"></i> Actualizar precios';
-                    })
-                    .catch(() => {
-                        tablaComparador.innerHTML = '<tr><td colspan="3" class="text-center text-danger">Error al buscar precios</td></tr>';
-                        btnComparar.disabled = false;
-                        btnComparar.innerHTML = '<i class="bi bi-arrow-repeat"></i> Actualizar precios';
+                const tablaComparador = document.getElementById('tablaComparadorPrecios');
+                
+                // Solo ejecutar si existen los elementos del comparador
+                if (btnComparar && tablaComparador) {
+                    const tablaComparadorTbody = tablaComparador.querySelector('tbody');
+                    
+                    btnComparar.addEventListener('click', function() {
+                        btnComparar.disabled = true;
+                        btnComparar.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Buscando precios reales...';
+                        
+                        const nombre = document.getElementById('product_name').value;
+                        const sku = document.getElementById('sku').value;
+                        const descripcion = document.getElementById('description').value;
+                        
+                        fetch('comparar_precios.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ nombre, sku, descripcion })
+                        })
+                        .then(res => res.json())
+                        .then(data => {
+                            tablaComparadorTbody.innerHTML = '';
+                            if (data && data.length > 0) {
+                                data.forEach(tienda => {
+                                    let enlaceHtml = '-';
+                                    if (tienda.enlace && tienda.enlace !== '-') {
+                                        enlaceHtml = `<a href="${tienda.enlace}" target="_blank" class="btn btn-sm btn-outline-primary">Ver producto</a>`;
+                                    }
+                                    
+                                    let precioHtml = tienda.precio !== '-' ? '$' + tienda.precio : '<small class="text-muted">Haz clic en "Ver producto"</small>';
+                                    
+                                    let notaHtml = '';
+                                    if (tienda.nota) {
+                                        notaHtml = `<br><small class="text-info">${tienda.nota}</small>`;
+                                    }
+                                    
+                                    let nombreProductoHtml = '';
+                                    if (tienda.nombre_producto) {
+                                        nombreProductoHtml = `<br><small class="text-success">${tienda.nombre_producto.substring(0, 50)}${tienda.nombre_producto.length > 50 ? '...' : ''}</small>`;
+                                    }
+                                    
+                                    tablaComparadorTbody.innerHTML += `<tr>
+                                        <td><strong>${tienda.tienda}</strong>${notaHtml}${nombreProductoHtml}</td>
+                                        <td>${precioHtml}</td>
+                                        <td>${enlaceHtml}</td>
+                                    </tr>`;
+                                });
+                            } else {
+                                tablaComparadorTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Sin resultados</td></tr>';
+                            }
+                            btnComparar.disabled = false;
+                            btnComparar.innerHTML = '<i class="bi bi-arrow-repeat"></i> Actualizar precios';
+                        })
+                        .catch(() => {
+                            tablaComparadorTbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger">Error al buscar precios</td></tr>';
+                            btnComparar.disabled = false;
+                            btnComparar.innerHTML = '<i class="bi bi-arrow-repeat"></i> Actualizar precios';
+                        });
                     });
-                });
+                }
             </script>
         </body>
     </html>
