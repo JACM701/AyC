@@ -83,21 +83,55 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
+        body {
+            background: #f4f6fb;
+        }
         .main-content {
-            max-width: 440px;
+            max-width: 520px;
             margin: 40px auto 0 auto;
+            padding: 0;
         }
-        .main-content h2 {
+        .card-form {
+            background: #fff;
+            border-radius: 18px;
+            box-shadow: 0 4px 32px rgba(18,24,102,0.10);
+            padding: 36px 32px 32px 32px;
+            margin-bottom: 30px;
+        }
+        .card-form h2 {
+            text-align: center;
+            margin-bottom: 28px;
+            color: #121866;
+            font-size: 2.1rem;
+            font-weight: 700;
+        }
+        .form-section {
             margin-bottom: 22px;
+            padding-bottom: 18px;
+            border-bottom: 1.5px solid #f0f0f0;
         }
-        form label {
-            margin-top: 10px;
+        .form-section:last-child {
+            border-bottom: none;
         }
-        .form-group {
-            margin-bottom: 14px;
+        .form-label {
+            font-weight: 600;
+            color: #232a7c;
         }
-        .form-group input {
-            margin-top: 4px;
+        .input-group-text {
+            background: #f4f6fb;
+            border: none;
+            color: #232a7c;
+            font-size: 1.2rem;
+        }
+        .form-control, .form-select {
+            border-radius: 8px;
+            border: 1.5px solid #cfd8dc;
+            background: #f7f9fc;
+            font-size: 1rem;
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: #121866;
+            box-shadow: 0 0 0 2px #e3e6fa;
         }
         .form-actions {
             display: flex;
@@ -106,9 +140,6 @@
         }
         .form-actions button {
             flex: 1;
-        }
-        @media (max-width: 900px) {
-            .main-content { max-width: 98vw; padding: 0 2vw; }
         }
         .alert-auto-sku {
             display: flex;
@@ -128,6 +159,10 @@
             height: 26px;
             fill: #1565c0;
             flex-shrink: 0;
+        }
+        @media (max-width: 700px) {
+            .main-content { max-width: 98vw; padding: 0 2vw; }
+            .card-form { padding: 18px 6px; }
         }
     </style>
 </head>
@@ -154,116 +189,136 @@
         </a>
     </aside>
     <main class="main-content">
-        <h2>Agregar nuevo producto</h2>
-        <?php if ($sku_auto_generado): ?>
-            <div class="alert alert-info alert-dismissible fade show" role="alert">
-                <i class="bi bi-info-circle"></i>
-                El SKU se generó automáticamente: <b><?= htmlspecialchars($sku) ?></b>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        <?php endif; ?>
-        <?php if ($success): ?>
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <i class="bi bi-check-circle"></i>
-                <?= $success ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        <?php elseif ($error): ?>
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <i class="bi bi-exclamation-triangle"></i>
-                <?= $error ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        <?php endif; ?>
-        <form action="" method="POST" id="formAgregarProducto">
-            <div class="mb-3">
-                <label for="sku" class="form-label">SKU:</label>
-                <input type="text" class="form-control" name="sku" id="sku">
-                <div id="alertSkuRealtime" class="alert alert-info" style="display:none;margin-top:6px;">
+        <div class="card-form">
+            <h2><i class="bi bi-plus-circle"></i> Agregar producto</h2>
+            <?php if ($sku_auto_generado): ?>
+                <div class="alert alert-info alert-dismissible fade show" role="alert">
                     <i class="bi bi-info-circle"></i>
-                    Si dejas este campo vacío, el sistema generará un SKU automáticamente al guardar.
+                    El SKU se generó automáticamente: <b><?= htmlspecialchars($sku) ?></b>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
-            </div>
-            <div class="mb-3">
-                <label for="product_name" class="form-label">Nombre del producto:</label>
-                <input type="text" class="form-control" name="product_name" id="product_name" required>
-            </div>
-            <div class="mb-3">
-                <label for="description" class="form-label">Descripción:</label>
-                <textarea class="form-control" name="description" id="description"></textarea>
-            </div>
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label for="price" class="form-label">Precio:</label>
-                    <input type="number" step="0.01" class="form-control" name="price" id="price">
+            <?php endif; ?>
+            <?php if ($success): ?>
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="bi bi-check-circle"></i>
+                    <?= $success ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
-                <div class="col-md-6 mb-3">
-                    <label for="quantity" class="form-label">Cantidad:</label>
-                    <input type="number" class="form-control" name="quantity" id="quantity" required>
+            <?php elseif ($error): ?>
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <?= $error ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
-            </div>
-            <div class="mb-3">
-                <label class="form-label">Comparador de precios</label>
-                <div class="d-flex gap-2 mb-2">
-                    <button type="button" class="btn btn-warning btn-sm" id="btnCompararPrecios">
-                        <i class="bi bi-arrow-repeat"></i> Actualizar precios
+            <?php endif; ?>
+            <form action="" method="POST" id="formAgregarProducto">
+                <div class="form-section">
+                    <div class="mb-3">
+                        <label for="product_name" class="form-label">Nombre del producto</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-box"></i></span>
+                            <input type="text" class="form-control" name="product_name" id="product_name" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="sku" class="form-label">SKU</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
+                            <input type="text" class="form-control" name="sku" id="sku">
+                        </div>
+                        <div id="alertSkuRealtime" class="alert alert-info" style="display:none;margin-top:6px;">
+                            <i class="bi bi-info-circle"></i>
+                            Si dejas este campo vacío, el sistema generará un SKU automáticamente al guardar.
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Descripción</label>
+                        <textarea class="form-control" name="description" id="description" rows="2" placeholder="Descripción breve del producto"></textarea>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <div class="row g-2">
+                        <div class="col-md-6 mb-3">
+                            <label for="price" class="form-label">Precio</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-currency-dollar"></i></span>
+                                <input type="number" step="0.01" class="form-control" name="price" id="price">
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="quantity" class="form-label">Cantidad</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-123"></i></span>
+                                <input type="number" class="form-control" name="quantity" id="quantity" required>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <div class="row g-2">
+                        <div class="col-md-6 mb-3">
+                            <label for="category" class="form-label">Categoría</label>
+                            <select class="form-select" name="category" id="category">
+                                <option value="">Selecciona una categoría</option>
+                                <?php $categorias->data_seek(0); while ($row = $categorias->fetch_assoc()): ?>
+                                    <option value="<?= htmlspecialchars($row['category_id']) ?>"><?= htmlspecialchars($row['name']) ?></option>
+                                <?php endwhile; ?>
+                            </select>
+                            <div class="mt-2">
+                                <small class="text-muted">O escribe una nueva categoría:</small>
+                                <input type="text" class="form-control mt-1" name="new_category" id="new_category" placeholder="Nueva categoría (opcional)">
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="supplier" class="form-label">Proveedor</label>
+                            <select class="form-select" name="supplier" id="supplier">
+                                <option value="">Selecciona un proveedor</option>
+                                <?php $proveedores->data_seek(0); while ($row = $proveedores->fetch_assoc()): ?>
+                                    <option value="<?= htmlspecialchars($row['supplier']) ?>"><?= htmlspecialchars($row['supplier']) ?></option>
+                                <?php endwhile; ?>
+                            </select>
+                            <div class="mt-2">
+                                <small class="text-muted">O escribe un nuevo proveedor:</small>
+                                <input type="text" class="form-control mt-1" name="new_supplier" id="new_supplier" placeholder="Nuevo proveedor (opcional)">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <label class="form-label">Comparador de precios</label>
+                    <div class="d-flex gap-2 mb-2">
+                        <button type="button" class="btn btn-warning btn-sm" id="btnCompararPrecios">
+                            <i class="bi bi-arrow-repeat"></i> Actualizar precios
+                        </button>
+                        <a href="configurar_tvc.php" class="btn btn-info btn-sm">
+                            <i class="bi bi-gear"></i> Configurar TVC.mx
+                        </a>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-sm align-middle" id="tablaComparadorPrecios">
+                            <thead>
+                                <tr>
+                                    <th>Tienda</th>
+                                    <th>Precio</th>
+                                    <th>Enlace</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td colspan="3" class="text-center text-muted">Sin datos</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary flex-fill">
+                        <i class="bi bi-plus-circle"></i> Agregar producto
                     </button>
-                    <a href="configurar_tvc.php" class="btn btn-info btn-sm">
-                        <i class="bi bi-gear"></i> Configurar TVC.mx
+                    <a href="list.php" class="btn btn-secondary flex-fill">
+                        <i class="bi bi-arrow-left"></i> Volver al listado
                     </a>
                 </div>
-                <div class="table-responsive">
-                    <table class="table table-bordered table-sm align-middle" id="tablaComparadorPrecios">
-                        <thead>
-                            <tr>
-                                <th>Tienda</th>
-                                <th>Precio</th>
-                                <th>Enlace</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr><td colspan="3" class="text-center text-muted">Sin datos</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label for="category" class="form-label">Categoría:</label>
-                    <select class="form-control" name="category" id="category">
-                        <option value="">Selecciona una categoría</option>
-                        <?php $categorias->data_seek(0); while ($row = $categorias->fetch_assoc()): ?>
-                            <option value="<?= htmlspecialchars($row['category_id']) ?>"><?= htmlspecialchars($row['name']) ?></option>
-                        <?php endwhile; ?>
-                    </select>
-                    <div class="mt-2">
-                        <small class="text-muted">O escribe una nueva categoría:</small>
-                        <input type="text" class="form-control mt-1" name="new_category" id="new_category" placeholder="Nueva categoría (opcional)">
-                    </div>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label for="supplier" class="form-label">Proveedor:</label>
-                    <select class="form-control" name="supplier" id="supplier">
-                        <option value="">Selecciona un proveedor</option>
-                        <?php $proveedores->data_seek(0); while ($row = $proveedores->fetch_assoc()): ?>
-                            <option value="<?= htmlspecialchars($row['supplier']) ?>"><?= htmlspecialchars($row['supplier']) ?></option>
-                        <?php endwhile; ?>
-                    </select>
-                    <div class="mt-2">
-                        <small class="text-muted">O escribe un nuevo proveedor:</small>
-                        <input type="text" class="form-control mt-1" name="new_supplier" id="new_supplier" placeholder="Nuevo proveedor (opcional)">
-                    </div>
-                </div>
-            </div>
-            <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-primary flex-fill">
-                    <i class="bi bi-plus-circle"></i> Agregar producto
-                </button>
-                <a href="list.php" class="btn btn-secondary flex-fill">
-                    <i class="bi bi-arrow-left"></i> Volver al listado
-                </a>
-            </div>
-        </form>
+            </form>
+        </div>
     </main>
     <script src="../assets/js/script.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

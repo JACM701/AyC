@@ -121,7 +121,12 @@
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
-        <form action="" method="POST">
+        <form action="" method="POST" id="formMovimiento">
+            <div class="mb-3">
+                <label for="barcode" class="form-label">Código de barras (escanea aquí):</label>
+                <input type="text" class="form-control" id="barcode" placeholder="Escanea el código de barras aquí">
+                <div id="barcodePreview" class="form-text text-success"></div>
+            </div>
             <div class="mb-3">
                 <label for="product_id" class="form-label">Producto:</label>
                 <select name="product_id" id="product_id" class="form-select" required>
@@ -154,5 +159,28 @@
     </main>
     <script src="../assets/js/script.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Solo enfocar el campo de código de barras al cargar la página
+        const barcodeInput = document.getElementById('barcode');
+        const barcodePreview = document.getElementById('barcodePreview');
+        barcodeInput.focus();
+        // Mostrar el código de barras capturado en tiempo real
+        barcodeInput.addEventListener('input', function() {
+            if (barcodeInput.value.trim() !== '') {
+                barcodePreview.textContent = 'Código capturado: ' + barcodeInput.value;
+            } else {
+                barcodePreview.textContent = '';
+            }
+        });
+        // Limpiar el campo al presionar Enter (usualmente el escáner lo envía al final)
+        barcodeInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                barcodePreview.textContent = 'Código capturado: ' + barcodeInput.value;
+                barcodeInput.value = '';
+                setTimeout(() => { barcodePreview.textContent = ''; }, 2000);
+            }
+        });
+    </script>
 </body>
 </html>

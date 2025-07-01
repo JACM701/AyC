@@ -99,6 +99,105 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
+        body {
+            background: #f4f6fb;
+        }
+        .main-content {
+            background: #f4f6fb;
+            border-radius: 18px;
+            box-shadow: 0 4px 32px rgba(18,24,102,0.07);
+            margin-top: 18px;
+            padding: 0 0 32px 0;
+        }
+        .dashboard-header {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 36px;
+            align-items: center;
+        }
+        .dashboard-header h2 {
+            font-size: 2.2rem;
+            color: #121866;
+            font-weight: 800;
+            margin-bottom: 0;
+            letter-spacing: 0.5px;
+        }
+        .dashboard-header p {
+            color: #232a7c;
+            font-size: 1.15rem;
+            margin: 0;
+        }
+        .dashboard-cards {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 32px;
+            margin: 0 0 18px 0;
+            justify-content: center;
+        }
+        .card {
+            flex: 1 1 220px;
+            background: #fff;
+            padding: 38px 24px 30px 24px;
+            border-radius: 14px;
+            text-align: center;
+            box-shadow: 0 2px 16px rgba(18,24,102,0.10);
+            border: 1.5px solid #e3e6f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-width: 220px;
+            min-height: 140px;
+            position: relative;
+        }
+        .card h3 {
+            color: #121866;
+            font-size: 1.15rem;
+            margin-bottom: 12px;
+            font-weight: 700;
+        }
+        .card p {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: #232a7c;
+            margin: 0;
+        }
+        .card .icon {
+            font-size: 2.2rem;
+            color: #232a7c;
+            margin-bottom: 8px;
+        }
+        .dashboard-extra {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 24px;
+            margin-bottom: 32px;
+            justify-content: center;
+        }
+        .extra-card {
+            flex: 1 1 220px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(18,24,102,0.07);
+            padding: 18px 18px 14px 18px;
+            min-width: 220px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            border-left: 5px solid #121866;
+        }
+        .extra-card h4 {
+            color: #121866;
+            font-size: 1.05rem;
+            margin-bottom: 6px;
+            font-weight: 700;
+        }
+        .extra-card p {
+            font-size: 1.1rem;
+            color: #232a7c;
+            margin: 0;
+        }
         .header-hora {
             display: flex;
             align-items: center;
@@ -125,35 +224,6 @@
             color: #121866;
             font-weight: 600;
             margin-left: 18px;
-        }
-        .dashboard-extra {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 24px;
-            margin-bottom: 32px;
-        }
-        .extra-card {
-            flex: 1 1 220px;
-            background: #f7f9fc;
-            border-radius: 10px;
-            box-shadow: 0 2px 8px rgba(18,24,102,0.07);
-            padding: 18px 18px 14px 18px;
-            min-width: 220px;
-        }
-        .extra-card h4 {
-            color: #121866;
-            font-size: 1.05rem;
-            margin-bottom: 6px;
-            font-weight: 700;
-        }
-        .extra-card p {
-            font-size: 1.1rem;
-            color: #232a7c;
-            margin: 0;
-        }
-        @media (max-width: 900px) {
-            .dashboard-extra { flex-direction: column; gap: 12px; }
-            .header-hora { flex-direction: column; gap: 8px; padding: 12px 10px; }
         }
         .dashboard-graficas {
             display: flex;
@@ -211,43 +281,10 @@
             .grafica-card { max-width: 98vw; }
             .grafica-card canvas { width: 90vw !important; height: 90vw !important; max-width: 350px; max-height: 350px; }
             .grafica-card.barras canvas { width: 100% !important; height: 240px !important; max-width: 98vw; max-height: 300px; }
-        }
-        /* Mejorar el look general del dashboard */
-        .main-content {
-            background: #f4f6fb;
-            border-radius: 18px;
-            box-shadow: 0 4px 32px rgba(18,24,102,0.07);
-            margin-top: 18px;
-        }
-        .dashboard-header h2 {
-            font-size: 2.2rem;
-            color: #121866;
-            font-weight: 800;
-            margin-bottom: 0;
-            letter-spacing: 0.5px;
-        }
-        .dashboard-header p {
-            color: #232a7c;
-            font-size: 1.15rem;
-            margin: 0;
-        }
-        .dashboard-cards {
-            margin-bottom: 18px;
-        }
-        .card {
-            border: 2px solid #e3e6f0;
-            box-shadow: 0 2px 12px rgba(18,24,102,0.08);
-            background: linear-gradient(120deg, #f7f9fc 60%, #e3e6f0 100%);
-        }
-        .card h3 {
-            font-size: 1.08rem;
-            color: #232a7c;
-            font-weight: 700;
-        }
-        .card p {
-            font-size: 2.1rem;
-            color: #121866;
-            font-weight: 800;
+            .dashboard-cards { flex-direction: column; gap: 18px; }
+            .dashboard-header h2 { font-size: 1.3rem; }
+            .dashboard-extra { flex-direction: column; gap: 12px; }
+            .header-hora { flex-direction: column; gap: 8px; padding: 12px 10px; }
         }
     </style>
 </head>
@@ -260,64 +297,68 @@
             <span class="usuario">👤 <?= htmlspecialchars($username) ?></span>
         </div>
         <div class="dashboard-header">
-            <h2>Bienvenido al panel de control</h2>
+            <h2><i class="bi bi-speedometer2"></i> Bienvenido al panel de control</h2>
             <p>Consulta el estado general de tu inventario y accede rápidamente a las secciones principales.</p>
-        </div>
-        <div class="dashboard-extra">
-            <div class="extra-card">
-                <h4>Producto con menor stock</h4>
-                <p><?= $min_stock ? htmlspecialchars($min_stock['product_name']) . ' (' . $min_stock['quantity'] . ')' : 'N/A' ?></p>
-            </div>
-            <div class="extra-card">
-                <h4>Producto con mayor stock</h4>
-                <p><?= $max_stock ? htmlspecialchars($max_stock['product_name']) . ' (' . $max_stock['quantity'] . ')' : 'N/A' ?></p>
-            </div>
-            <div class="extra-card">
-                <h4>Movimientos de hoy</h4>
-                <p><?= $movimientos_hoy ?></p>
-            </div>
-            <div class="extra-card">
-                <h4>Último producto agregado</h4>
-                <p><?= $last_product ? htmlspecialchars($last_product['product_name']) . ' (' . date('d/m/Y', strtotime($last_product['created_at'])) . ')' : 'N/A' ?></p>
-            </div>
-            <div class="extra-card">
-                <h4>Producto más movido</h4>
-                <p><?= $most_moved ? htmlspecialchars($most_moved['product_name']) . ' (' . $most_moved['total_movs'] . ' movimientos)' : 'N/A' ?></p>
-            </div>
-            <div class="extra-card">
-                <h4>Categoría principal</h4>
-                <p><?= $top_category ? htmlspecialchars($top_category['category_name']) . ' (' . $top_category['total'] . ' productos)' : 'N/A' ?></p>
-            </div>
-            <div class="extra-card">
-                <h4>Proveedor principal</h4>
-                <p><?= $top_supplier ? htmlspecialchars($top_supplier['supplier']) . ' (' . $top_supplier['total'] . ' productos)' : 'N/A' ?></p>
-            </div>
         </div>
         <div class="dashboard-cards">
             <div class="card">
+                <span class="icon"><i class="bi bi-box-seam"></i></span>
                 <h3>Total de productos</h3>
                 <p><?= $total_products ?></p>
             </div>
             <div class="card">
+                <span class="icon"><i class="bi bi-arrow-down-circle"></i></span>
                 <h3>Entradas de inventario</h3>
                 <p><?= $total_in ?></p>
             </div>
             <div class="card">
+                <span class="icon"><i class="bi bi-arrow-up-circle"></i></span>
                 <h3>Salidas de inventario</h3>
                 <p><?= $total_out ?></p>
             </div>
             <div class="card">
+                <span class="icon"><i class="bi bi-archive"></i></span>
                 <h3>Inventario actual</h3>
                 <p><?= $total_quantity ?></p>
             </div>
         </div>
+        <div class="dashboard-extra">
+            <div class="extra-card">
+                <h4><i class="bi bi-arrow-bar-down"></i> Producto con menor stock</h4>
+                <p><?= $min_stock ? htmlspecialchars($min_stock['product_name']) . ' (' . $min_stock['quantity'] . ')' : 'N/A' ?></p>
+            </div>
+            <div class="extra-card">
+                <h4><i class="bi bi-arrow-bar-up"></i> Producto con mayor stock</h4>
+                <p><?= $max_stock ? htmlspecialchars($max_stock['product_name']) . ' (' . $max_stock['quantity'] . ')' : 'N/A' ?></p>
+            </div>
+            <div class="extra-card">
+                <h4><i class="bi bi-calendar-event"></i> Movimientos de hoy</h4>
+                <p><?= $movimientos_hoy ?></p>
+            </div>
+            <div class="extra-card">
+                <h4><i class="bi bi-plus-circle"></i> Último producto agregado</h4>
+                <p><?= $last_product ? htmlspecialchars($last_product['product_name']) . ' (' . date('d/m/Y', strtotime($last_product['created_at'])) . ')' : 'N/A' ?></p>
+            </div>
+            <div class="extra-card">
+                <h4><i class="bi bi-arrow-repeat"></i> Producto más movido</h4>
+                <p><?= $most_moved ? htmlspecialchars($most_moved['product_name']) . ' (' . $most_moved['total_movs'] . ' movimientos)' : 'N/A' ?></p>
+            </div>
+            <div class="extra-card">
+                <h4><i class="bi bi-tags"></i> Categoría principal</h4>
+                <p><?= $top_category ? htmlspecialchars($top_category['category_name']) . ' (' . $top_category['total'] . ' productos)' : 'N/A' ?></p>
+            </div>
+            <div class="extra-card">
+                <h4><i class="bi bi-truck"></i> Proveedor principal</h4>
+                <p><?= $top_supplier ? htmlspecialchars($top_supplier['supplier']) . ' (' . $top_supplier['total'] . ' productos)' : 'N/A' ?></p>
+            </div>
+        </div>
         <div class="dashboard-graficas">
             <div class="grafica-card">
-                <h3>Stock por producto</h3>
+                <h3><i class="bi bi-pie-chart"></i> Stock por producto</h3>
                 <canvas id="graficaStock"></canvas>
             </div>
             <div class="grafica-card barras">
-                <h3>Movimientos últimos 7 días</h3>
+                <h3><i class="bi bi-bar-chart"></i> Movimientos últimos 7 días</h3>
                 <canvas id="graficaMovimientos"></canvas>
             </div>
         </div>
