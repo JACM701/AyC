@@ -18,6 +18,10 @@
             <i class="bi bi-arrow-left-right"></i>
             <span class="nav-text">Movimientos</span>
         </a>
+        <a href="../configuracion/index.php" class="sidebar-configuracion" title="Configuración">
+            <i class="bi bi-gear"></i>
+            <span class="nav-text">Configuración</span>
+        </a>
     </nav>
     <a href="../auth/logout.php" class="logout" title="Cerrar sesión">
         <i class="bi bi-box-arrow-right"></i>

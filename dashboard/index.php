@@ -3,13 +3,24 @@
     require_once '../connection.php';
 
     // Obtener nombre de usuario
-    $admin_id = $_SESSION['admin_id'];
-    $stmt = $mysqli->prepare("SELECT username FROM admins WHERE admin_id = ?");
-    $stmt->bind_param('i', $admin_id);
-    $stmt->execute();
-    $stmt->bind_result($username);
-    $stmt->fetch();
-    $stmt->close();
+    $username = '';
+    if (isset($_SESSION['admin_id'])) {
+        $admin_id = $_SESSION['admin_id'];
+        $stmt = $mysqli->prepare("SELECT username FROM admins WHERE admin_id = ?");
+        $stmt->bind_param('i', $admin_id);
+        $stmt->execute();
+        $stmt->bind_result($username);
+        $stmt->fetch();
+        $stmt->close();
+    } elseif (isset($_SESSION['user_id'])) {
+        $user_id = $_SESSION['user_id'];
+        $stmt = $mysqli->prepare("SELECT username FROM users WHERE user_id = ?");
+        $stmt->bind_param('i', $user_id);
+        $stmt->execute();
+        $stmt->bind_result($username);
+        $stmt->fetch();
+        $stmt->close();
+    }
 
     // Estadísticas principales
     $result = $mysqli->query("SELECT COUNT(*) AS total_products FROM products");
