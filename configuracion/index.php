@@ -4,14 +4,23 @@ require_once '../connection.php';
 
 $success = $error = '';
 
+// Obtener roles para los selects
+$roles = $mysqli->query("SELECT rol_id, nombre FROM rol ORDER BY nombre ASC");
+$roles_array = [];
+if ($roles) {
+    while ($r = $roles->fetch_assoc()) {
+        $roles_array[] = $r;
+    }
+}
+
 // Editar usuario
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion']) && $_POST['accion'] === 'editar') {
     $user_id = intval($_POST['user_id']);
     $username = trim($_POST['username']);
     $email = trim($_POST['email']);
-    $rol = $_POST['rol'];
+    $rol_id = intval($_POST['rol_id']);
     $password = $_POST['password'];
-    if ($user_id && $username && $email && in_array($rol, ['admin','user','viewer'])) {
+    if ($user_id && $username && $email && $rol_id) {
         // Verificar duplicados (excepto el propio usuario)
         $stmt = $mysqli->prepare("SELECT COUNT(*) FROM users WHERE (username = ? OR email = ?) AND user_id != ?");
         $stmt->bind_param('ssi', $username, $email, $user_id);
@@ -24,11 +33,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion']) && $_POST['
         } else {
             if ($password) {
                 $hash = password_hash($password, PASSWORD_DEFAULT);
-                $stmt = $mysqli->prepare("UPDATE users SET username=?, email=?, password=?, role=? WHERE user_id=?");
-                $stmt->bind_param('ssssi', $username, $email, $hash, $rol, $user_id);
+                $stmt = $mysqli->prepare("UPDATE users SET username=?, email=?, password=?, rol_id=? WHERE user_id=?");
+                $stmt->bind_param('sssii', $username, $email, $hash, $rol_id, $user_id);
             } else {
-                $stmt = $mysqli->prepare("UPDATE users SET username=?, email=?, role=? WHERE user_id=?");
-                $stmt->bind_param('sssi', $username, $email, $rol, $user_id);
+                $stmt = $mysqli->prepare("UPDATE users SET username=?, email=?, rol_id=? WHERE user_id=?");
+                $stmt->bind_param('ssii', $username, $email, $rol_id, $user_id);
             }
             if ($stmt->execute()) {
                 $success = 'Usuario actualizado correctamente.';
@@ -64,8 +73,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion']) && $_POST['
     $username = trim($_POST['username']);
     $email = trim($_POST['email']);
     $password = $_POST['password'];
-    $rol = $_POST['rol'];
-    if ($username && $email && $password && in_array($rol, ['admin','user','viewer'])) {
+    $rol_id = intval($_POST['rol_id']);
+    if ($username && $email && $password && $rol_id) {
         // Verificar duplicados
         $stmt = $mysqli->prepare("SELECT COUNT(*) FROM users WHERE username = ? OR email = ?");
         $stmt->bind_param('ss', $username, $email);
@@ -77,8 +86,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion']) && $_POST['
             $error = 'El usuario o email ya existe.';
         } else {
             $hash = password_hash($password, PASSWORD_DEFAULT);
-            $stmt = $mysqli->prepare("INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)");
-            $stmt->bind_param('ssss', $username, $email, $hash, $rol);
+            $stmt = $mysqli->prepare("INSERT INTO users (username, email, password, rol_id) VALUES (?, ?, ?, ?)");
+            $stmt->bind_param('sssi', $username, $email, $hash, $rol_id);
             if ($stmt->execute()) {
                 $success = 'Usuario agregado correctamente.';
             } else {
@@ -91,8 +100,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion']) && $_POST['
     }
 }
 
-// Obtener usuarios
-$usuarios = $mysqli->query("SELECT * FROM users ORDER BY created_at DESC");
+// Obtener usuarios con JOIN a rol
+$usuarios = $mysqli->query("SELECT u.*, r.nombre AS rol_nombre FROM users u LEFT JOIN rol r ON u.rol_id = r.rol_id ORDER BY u.created_at DESC");
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -103,76 +112,69 @@ $usuarios = $mysqli->query("SELECT * FROM users ORDER BY created_at DESC");
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        .form-wrapper {
-            max-width: 900px;
-            margin: 40px auto 0 auto;
-        }
-        @media (max-width: 700px) {
-            .form-wrapper { max-width: 98vw; padding: 0 2vw; }
-        }
+        .main-content { max-width: 900px; margin: 40px auto 0 auto; padding: 24px; }
+        .acciones { display: flex; gap: 6px; justify-content: center; }
     </style>
 </head>
 <body>
 <?php include '../includes/sidebar.php'; ?>
 <main class="main-content">
-    <div class="form-wrapper">
-        <h2><i class="bi bi-gear"></i> Configuración de usuarios</h2>
-        <?php if ($success): ?>
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <i class="bi bi-check-circle"></i> <?= $success ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        <?php elseif ($error): ?>
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <i class="bi bi-exclamation-triangle"></i> <?= $error ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        <?php endif; ?>
-        <div class="mb-3 d-flex justify-content-between align-items-center">
-            <span class="text-muted">Gestión de usuarios y accesos</span>
-            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAgregarUsuario"><i class="bi bi-person-plus"></i> Agregar usuario</button>
+    <h2><i class="bi bi-gear"></i> Configuración de usuarios</h2>
+    <?php if ($success): ?>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle"></i> <?= $success ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
-        <div class="table-responsive">
-            <table class="table table-striped table-hover">
-                <thead class="table-dark">
-                    <tr>
-                        <th>#</th>
-                        <th>Usuario</th>
-                        <th>Email</th>
-                        <th>Rol</th>
-                        <th>Fecha de alta</th>
-                        <th style="text-align:center;">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if ($usuarios && $usuarios->num_rows > 0): $i=1; ?>
-                        <?php while ($u = $usuarios->fetch_assoc()): ?>
-                            <tr>
-                                <td><?= $i++ ?></td>
-                                <td><?= htmlspecialchars($u['username']) ?></td>
-                                <td><?= htmlspecialchars($u['email']) ?></td>
-                                <td><span class="badge bg-info text-dark"><?= htmlspecialchars($u['role']) ?></span></td>
-                                <td><?= date('d/m/Y', strtotime($u['created_at'])) ?></td>
-                                <td class="acciones">
-                                    <button class="btn btn-outline-primary btn-sm btn-edit-user" 
-                                        data-user-id="<?= $u['user_id'] ?>"
-                                        data-username="<?= htmlspecialchars($u['username']) ?>"
-                                        data-email="<?= htmlspecialchars($u['email']) ?>"
-                                        data-rol="<?= htmlspecialchars($u['role']) ?>"
-                                        title="Editar"><i class="bi bi-pencil-square"></i></button>
-                                    <button class="btn btn-outline-danger btn-sm btn-delete-user" 
-                                        data-user-id="<?= $u['user_id'] ?>"
-                                        data-username="<?= htmlspecialchars($u['username']) ?>"
-                                        title="Eliminar"><i class="bi bi-trash3"></i></button>
-                                </td>
-                            </tr>
-                        <?php endwhile; ?>
-                    <?php else: ?>
-                        <tr><td colspan="6" class="text-center text-muted">No hay usuarios registrados.</td></tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
+    <?php elseif ($error): ?>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle"></i> <?= $error ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
+    <?php endif; ?>
+    <div class="mb-3 d-flex justify-content-between align-items-center">
+        <span class="text-muted">Gestión de usuarios y accesos</span>
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAgregarUsuario"><i class="bi bi-person-plus"></i> Agregar usuario</button>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>#</th>
+                    <th>Usuario</th>
+                    <th>Email</th>
+                    <th>Rol</th>
+                    <th>Fecha de alta</th>
+                    <th style="text-align:center;">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if ($usuarios && $usuarios->num_rows > 0): $i=1; ?>
+                    <?php while ($u = $usuarios->fetch_assoc()): ?>
+                        <tr>
+                            <td><?= $i++ ?></td>
+                            <td><?= htmlspecialchars($u['username']) ?></td>
+                            <td><?= htmlspecialchars($u['email']) ?></td>
+                            <td><span class="badge bg-info text-dark"><?= htmlspecialchars($u['rol_nombre']) ?></span></td>
+                            <td><?= date('d/m/Y', strtotime($u['created_at'])) ?></td>
+                            <td class="acciones">
+                                <button class="btn btn-outline-primary btn-sm btn-edit-user" 
+                                    data-user-id="<?= $u['user_id'] ?>"
+                                    data-username="<?= htmlspecialchars($u['username']) ?>"
+                                    data-email="<?= htmlspecialchars($u['email']) ?>"
+                                    data-rol-id="<?= $u['rol_id'] ?>"
+                                    title="Editar"><i class="bi bi-pencil-square"></i></button>
+                                <button class="btn btn-outline-danger btn-sm btn-delete-user" 
+                                    data-user-id="<?= $u['user_id'] ?>"
+                                    data-username="<?= htmlspecialchars($u['username']) ?>"
+                                    title="Eliminar"><i class="bi bi-trash3"></i></button>
+                            </td>
+                        </tr>
+                    <?php endwhile; ?>
+                <?php else: ?>
+                    <tr><td colspan="6" class="text-center text-muted">No hay usuarios registrados.</td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
     </div>
 </main>
 <!-- Modal agregar usuario -->
@@ -199,11 +201,12 @@ $usuarios = $mysqli->query("SELECT * FROM users ORDER BY created_at DESC");
                         <input type="password" class="form-control" name="password" id="password" required>
                     </div>
                     <div class="mb-3">
-                        <label for="rol" class="form-label">Rol</label>
-                        <select class="form-select" name="rol" id="rol" required>
-                            <option value="user">Usuario</option>
-                            <option value="admin">Administrador</option>
-                            <option value="viewer">Solo lectura</option>
+                        <label for="rol_id" class="form-label">Rol</label>
+                        <select class="form-select" name="rol_id" id="rol_id" required>
+                            <option value="">Selecciona un rol</option>
+                            <?php foreach ($roles_array as $rol): ?>
+                                <option value="<?= $rol['rol_id'] ?>"><?= htmlspecialchars($rol['nombre']) ?></option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
                 </div>
@@ -240,11 +243,12 @@ $usuarios = $mysqli->query("SELECT * FROM users ORDER BY created_at DESC");
                         <input type="password" class="form-control" name="password" id="edit_password">
                     </div>
                     <div class="mb-3">
-                        <label for="edit_rol" class="form-label">Rol</label>
-                        <select class="form-select" name="rol" id="edit_rol" required>
-                            <option value="user">Usuario</option>
-                            <option value="admin">Administrador</option>
-                            <option value="viewer">Solo lectura</option>
+                        <label for="edit_rol_id" class="form-label">Rol</label>
+                        <select class="form-select" name="rol_id" id="edit_rol_id" required>
+                            <option value="">Selecciona un rol</option>
+                            <?php foreach ($roles_array as $rol): ?>
+                                <option value="<?= $rol['rol_id'] ?>"><?= htmlspecialchars($rol['nombre']) ?></option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
                 </div>
@@ -289,7 +293,7 @@ $usuarios = $mysqli->query("SELECT * FROM users ORDER BY created_at DESC");
             document.getElementById('edit_user_id').value = this.dataset.userId;
             document.getElementById('edit_username').value = this.dataset.username;
             document.getElementById('edit_email').value = this.dataset.email;
-            document.getElementById('edit_rol').value = this.dataset.rol;
+            document.getElementById('edit_rol_id').value = this.dataset.rolId;
             document.getElementById('edit_password').value = '';
             const modal = new bootstrap.Modal(document.getElementById('modalEditarUsuario'));
             modal.show();
@@ -306,4 +310,4 @@ $usuarios = $mysqli->query("SELECT * FROM users ORDER BY created_at DESC");
     });
 </script>
 </body>
-</html> 
+</html>

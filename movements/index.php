@@ -2,15 +2,18 @@
     require_once '../auth/middleware.php';
     require_once '../connection.php';
 
-    // Obtener movimientos con nombre de producto
+    // Obtener movimientos con nombre de producto y tipo de movimiento
     $query = "
         SELECT 
             m.*, 
-            p.product_name 
+            p.product_name,
+            mt.nombre AS movement_type_nombre
         FROM 
             movements m
         JOIN 
             products p ON m.product_id = p.product_id
+        LEFT JOIN
+            movement_type mt ON m.movement_type_id = mt.Id_tipo
         ORDER BY 
             m.movement_date DESC
     ";
@@ -94,7 +97,7 @@
                             <td><?= $row['movement_id'] ?></td>
                             <td><?= htmlspecialchars($row['product_name']) ?></td>
                             <td>
-                                <?= $row['movement_type'] === 'in' ? '<span class="badge bg-success"><i class="bi bi-arrow-down-circle"></i> Entrada</span>' : '<span class="badge bg-danger"><i class="bi bi-arrow-up-circle"></i> Salida</span>' ?>
+                                <span class="badge bg-info text-dark"><?= htmlspecialchars($row['movement_type_nombre']) ?></span>
                             </td>
                             <td><strong><?= $row['quantity'] ?></strong></td>
                             <td><?= date('d/m/Y H:i', strtotime($row['movement_date'])) ?></td>

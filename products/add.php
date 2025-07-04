@@ -26,7 +26,7 @@
         
         // Nuevo: tipo de gestión
         $tipo_gestion = isset($_POST['tipo_gestion']) ? $_POST['tipo_gestion'] : 'normal';
-        $allowed_tipos = ['normal','bobina','bolsa','par','kit'];
+        $allowed_tipos = ['normal','bobina','bolsa','par'];
         if (!in_array($tipo_gestion, $allowed_tipos)) $tipo_gestion = 'normal';
         
         // Manejar categoría (existente o nueva)
@@ -92,10 +92,10 @@
                 $new_product_id = $stmt->insert_id;
                 // Si el tipo de gestión es bobina, redirigir a registrar bobinas
                 if ($tipo_gestion === 'bobina') {
-                    header("Location: ../bobinas/add.php?product_id=" . $new_product_id);
-                    exit;
+                    $success = "Producto agregado correctamente. Ahora puedes registrar la bobina.";
+                } else {
+                    $success = "Producto agregado correctamente.";
                 }
-                $success = "Producto agregado correctamente.";
             } else {
                 $error = "Error en la base de datos: " . $stmt->error;
             }
@@ -316,14 +316,14 @@
                             </div>
                         </div>
                     </div>
-                    <div class="mb-3">
+                    
+                    <!--<div class="mb-3">
                         <label for="tipo_gestion" class="form-label">Tipo de gestión de inventario</label>
                         <select class="form-select" name="tipo_gestion" id="tipo_gestion" required>
                             <option value="normal">Normal (por unidades)</option>
                             <option value="bobina">Bobina (metros)</option>
                             <option value="bolsa">Bolsa</option>
                             <option value="par">Par</option>
-                            <option value="kit">Kit</option>
                         </select>
                     </div>
                     <div class="form-section" id="bobinaSection" style="display:none;">
@@ -336,6 +336,7 @@
                             <input type="text" class="form-control" name="identificador" id="identificador" placeholder="Ej: Bobina #1, Lote 2024, etc.">
                         </div>
                     </div>
+                                    -->
                     <div class="form-actions">
                         <button type="submit" class="btn btn-primary flex-fill">
                             <i class="bi bi-plus-circle"></i> Agregar producto
