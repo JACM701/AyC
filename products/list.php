@@ -184,6 +184,7 @@
                     <thead class="table-dark">
                         <tr>
                             <th scope="col">#</th>
+                            <th scope="col" class="img-col">Imagen</th>
                             <th scope="col">Producto</th>
                             <th scope="col" class="barcode-col">Código de barras</th>
                             <th scope="col">Categoría</th>
@@ -198,22 +199,26 @@
                         <?php while ($row = $result->fetch_assoc()): ?>
                             <tr>
                                 <td><?= htmlspecialchars($row['product_id']) ?></td>
+                                <td class="img-col">
+                                    <?php 
+                                    $img_path = isset($row['image']) && $row['image'] ? $row['image'] : '';
+                                    $img_src = $img_path && file_exists(__DIR__ . '/../' . $img_path) ? '../' . $img_path : '';
+                                    ?>
+                                    <?php if ($img_src): ?>
+                                        <img src="<?= htmlspecialchars($img_src) ?>" alt="Imagen" class="img-col-img">
+                                    <?php else: ?>
+                                        <span class="img-placeholder"><i class="bi bi-box"></i></span>
+                                    <?php endif; ?>
+                                </td>
                                 <td>
-                                    <div class="img-nombre-wrap">
-                                        <?php if (isset($row['image']) && $row['image']): ?>
-                                            <img src="<?= htmlspecialchars($row['image']) ?>" alt="Imagen" class="img-col-img">
-                                        <?php else: ?>
-                                            <span class="img-placeholder"><i class="bi bi-box"></i></span>
+                                    <div>
+                                        <span class="nombre-producto"><?= htmlspecialchars($row['product_name']) ?></span>
+                                        <?php if ($row['sku']): ?>
+                                            <br><span class="sku-badge" title="Código interno SKU">SKU: <?= htmlspecialchars($row['sku']) ?></span>
                                         <?php endif; ?>
-                                        <div>
-                                            <span class="nombre-producto"><?= htmlspecialchars($row['product_name']) ?></span>
-                                            <?php if ($row['sku']): ?>
-                                                <br><span class="sku-badge" title="Código interno SKU">SKU: <?= htmlspecialchars($row['sku']) ?></span>
-                                            <?php endif; ?>
-                                            <?php if ($row['description']): ?>
-                                                <br><span class="desc-producto"><?= htmlspecialchars(substr($row['description'], 0, 50)) ?><?= strlen($row['description']) > 50 ? '...' : '' ?></span>
-                                            <?php endif; ?>
-                                        </div>
+                                        <?php if ($row['description']): ?>
+                                            <br><span class="desc-producto"><?= htmlspecialchars(substr($row['description'], 0, 50)) ?><?= strlen($row['description']) > 50 ? '...' : '' ?></span>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                                 <td class="barcode-col">
@@ -280,14 +285,14 @@
             const proveedor = document.getElementById('filtroProveedor').value.toLowerCase();
             let productosVisibles = 0;
             document.querySelectorAll('table tbody tr').forEach(row => {
-                const nombreCell = row.cells[1];
+                const nombreCell = row.cells[2]; // Ahora la columna 2 es Producto
                 const nombreDiv = nombreCell.querySelector('.nombre-producto');
                 const nombre = nombreDiv ? nombreDiv.textContent.toLowerCase() : '';
                 const skuBadge = nombreCell.querySelector('.sku-badge');
                 const sku = skuBadge ? skuBadge.textContent.toLowerCase() : '';
                 // Extraer texto de categoría (puede estar en badge o texto normal)
                 let categoriaFila = '';
-                const categoriaCell = row.cells[3];
+                const categoriaCell = row.cells[4]; // Ahora la columna 4 es Categoría
                 const categoriaBadge = categoriaCell.querySelector('.badge');
                 if (categoriaBadge) {
                     categoriaFila = categoriaBadge.textContent.toLowerCase().trim();
@@ -296,7 +301,7 @@
                 }
                 // Extraer texto de proveedor
                 let proveedorFila = '';
-                const proveedorCell = row.cells[4];
+                const proveedorCell = row.cells[5]; // Ahora la columna 5 es Proveedor
                 const proveedorSmall = proveedorCell.querySelector('small');
                 if (proveedorSmall) {
                     proveedorFila = proveedorSmall.textContent.toLowerCase().trim();
