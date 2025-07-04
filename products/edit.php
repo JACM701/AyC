@@ -36,6 +36,11 @@
     // Obtener proveedores existentes para el select
     $proveedores = $mysqli->query("SELECT DISTINCT supplier FROM products WHERE supplier IS NOT NULL AND supplier != '' ORDER BY supplier");
 
+    // Obtener tipo de gestión actual
+    $tipo_gestion_actual = isset($product['tipo_gestion']) ? $product['tipo_gestion'] : 'normal';
+    $allowed_tipos = ['normal','bobina','bolsa','par','kit'];
+    if (!in_array($tipo_gestion_actual, $allowed_tipos)) $tipo_gestion_actual = 'normal';
+
     // Handle form submission
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $product_name = trim($_POST['product_name']);
@@ -86,6 +91,10 @@
             }
         }
 
+        // Nuevo: tipo de gestión
+        $tipo_gestion = isset($_POST['tipo_gestion']) ? $_POST['tipo_gestion'] : 'normal';
+        if (!in_array($tipo_gestion, $allowed_tipos)) $tipo_gestion = 'normal';
+
         // Si el SKU está vacío, generar uno automáticamente
         if ($sku === '') {
             $result = $mysqli->query("SELECT sku FROM products WHERE sku LIKE 'AUTO-%' ORDER BY product_id DESC LIMIT 1");
@@ -100,8 +109,8 @@
         }
 
         if ($product_name && $price >= 0 && $quantity >= 0) {
-            $stmt = $mysqli->prepare("UPDATE products SET product_name = ?, sku = ?, price = ?, quantity = ?, category_id = ?, supplier = ?, description = ?, barcode = ?, image = ? WHERE product_id = ?");
-            $stmt->bind_param("ssdiissssi", $product_name, $sku, $price, $quantity, $category_id, $supplier, $description, $barcode, $image_path, $product_id);
+            $stmt = $mysqli->prepare("UPDATE products SET product_name = ?, sku = ?, price = ?, quantity = ?, category_id = ?, supplier = ?, description = ?, barcode = ?, image = ?, tipo_gestion = ? WHERE product_id = ?");
+            $stmt->bind_param("ssdiisssssi", $product_name, $sku, $price, $quantity, $category_id, $supplier, $description, $barcode, $image_path, $tipo_gestion, $product_id);
 
             if ($stmt->execute()) {
                 $success = "Producto actualizado correctamente.";
@@ -115,6 +124,14 @@
                 $product['description'] = $description;
                 $product['barcode'] = $barcode;
                 $product['image'] = $image_path;
+                $product['tipo_gestion'] = $tipo_gestion;
+                // Si el tipo de gestión cambió de bobina a otro y hay bobinas asociadas, eliminarlas si el usuario lo confirmó
+                if ($tipo_gestion_actual === 'bobina' && $tipo_gestion !== 'bobina') {
+                    // Si el usuario confirmó la eliminación
+                    if (isset($_POST['confirmar_eliminar_bobinas']) && $_POST['confirmar_eliminar_bobinas'] === '1') {
+                        $mysqli->query("DELETE FROM bobinas WHERE product_id = $product_id");
+                    }
+                }
             } else {
                 $error = "Error en la base de datos: " . $stmt->error;
             }
@@ -335,6 +352,28 @@
                         <textarea class="form-control" name="description" id="description" rows="3"><?= htmlspecialchars($product['description']) ?></textarea>
                     </div>
 
+                    <div class="mb-3">
+                        <label for="tipo_gestion" class="form-label">Tipo de gestión de inventario</label>
+                        <select class="form-select" name="tipo_gestion" id="tipo_gestion" required>
+                            <option value="normal" <?= $tipo_gestion_actual === 'normal' ? 'selected' : '' ?>>Normal (por unidades)</option>
+                            <option value="bobina" <?= $tipo_gestion_actual === 'bobina' ? 'selected' : '' ?>>Bobina (metros)</option>
+                            <option value="bolsa" <?= $tipo_gestion_actual === 'bolsa' ? 'selected' : '' ?>>Bolsa</option>
+                            <option value="par" <?= $tipo_gestion_actual === 'par' ? 'selected' : '' ?>>Par</option>
+                            <option value="kit" <?= $tipo_gestion_actual === 'kit' ? 'selected' : '' ?>>Kit</option>
+                        </select>
+                    </div>
+                    <div class="form-section" id="bobinaSection" style="display:none;">
+                        <div class="mb-3">
+                            <label for="metros_iniciales" class="form-label">Metros iniciales de la bobina</label>
+                            <input type="number" step="0.01" min="0.01" class="form-control" name="metros_iniciales" id="metros_iniciales">
+                        </div>
+                        <div class="mb-3">
+                            <label for="identificador" class="form-label">Identificador de la bobina (opcional)</label>
+                            <input type="text" class="form-control" name="identificador" id="identificador" placeholder="Ej: Bobina #1, Lote 2024, etc.">
+                        </div>
+                    </div>
+                   <div id="advertenciaBobinas" class="alert alert-warning mt-2" style="display:none;"></div>
+
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-primary flex-fill">
                             <i class="bi bi-check-circle"></i> Actualizar producto
@@ -376,5 +415,34 @@
             <?php endif; ?>
             <script src="../assets/js/script.js"></script>
             <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+            <script>
+            // Mostrar/ocultar campos de bobina según tipo_gestion
+            const tipoGestionSelect = document.getElementById('tipo_gestion');
+            const bobinaSection = document.getElementById('bobinaSection');
+            const advertenciaBobinas = document.getElementById('advertenciaBobinas');
+            let bobinasAsociadas = <?= isset($bobinas) && $bobinas->num_rows > 0 ? 'true' : 'false' ?>;
+            let tipoGestionOriginal = '<?= $tipo_gestion_actual ?>';
+            tipoGestionSelect.addEventListener('change', function() {
+                if (this.value === 'bobina') {
+                    bobinaSection.style.display = '';
+                    advertenciaBobinas.style.display = 'none';
+                } else {
+                    bobinaSection.style.display = 'none';
+                    document.getElementById('metros_iniciales').value = '';
+                    document.getElementById('identificador').value = '';
+                    // Si el producto era bobina y hay bobinas asociadas, advertir
+                    if (tipoGestionOriginal === 'bobina' && bobinasAsociadas) {
+                        advertenciaBobinas.innerHTML = 'Este producto tiene bobinas asociadas. Si cambias el tipo de gestión perderás todas las bobinas. <br><label><input type="checkbox" name="confirmar_eliminar_bobinas" value="1" required> Confirmo que deseo eliminar todas las bobinas asociadas.</label>';
+                        advertenciaBobinas.style.display = 'block';
+                    } else {
+                        advertenciaBobinas.style.display = 'none';
+                    }
+                }
+            });
+            // Al cargar, mostrar si corresponde
+            if (tipoGestionSelect.value === 'bobina') {
+                bobinaSection.style.display = '';
+            }
+            </script>
         </body>
     </html>

@@ -14,6 +14,9 @@
     // Obtener proveedores existentes para el select
     $proveedores = $mysqli->query("SELECT DISTINCT supplier FROM products WHERE supplier IS NOT NULL AND supplier != '' ORDER BY supplier");
 
+    // ID de la categoría 'Cables y Conectores'
+    $bobina_category_id = 13;
+
     // Procesar formulario
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $product_name = trim($_POST['product_name']);
@@ -21,10 +24,14 @@
         $price = isset($_POST['price']) && $_POST['price'] !== '' ? floatval($_POST['price']) : 0.00;
         $quantity = intval($_POST['quantity']);
         
+        // Nuevo: tipo de gestión
+        $tipo_gestion = isset($_POST['tipo_gestion']) ? $_POST['tipo_gestion'] : 'normal';
+        $allowed_tipos = ['normal','bobina','bolsa','par','kit'];
+        if (!in_array($tipo_gestion, $allowed_tipos)) $tipo_gestion = 'normal';
+        
         // Manejar categoría (existente o nueva)
         $category_id = intval($_POST['category']);
         $new_category = trim($_POST['new_category'] ?? '');
-        
         if (!empty($new_category)) {
             // Insertar nueva categoría
             $stmt = $mysqli->prepare("INSERT INTO categories (name) VALUES (?)");
@@ -79,19 +86,12 @@
 
         // Validación básica
         if ($product_name && $price >= 0 && $quantity >= 0) {
-            $stmt = $mysqli->prepare("INSERT INTO products (product_name, sku, price, quantity, category_id, supplier, description, barcode, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("ssdiissss", $product_name, $sku, $price, $quantity, $category_id, $supplier, $description, $barcode, $image_path);
+            $stmt = $mysqli->prepare("INSERT INTO products (product_name, sku, price, quantity, category_id, supplier, description, barcode, image, tipo_gestion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("ssdiisssss", $product_name, $sku, $price, $quantity, $category_id, $supplier, $description, $barcode, $image_path, $tipo_gestion);
             if ($stmt->execute()) {
                 $new_product_id = $stmt->insert_id;
-                // Si la categoría es 'Cables y Conectores', redirigir a registrar bobinas
-                $cat_name = '';
-                $cat_stmt = $mysqli->prepare("SELECT name FROM categories WHERE category_id = ?");
-                $cat_stmt->bind_param("i", $category_id);
-                $cat_stmt->execute();
-                $cat_stmt->bind_result($cat_name);
-                $cat_stmt->fetch();
-                $cat_stmt->close();
-                if (strtolower($cat_name) === 'cables y conectores') {
+                // Si el tipo de gestión es bobina, redirigir a registrar bobinas
+                if ($tipo_gestion === 'bobina') {
                     header("Location: ../bobinas/add.php?product_id=" . $new_product_id);
                     exit;
                 }
@@ -118,10 +118,9 @@
         body {
             background: #f4f6fb;
         }
-        .main-content {
+        .form-wrapper {
             max-width: 520px;
             margin: 40px auto 0 auto;
-            padding: 0;
         }
         .card-form {
             background: #fff;
@@ -193,7 +192,7 @@
             flex-shrink: 0;
         }
         @media (max-width: 700px) {
-            .main-content { max-width: 98vw; padding: 0 2vw; }
+            .form-wrapper { max-width: 98vw; padding: 0 2vw; }
             .card-form { padding: 18px 6px; }
         }
     </style>
@@ -201,127 +200,152 @@
 <body>
 <?php include '../includes/sidebar.php'; ?>
     <main class="main-content">
-        <div class="card-form">
-            <h2><i class="bi bi-plus-circle"></i> Agregar producto</h2>
-            <?php if ($sku_auto_generado): ?>
-                <div class="alert alert-info alert-dismissible fade show" role="alert">
-                    <i class="bi bi-info-circle"></i>
-                    El SKU se generó automáticamente: <b><?= htmlspecialchars($sku) ?></b>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-            <?php endif; ?>
-            <?php if ($success): ?>
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    <i class="bi bi-check-circle"></i>
-                    <?= $success ?>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-            <?php elseif ($error): ?>
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    <i class="bi bi-exclamation-triangle"></i>
-                    <?= $error ?>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-            <?php endif; ?>
-            <form action="" method="POST" id="formAgregarProducto" enctype="multipart/form-data">
-                <div class="form-section">
-                    <div class="mb-3">
-                        <label for="product_name" class="form-label">Nombre del producto</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="bi bi-box"></i></span>
-                            <input type="text" class="form-control" name="product_name" id="product_name" required>
-                        </div>
+        <div class="form-wrapper">
+            <div class="card-form">
+                <h2><i class="bi bi-plus-circle"></i> Agregar producto</h2>
+                <?php if ($sku_auto_generado): ?>
+                    <div class="alert alert-info alert-dismissible fade show" role="alert">
+                        <i class="bi bi-info-circle"></i>
+                        El SKU se generó automáticamente: <b><?= htmlspecialchars($sku) ?></b>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
-                    <div class="mb-3">
-                        <label for="sku" class="form-label">SKU</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
-                            <input type="text" class="form-control" name="sku" id="sku">
-                        </div>
-                        <div id="alertSkuRealtime" class="alert alert-info" style="display:none;margin-top:6px;">
-                            <i class="bi bi-info-circle"></i>
-                            Si dejas este campo vacío, el sistema generará un SKU automáticamente al guardar.
-                        </div>
+                <?php endif; ?>
+                <?php if ($success): ?>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <i class="bi bi-check-circle"></i>
+                        <?= $success ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
-                    <div class="mb-3">
-                        <div class="form-check form-switch mb-2">
-                            <input class="form-check-input" type="checkbox" id="toggleBarcode">
-                            <label class="form-check-label" for="toggleBarcode">Añadir código de barras</label>
-                        </div>
-                        <div id="barcodeField" style="display:none;">
-                            <label for="barcode" class="form-label">Código de barras <span class="text-muted" style="font-weight:400;">(opcional)</span></label>
+                <?php elseif ($error): ?>
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <?= $error ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                <?php endif; ?>
+                <form action="" method="POST" id="formAgregarProducto" enctype="multipart/form-data">
+                    <div class="form-section">
+                        <div class="mb-3">
+                            <label for="product_name" class="form-label">Nombre del producto</label>
                             <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-upc"></i></span>
-                                <input type="text" class="form-control" name="barcode" id="barcode" placeholder="Escanea o escribe el código de barras">
+                                <span class="input-group-text"><i class="bi bi-box"></i></span>
+                                <input type="text" class="form-control" name="product_name" id="product_name" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="sku" class="form-label">SKU</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
+                                <input type="text" class="form-control" name="sku" id="sku">
+                            </div>
+                            <div id="alertSkuRealtime" class="alert alert-info" style="display:none;margin-top:6px;">
+                                <i class="bi bi-info-circle"></i>
+                                Si dejas este campo vacío, el sistema generará un SKU automáticamente al guardar.
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="toggleBarcode">
+                                <label class="form-check-label" for="toggleBarcode">Añadir código de barras</label>
+                            </div>
+                            <div id="barcodeField" style="display:none;">
+                                <label for="barcode" class="form-label">Código de barras <span class="text-muted" style="font-weight:400;">(opcional)</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-upc"></i></span>
+                                    <input type="text" class="form-control" name="barcode" id="barcode" placeholder="Escanea o escribe el código de barras">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="image" class="form-label">Imagen del producto <span class="text-muted" style="font-weight:400;">(opcional)</span></label>
+                            <input type="file" class="form-control" name="image" id="image" accept="image/*">
+                        </div>
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Descripción</label>
+                            <textarea class="form-control" name="description" id="description" rows="2" placeholder="Descripción breve del producto"></textarea>
+                        </div>
+                    </div>
+                    <div class="form-section">
+                        <div class="row g-2">
+                            <div class="col-md-6 mb-3">
+                                <label for="price" class="form-label">Precio</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-currency-dollar"></i></span>
+                                    <input type="number" step="0.01" class="form-control" name="price" id="price">
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="quantity" class="form-label">Cantidad</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-123"></i></span>
+                                    <input type="number" class="form-control" name="quantity" id="quantity" required>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-section">
+                        <div class="row g-2">
+                            <div class="col-md-6 mb-3">
+                                <label for="category" class="form-label">Categoría</label>
+                                <select class="form-select" name="category" id="category">
+                                    <option value="">Selecciona una categoría</option>
+                                    <?php $categorias->data_seek(0); while ($row = $categorias->fetch_assoc()): ?>
+                                        <option value="<?= htmlspecialchars($row['category_id']) ?>"><?= htmlspecialchars($row['name']) ?></option>
+                                    <?php endwhile; ?>
+                                </select>
+                                <div id="bobinaCategoriaMsg" class="alert alert-info mt-2" style="display:none;">
+                                    Al activar la opción de bobinas, la categoría será <b>Cables y Conectores</b> automáticamente.
+                                </div>
+                                <div class="mt-2">
+                                    <small class="text-muted">O escribe una nueva categoría:</small>
+                                    <input type="text" class="form-control mt-1" name="new_category" id="new_category" placeholder="Nueva categoría (opcional)">
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="supplier" class="form-label">Proveedor</label>
+                                <select class="form-select" name="supplier" id="supplier">
+                                    <option value="">Selecciona un proveedor</option>
+                                    <?php $proveedores->data_seek(0); while ($row = $proveedores->fetch_assoc()): ?>
+                                        <option value="<?= htmlspecialchars($row['supplier']) ?>"><?= htmlspecialchars($row['supplier']) ?></option>
+                                    <?php endwhile; ?>
+                                </select>
+                                <div class="mt-2">
+                                    <small class="text-muted">O escribe un nuevo proveedor:</small>
+                                    <input type="text" class="form-control mt-1" name="new_supplier" id="new_supplier" placeholder="Nuevo proveedor (opcional)">
+                                </div>
                             </div>
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label for="image" class="form-label">Imagen del producto <span class="text-muted" style="font-weight:400;">(opcional)</span></label>
-                        <input type="file" class="form-control" name="image" id="image" accept="image/*">
+                        <label for="tipo_gestion" class="form-label">Tipo de gestión de inventario</label>
+                        <select class="form-select" name="tipo_gestion" id="tipo_gestion" required>
+                            <option value="normal">Normal (por unidades)</option>
+                            <option value="bobina">Bobina (metros)</option>
+                            <option value="bolsa">Bolsa</option>
+                            <option value="par">Par</option>
+                            <option value="kit">Kit</option>
+                        </select>
                     </div>
-                    <div class="mb-3">
-                        <label for="description" class="form-label">Descripción</label>
-                        <textarea class="form-control" name="description" id="description" rows="2" placeholder="Descripción breve del producto"></textarea>
-                    </div>
-                </div>
-                <div class="form-section">
-                    <div class="row g-2">
-                        <div class="col-md-6 mb-3">
-                            <label for="price" class="form-label">Precio</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-currency-dollar"></i></span>
-                                <input type="number" step="0.01" class="form-control" name="price" id="price">
-                            </div>
+                    <div class="form-section" id="bobinaSection" style="display:none;">
+                        <div class="mb-3">
+                            <label for="metros_iniciales" class="form-label">Metros iniciales de la bobina</label>
+                            <input type="number" step="0.01" min="0.01" class="form-control" name="metros_iniciales" id="metros_iniciales">
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="quantity" class="form-label">Cantidad</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-123"></i></span>
-                                <input type="number" class="form-control" name="quantity" id="quantity" required>
-                            </div>
+                        <div class="mb-3">
+                            <label for="identificador" class="form-label">Identificador de la bobina (opcional)</label>
+                            <input type="text" class="form-control" name="identificador" id="identificador" placeholder="Ej: Bobina #1, Lote 2024, etc.">
                         </div>
                     </div>
-                </div>
-                <div class="form-section">
-                    <div class="row g-2">
-                        <div class="col-md-6 mb-3">
-                            <label for="category" class="form-label">Categoría</label>
-                            <select class="form-select" name="category" id="category">
-                                <option value="">Selecciona una categoría</option>
-                                <?php $categorias->data_seek(0); while ($row = $categorias->fetch_assoc()): ?>
-                                    <option value="<?= htmlspecialchars($row['category_id']) ?>"><?= htmlspecialchars($row['name']) ?></option>
-                                <?php endwhile; ?>
-                            </select>
-                            <div class="mt-2">
-                                <small class="text-muted">O escribe una nueva categoría:</small>
-                                <input type="text" class="form-control mt-1" name="new_category" id="new_category" placeholder="Nueva categoría (opcional)">
-                            </div>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="supplier" class="form-label">Proveedor</label>
-                            <select class="form-select" name="supplier" id="supplier">
-                                <option value="">Selecciona un proveedor</option>
-                                <?php $proveedores->data_seek(0); while ($row = $proveedores->fetch_assoc()): ?>
-                                    <option value="<?= htmlspecialchars($row['supplier']) ?>"><?= htmlspecialchars($row['supplier']) ?></option>
-                                <?php endwhile; ?>
-                            </select>
-                            <div class="mt-2">
-                                <small class="text-muted">O escribe un nuevo proveedor:</small>
-                                <input type="text" class="form-control mt-1" name="new_supplier" id="new_supplier" placeholder="Nuevo proveedor (opcional)">
-                            </div>
-                        </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary flex-fill">
+                            <i class="bi bi-plus-circle"></i> Agregar producto
+                        </button>
+                        <a href="list.php" class="btn btn-secondary flex-fill">
+                            <i class="bi bi-arrow-left"></i> Volver al listado
+                        </a>
                     </div>
-                </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-primary flex-fill">
-                        <i class="bi bi-plus-circle"></i> Agregar producto
-                    </button>
-                    <a href="list.php" class="btn btn-secondary flex-fill">
-                        <i class="bi bi-arrow-left"></i> Volver al listado
-                    </a>
-                </div>
-            </form>
+                </form>
+            </div>
         </div>
     </main>
     <script src="../assets/js/script.js"></script>
@@ -389,6 +413,23 @@
                 supplierSelect.value = '';
             }
         });
+
+        // Mostrar/ocultar campos de bobina según tipo_gestion
+        const tipoGestionSelect = document.getElementById('tipo_gestion');
+        const bobinaSection = document.getElementById('bobinaSection');
+        tipoGestionSelect.addEventListener('change', function() {
+            if (this.value === 'bobina') {
+                bobinaSection.style.display = '';
+            } else {
+                bobinaSection.style.display = 'none';
+                document.getElementById('metros_iniciales').value = '';
+                document.getElementById('identificador').value = '';
+            }
+        });
+        // Al cargar, mostrar si corresponde
+        if (tipoGestionSelect.value === 'bobina') {
+            bobinaSection.style.display = '';
+        }
     </script>
 </body>
 </html>

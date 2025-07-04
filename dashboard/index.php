@@ -302,81 +302,89 @@
 <body>
     <?php include '../includes/sidebar.php'; ?>
     <main class="main-content">
-        <div class="header-hora">
-            <span class="saludo" id="saludo"></span>
-            <span class="hora" id="hora"></span>
-            <span class="usuario">👤 <?= htmlspecialchars($username) ?></span>
-        </div>
-        <div class="dashboard-header">
-            <h2><i class="bi bi-speedometer2"></i> Bienvenido al panel de control</h2>
-            <p>Consulta el estado general de tu inventario y accede rápidamente a las secciones principales.</p>
-        </div>
-        <div class="dashboard-cards">
-            <div class="card">
-                <span class="icon"><i class="bi bi-box-seam"></i></span>
-                <h3>Total de productos</h3>
-                <p><?= $total_products ?></p>
+        <div class="dashboard-container">
+            <div class="header-empresa">
+                <div class="header-logo-nombre">
+                    <img src="../assets/img/LogoWeb.png" alt="Logo empresa" class="logo-empresa">
+                    <span class="nombre-empresa">Alarmas y Cámaras de seguridad del sureste</span>
+                </div>
             </div>
-            <div class="card">
-                <span class="icon"><i class="bi bi-arrow-down-circle"></i></span>
-                <h3>Entradas de inventario</h3>
-                <p><?= $total_in ?></p>
+            <div class="header-hora">
+                <span class="saludo" id="saludo"></span>
+                <span class="hora" id="hora"></span>
+                <span class="usuario">👤 <?= htmlspecialchars($username) ?></span>
             </div>
-            <div class="card">
-                <span class="icon"><i class="bi bi-arrow-up-circle"></i></span>
-                <h3>Salidas de inventario</h3>
-                <p><?= $total_out ?></p>
-            </div>
-            <div class="card">
-                <span class="icon"><i class="bi bi-archive"></i></span>
-                <h3>Inventario actual</h3>
-                <p><?= $total_quantity ?></p>
-            </div>
-        </div>
-        <div class="dashboard-extra">
-            <div class="extra-card">
-                <h4><i class="bi bi-arrow-bar-down"></i> Producto con menor stock</h4>
-                <p><?= $min_stock ? htmlspecialchars($min_stock['product_name']) . ' (' . $min_stock['quantity'] . ')' : 'N/A' ?></p>
-            </div>
-            <div class="extra-card">
-                <h4><i class="bi bi-arrow-bar-up"></i> Producto con mayor stock</h4>
-                <p><?= $max_stock ? htmlspecialchars($max_stock['product_name']) . ' (' . $max_stock['quantity'] . ')' : 'N/A' ?></p>
-            </div>
-            <div class="extra-card">
-                <h4><i class="bi bi-calendar-event"></i> Movimientos de hoy</h4>
-                <p><?= $movimientos_hoy ?></p>
-            </div>
-            <div class="extra-card">
-                <h4><i class="bi bi-plus-circle"></i> Último producto agregado</h4>
-                <p><?= $last_product ? htmlspecialchars($last_product['product_name']) . ' (' . date('d/m/Y', strtotime($last_product['created_at'])) . ')' : 'N/A' ?></p>
-            </div>
-            <div class="extra-card">
-                <h4><i class="bi bi-arrow-repeat"></i> Producto más movido</h4>
-                <p><?= $most_moved ? htmlspecialchars($most_moved['product_name']) . ' (' . $most_moved['total_movs'] . ' movimientos)' : 'N/A' ?></p>
-            </div>
-            <div class="extra-card">
-                <h4><i class="bi bi-tags"></i> Categoría principal</h4>
-                <p><?= $top_category ? htmlspecialchars($top_category['category_name']) . ' (' . $top_category['total'] . ' productos)' : 'N/A' ?></p>
-            </div>
-            <div class="extra-card">
-                <h4><i class="bi bi-truck"></i> Proveedor principal</h4>
-                <p><?= $top_supplier ? htmlspecialchars($top_supplier['supplier']) . ' (' . $top_supplier['total'] . ' productos)' : 'N/A' ?></p>
-            </div>
-        </div>
-        <div class="dashboard-graficas">
-            <div class="grafica-card">
-                <h3><i class="bi bi-pie-chart"></i> Stock por producto</h3>
-                <canvas id="graficaStock"></canvas>
-            </div>
-            <div class="grafica-card barras">
-                <h3><i class="bi bi-bar-chart"></i> Movimientos últimos 7 días</h3>
-                <canvas id="graficaMovimientos"></canvas>
-            </div>
+            <section class="dashboard-header">
+                <h2><i class="bi bi-boxes"></i> Gestor de Inventarios</h2>
+                <p class="dashboard-subtitle">Visualiza el estado de tu almacén, movimientos y productos de forma clara y profesional.</p>
+            </section>
+            <section class="dashboard-cards">
+                <div class="card">
+                    <span class="icon"><i class="bi bi-box-seam"></i></span>
+                    <h3>Productos totales</h3>
+                    <p><?= $total_products ?></p>
+                </div>
+                <div class="card">
+                    <span class="icon"><i class="bi bi-archive"></i></span>
+                    <h3>Stock total</h3>
+                    <p><?= $total_quantity ?></p>
+                </div>
+                <div class="card">
+                    <span class="icon"><i class="bi bi-arrow-down-circle"></i></span>
+                    <h3>Entradas</h3>
+                    <p><?= $total_in ?></p>
+                </div>
+                <div class="card">
+                    <span class="icon"><i class="bi bi-arrow-up-circle"></i></span>
+                    <h3>Salidas</h3>
+                    <p><?= $total_out ?></p>
+                </div>
+            </section>
+            <section class="dashboard-extra">
+                <div class="extra-card alert-stock">
+                    <h4><i class="bi bi-exclamation-circle"></i> Menor stock</h4>
+                    <p><?= $min_stock ? htmlspecialchars($min_stock['product_name']) . ' (' . $min_stock['quantity'] . ')' : 'N/A' ?></p>
+                </div>
+                <div class="extra-card alert-movido">
+                    <h4><i class="bi bi-arrow-repeat"></i> Más movido</h4>
+                    <p><?= $most_moved ? htmlspecialchars($most_moved['product_name']) . ' (' . $most_moved['total_movs'] . ' movs)' : 'N/A' ?></p>
+                </div>
+                <div class="extra-card alert-ultimo">
+                    <h4><i class="bi bi-plus-circle"></i> Último agregado</h4>
+                    <p><?= $last_product ? htmlspecialchars($last_product['product_name']) . ' (' . date('d/m/Y', strtotime($last_product['created_at'])) . ')' : 'N/A' ?></p>
+                </div>
+                <div class="extra-card alert-categoria">
+                    <h4><i class="bi bi-tags"></i> Categoría principal</h4>
+                    <p><?= $top_category ? htmlspecialchars($top_category['category_name']) . ' (' . $top_category['total'] . ' productos)' : 'N/A' ?></p>
+                </div>
+                <div class="extra-card alert-proveedor">
+                    <h4><i class="bi bi-truck"></i> Proveedor principal</h4>
+                    <p><?= $top_supplier ? htmlspecialchars($top_supplier['supplier']) . ' (' . $top_supplier['total'] . ' productos)' : 'N/A' ?></p>
+                </div>
+                <div class="extra-card alert-hoy">
+                    <h4><i class="bi bi-calendar-event"></i> Movimientos hoy</h4>
+                    <p><?= $movimientos_hoy ?></p>
+                </div>
+                <div class="extra-card alert-mayor">
+                    <h4><i class="bi bi-arrow-bar-up"></i> Mayor stock</h4>
+                    <p><?= $max_stock ? htmlspecialchars($max_stock['product_name']) . ' (' . $max_stock['quantity'] . ')' : 'N/A' ?></p>
+                </div>
+            </section>
+            <section class="dashboard-graficas">
+                <div class="grafica-card">
+                    <h3><i class="bi bi-pie-chart"></i> Stock por producto</h3>
+                    <canvas id="graficaStock" width="340" height="340"></canvas>
+                </div>
+                <div class="grafica-card barras">
+                    <h3><i class="bi bi-bar-chart"></i> Movimientos últimos 7 días</h3>
+                    <canvas id="graficaMovimientos" width="480" height="340"></canvas>
+                </div>
+            </section>
         </div>
     </main>
-    <script src="../assets/js/script.js"></script>
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="../assets/js/script.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function actualizarHoraYSaludo() {
@@ -391,7 +399,6 @@
         }
         actualizarHoraYSaludo();
         setInterval(actualizarHoraYSaludo, 1000);
-        // Resalta el menú activo
         document.querySelector('.sidebar-dashboard').classList.add('active');
 
         // --- GRÁFICA DE PASTEL: STOCK POR PRODUCTO ---

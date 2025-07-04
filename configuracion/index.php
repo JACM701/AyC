@@ -103,69 +103,76 @@ $usuarios = $mysqli->query("SELECT * FROM users ORDER BY created_at DESC");
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        .main-content { max-width: 900px; margin: 40px auto 0 auto; padding: 24px; }
-        .acciones { display: flex; gap: 6px; justify-content: center; }
+        .form-wrapper {
+            max-width: 900px;
+            margin: 40px auto 0 auto;
+        }
+        @media (max-width: 700px) {
+            .form-wrapper { max-width: 98vw; padding: 0 2vw; }
+        }
     </style>
 </head>
 <body>
 <?php include '../includes/sidebar.php'; ?>
 <main class="main-content">
-    <h2><i class="bi bi-gear"></i> Configuración de usuarios</h2>
-    <?php if ($success): ?>
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            <i class="bi bi-check-circle"></i> <?= $success ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    <div class="form-wrapper">
+        <h2><i class="bi bi-gear"></i> Configuración de usuarios</h2>
+        <?php if ($success): ?>
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="bi bi-check-circle"></i> <?= $success ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        <?php elseif ($error): ?>
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle"></i> <?= $error ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        <?php endif; ?>
+        <div class="mb-3 d-flex justify-content-between align-items-center">
+            <span class="text-muted">Gestión de usuarios y accesos</span>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAgregarUsuario"><i class="bi bi-person-plus"></i> Agregar usuario</button>
         </div>
-    <?php elseif ($error): ?>
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            <i class="bi bi-exclamation-triangle"></i> <?= $error ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>#</th>
+                        <th>Usuario</th>
+                        <th>Email</th>
+                        <th>Rol</th>
+                        <th>Fecha de alta</th>
+                        <th style="text-align:center;">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if ($usuarios && $usuarios->num_rows > 0): $i=1; ?>
+                        <?php while ($u = $usuarios->fetch_assoc()): ?>
+                            <tr>
+                                <td><?= $i++ ?></td>
+                                <td><?= htmlspecialchars($u['username']) ?></td>
+                                <td><?= htmlspecialchars($u['email']) ?></td>
+                                <td><span class="badge bg-info text-dark"><?= htmlspecialchars($u['role']) ?></span></td>
+                                <td><?= date('d/m/Y', strtotime($u['created_at'])) ?></td>
+                                <td class="acciones">
+                                    <button class="btn btn-outline-primary btn-sm btn-edit-user" 
+                                        data-user-id="<?= $u['user_id'] ?>"
+                                        data-username="<?= htmlspecialchars($u['username']) ?>"
+                                        data-email="<?= htmlspecialchars($u['email']) ?>"
+                                        data-rol="<?= htmlspecialchars($u['role']) ?>"
+                                        title="Editar"><i class="bi bi-pencil-square"></i></button>
+                                    <button class="btn btn-outline-danger btn-sm btn-delete-user" 
+                                        data-user-id="<?= $u['user_id'] ?>"
+                                        data-username="<?= htmlspecialchars($u['username']) ?>"
+                                        title="Eliminar"><i class="bi bi-trash3"></i></button>
+                                </td>
+                            </tr>
+                        <?php endwhile; ?>
+                    <?php else: ?>
+                        <tr><td colspan="6" class="text-center text-muted">No hay usuarios registrados.</td></tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
         </div>
-    <?php endif; ?>
-    <div class="mb-3 d-flex justify-content-between align-items-center">
-        <span class="text-muted">Gestión de usuarios y accesos</span>
-        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAgregarUsuario"><i class="bi bi-person-plus"></i> Agregar usuario</button>
-    </div>
-    <div class="table-responsive">
-        <table class="table table-striped table-hover">
-            <thead class="table-dark">
-                <tr>
-                    <th>#</th>
-                    <th>Usuario</th>
-                    <th>Email</th>
-                    <th>Rol</th>
-                    <th>Fecha de alta</th>
-                    <th style="text-align:center;">Acciones</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if ($usuarios && $usuarios->num_rows > 0): $i=1; ?>
-                    <?php while ($u = $usuarios->fetch_assoc()): ?>
-                        <tr>
-                            <td><?= $i++ ?></td>
-                            <td><?= htmlspecialchars($u['username']) ?></td>
-                            <td><?= htmlspecialchars($u['email']) ?></td>
-                            <td><span class="badge bg-info text-dark"><?= htmlspecialchars($u['role']) ?></span></td>
-                            <td><?= date('d/m/Y', strtotime($u['created_at'])) ?></td>
-                            <td class="acciones">
-                                <button class="btn btn-outline-primary btn-sm btn-edit-user" 
-                                    data-user-id="<?= $u['user_id'] ?>"
-                                    data-username="<?= htmlspecialchars($u['username']) ?>"
-                                    data-email="<?= htmlspecialchars($u['email']) ?>"
-                                    data-rol="<?= htmlspecialchars($u['role']) ?>"
-                                    title="Editar"><i class="bi bi-pencil-square"></i></button>
-                                <button class="btn btn-outline-danger btn-sm btn-delete-user" 
-                                    data-user-id="<?= $u['user_id'] ?>"
-                                    data-username="<?= htmlspecialchars($u['username']) ?>"
-                                    title="Eliminar"><i class="bi bi-trash3"></i></button>
-                            </td>
-                        </tr>
-                    <?php endwhile; ?>
-                <?php else: ?>
-                    <tr><td colspan="6" class="text-center text-muted">No hay usuarios registrados.</td></tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
     </div>
 </main>
 <!-- Modal agregar usuario -->
