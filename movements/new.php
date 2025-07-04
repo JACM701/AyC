@@ -11,37 +11,73 @@
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $product_id = intval($_POST['product_id']);
         $movement_type = $_POST['movement_type'];
-        $quantity = intval($_POST['quantity']);
+        $quantity = floatval($_POST['quantity']);
+        $bobina_id = isset($_POST['bobina_id']) && $_POST['bobina_id'] !== '' ? intval($_POST['bobina_id']) : null;
 
         if ($product_id && in_array($movement_type, ['in', 'out']) && $quantity > 0) {
-            // Consultar cantidad actual
-            $stmt = $mysqli->prepare("SELECT quantity FROM products WHERE product_id = ?");
-            $stmt->bind_param("i", $product_id);
-            $stmt->execute();
-            $stmt->bind_result($current_quantity);
-            $stmt->fetch();
-            $stmt->close();
-
-            $new_quantity = $movement_type === 'in'
-                ? $current_quantity + $quantity
-                : $current_quantity - $quantity;
-
-            if ($new_quantity < 0) {
-                $error = "Stock insuficiente para este movimiento.";
+            if ($bobina_id) {
+                // Movimiento sobre bobina
+                $stmt = $mysqli->prepare("SELECT metros_actuales FROM bobinas WHERE bobina_id = ? AND product_id = ?");
+                $stmt->bind_param("ii", $bobina_id, $product_id);
+                $stmt->execute();
+                $stmt->bind_result($metros_actuales);
+                $stmt->fetch();
+                $stmt->close();
+                if ($movement_type === 'out') {
+                    $new_metros = $metros_actuales - $quantity;
+                    if ($new_metros < 0) {
+                        $error = "Stock insuficiente en la bobina seleccionada.";
+                    } else {
+                        // Registrar movimiento (opcional: puedes guardar bobina_id en movements si lo deseas)
+                        $stmt = $mysqli->prepare("INSERT INTO movements (product_id, movement_type, quantity, movement_date) VALUES (?, ?, ?, NOW())");
+                        $stmt->bind_param("isi", $product_id, $movement_type, $quantity);
+                        $stmt->execute();
+                        $stmt->close();
+                        // Actualizar metros de la bobina
+                        $stmt = $mysqli->prepare("UPDATE bobinas SET metros_actuales = ? WHERE bobina_id = ?");
+                        $stmt->bind_param("di", $new_metros, $bobina_id);
+                        $stmt->execute();
+                        $stmt->close();
+                        $success = "Movimiento registrado y bobina actualizada.";
+                    }
+                } else { // Entrada
+                    $new_metros = $metros_actuales + $quantity;
+                    $stmt = $mysqli->prepare("INSERT INTO movements (product_id, movement_type, quantity, movement_date) VALUES (?, ?, ?, NOW())");
+                    $stmt->bind_param("isi", $product_id, $movement_type, $quantity);
+                    $stmt->execute();
+                    $stmt->close();
+                    $stmt = $mysqli->prepare("UPDATE bobinas SET metros_actuales = ? WHERE bobina_id = ?");
+                    $stmt->bind_param("di", $new_metros, $bobina_id);
+                    $stmt->execute();
+                    $stmt->close();
+                    $success = "Movimiento registrado y bobina actualizada.";
+                }
             } else {
-                // Insertar movimiento
-                $stmt = $mysqli->prepare("INSERT INTO movements (product_id, movement_type, quantity, movement_date) VALUES (?, ?, ?, NOW())");
-                $stmt->bind_param("isi", $product_id, $movement_type, $quantity);
+                // Movimiento normal (producto sin bobinas)
+                $stmt = $mysqli->prepare("SELECT quantity FROM products WHERE product_id = ?");
+                $stmt->bind_param("i", $product_id);
                 $stmt->execute();
+                $stmt->bind_result($current_quantity);
+                $stmt->fetch();
                 $stmt->close();
-
-                // Actualizar cantidad de producto
-                $stmt = $mysqli->prepare("UPDATE products SET quantity = ? WHERE product_id = ?");
-                $stmt->bind_param("ii", $new_quantity, $product_id);
-                $stmt->execute();
-                $stmt->close();
-
-                $success = "Movimiento registrado y cantidad actualizada.";
+                $new_quantity = $movement_type === 'in'
+                    ? $current_quantity + $quantity
+                    : $current_quantity - $quantity;
+                if ($new_quantity < 0) {
+                    $error = "Stock insuficiente para este movimiento.";
+                } else {
+                    // Insertar movimiento
+                    $stmt = $mysqli->prepare("INSERT INTO movements (product_id, movement_type, quantity, movement_date) VALUES (?, ?, ?, NOW())");
+                    $stmt->bind_param("isi", $product_id, $movement_type, $quantity);
+                    $stmt->execute();
+                    $stmt->close();
+                    // Actualizar cantidad de producto
+                    $stmt = $mysqli->prepare("UPDATE products SET quantity = ? WHERE product_id = ?");
+                    $stmt->bind_param("di", $new_quantity, $product_id);
+                    $stmt->execute();
+                    $stmt->close();
+                    $success = "Movimiento registrado y cantidad actualizada.";
+                }
             }
         } else {
             $error = "Por favor, selecciona un producto, tipo y cantidad válidos.";
@@ -143,6 +179,7 @@
         // Solo enfocar el campo de código de barras al cargar la página
         const barcodeInput = document.getElementById('barcode');
         const barcodePreview = document.getElementById('barcodePreview');
+        const productSelect = document.getElementById('product_id');
         barcodeInput.focus();
         // Mostrar el código de barras capturado en tiempo real
         barcodeInput.addEventListener('input', function() {
@@ -152,13 +189,33 @@
                 barcodePreview.textContent = '';
             }
         });
+        // Buscar producto por código de barras (AJAX)
+        barcodeInput.addEventListener('change', function() {
+            const code = barcodeInput.value.trim();
+            if (code !== '') {
+                fetch('buscar_producto_barcode.php?barcode=' + encodeURIComponent(code))
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            productSelect.value = data.product_id;
+                            barcodePreview.textContent = 'Producto encontrado: ' + data.product_name;
+                        } else {
+                            barcodePreview.textContent = 'Producto no encontrado. Puedes seleccionar manualmente.';
+                            productSelect.value = '';
+                        }
+                    })
+                    .catch(() => {
+                        barcodePreview.textContent = 'Error al buscar producto.';
+                        productSelect.value = '';
+                    });
+            }
+        });
         // Limpiar el campo al presionar Enter (usualmente el escáner lo envía al final)
         barcodeInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                barcodePreview.textContent = 'Código capturado: ' + barcodeInput.value;
-                barcodeInput.value = '';
-                setTimeout(() => { barcodePreview.textContent = ''; }, 2000);
+                barcodeInput.dispatchEvent(new Event('change'));
+                setTimeout(() => { barcodeInput.value = ''; barcodePreview.textContent = ''; }, 2000);
             }
         });
     </script>

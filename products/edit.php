@@ -27,6 +27,9 @@
         exit;
     }
 
+    // Obtener bobinas asociadas a este producto
+    $bobinas = $mysqli->query("SELECT * FROM bobinas WHERE product_id = $product_id ORDER BY fecha_ingreso ASC");
+
     // Obtener categorías existentes para el select
     $categorias = $mysqli->query("SELECT category_id, name FROM categories ORDER BY name");
     
@@ -62,7 +65,26 @@
             $supplier = $new_supplier;
         }
         
-        $description = trim($_POST['description']);
+        $description = isset($_POST['description']) ? trim($_POST['description']) : null;
+        if ($description === '') $description = null;
+
+        // Subida de imagen
+        $image_path = $product['image'] ?? null;
+        if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+            $img_tmp = $_FILES['image']['tmp_name'];
+            $img_name = basename($_FILES['image']['name']);
+            $img_ext = strtolower(pathinfo($img_name, PATHINFO_EXTENSION));
+            $allowed = ['jpg','jpeg','png','gif','webp'];
+            if (in_array($img_ext, $allowed)) {
+                $dir = '../uploads/products/';
+                if (!is_dir($dir)) mkdir($dir, 0777, true);
+                $new_name = uniqid('prod_') . '.' . $img_ext;
+                $dest = $dir . $new_name;
+                if (move_uploaded_file($img_tmp, $dest)) {
+                    $image_path = 'uploads/products/' . $new_name;
+                }
+            }
+        }
 
         // Si el SKU está vacío, generar uno automáticamente
         if ($sku === '') {
@@ -78,8 +100,8 @@
         }
 
         if ($product_name && $price >= 0 && $quantity >= 0) {
-            $stmt = $mysqli->prepare("UPDATE products SET product_name = ?, sku = ?, price = ?, quantity = ?, category_id = ?, supplier = ?, description = ? WHERE product_id = ?");
-            $stmt->bind_param("ssdiissi", $product_name, $sku, $price, $quantity, $category_id, $supplier, $description, $product_id);
+            $stmt = $mysqli->prepare("UPDATE products SET product_name = ?, sku = ?, price = ?, quantity = ?, category_id = ?, supplier = ?, description = ?, barcode = ?, image = ? WHERE product_id = ?");
+            $stmt->bind_param("ssdiissssi", $product_name, $sku, $price, $quantity, $category_id, $supplier, $description, $barcode, $image_path, $product_id);
 
             if ($stmt->execute()) {
                 $success = "Producto actualizado correctamente.";
@@ -91,6 +113,8 @@
                 $product['category_id'] = $category_id;
                 $product['supplier'] = $supplier;
                 $product['description'] = $description;
+                $product['barcode'] = $barcode;
+                $product['image'] = $image_path;
             } else {
                 $error = "Error en la base de datos: " . $stmt->error;
             }
@@ -204,10 +228,15 @@
                 <h2>Editar producto</h2>
 
                 <?php if ($success): ?>
-                    <div class="alert alert-success alert-dismissible fade show" role="alert">
-                        <i class="bi bi-check-circle"></i>
-                        <?= $success ?>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    <div class="alert alert-success alert-dismissible fade show d-flex flex-column align-items-start gap-2" role="alert">
+                        <div>
+                            <i class="bi bi-check-circle"></i>
+                            <?= $success ?>
+                        </div>
+                        <div class="d-flex gap-2 mt-2">
+                            <a href="list.php" class="btn btn-success btn-sm"><i class="bi bi-list"></i> Volver al listado</a>
+                            <a href="edit.php?id=<?= $product_id ?>" class="btn btn-primary btn-sm"><i class="bi bi-pencil-square"></i> Seguir editando</a>
+                        </div>
                     </div>
                 <?php elseif ($error): ?>
                     <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -303,28 +332,7 @@
 
                     <div class="mb-3">
                         <label for="description" class="form-label">Descripción:</label>
-                        <textarea class="form-control" name="description" id="description" rows="3" required><?= htmlspecialchars($product['description']) ?></textarea>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Comparador de precios</label>
-                        <button type="button" class="btn btn-warning btn-sm mb-2" id="btnCompararPrecios">
-                            <i class="bi bi-arrow-repeat"></i> Actualizar precios
-                        </button>
-                        <div class="table-responsive">
-                            <table class="table table-bordered table-sm align-middle" id="tablaComparadorPrecios">
-                                <thead>
-                                    <tr>
-                                        <th>Tienda</th>
-                                        <th>Precio</th>
-                                        <th>Enlace</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td colspan="3" class="text-center text-muted">Sin datos</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
+                        <textarea class="form-control" name="description" id="description" rows="3"><?= htmlspecialchars($product['description']) ?></textarea>
                     </div>
 
                     <div class="d-flex gap-2">
@@ -337,71 +345,36 @@
                     </div>
                 </form>
             </div>
+            <?php if ($bobinas && $bobinas->num_rows > 0): ?>
+                <div class="mt-4">
+                    <h4><i class="bi bi-receipt"></i> Bobinas asociadas</h4>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Identificador</th>
+                                    <th>Metros iniciales</th>
+                                    <th>Metros actuales</th>
+                                    <th>Fecha ingreso</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php $i=1; while ($b = $bobinas->fetch_assoc()): ?>
+                                    <tr>
+                                        <td><?= $i++ ?></td>
+                                        <td><?= htmlspecialchars($b['identificador']) ?: '<span class="text-muted">-</span>' ?></td>
+                                        <td><?= number_format($b['metros_iniciales'], 2) ?></td>
+                                        <td><?= number_format($b['metros_actuales'], 2) ?></td>
+                                        <td><?= date('d/m/Y', strtotime($b['fecha_ingreso'])) ?></td>
+                                    </tr>
+                                <?php endwhile; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            <?php endif; ?>
             <script src="../assets/js/script.js"></script>
             <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-            <script>
-                // Comparador de precios - CON SCRAPING REAL
-                const btnComparar = document.getElementById('btnCompararPrecios');
-                const tablaComparador = document.getElementById('tablaComparadorPrecios');
-                
-                // Solo ejecutar si existen los elementos del comparador
-                if (btnComparar && tablaComparador) {
-                    const tablaComparadorTbody = tablaComparador.querySelector('tbody');
-                    
-                    btnComparar.addEventListener('click', function() {
-                        btnComparar.disabled = true;
-                        btnComparar.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Buscando precios reales...';
-                        
-                        const nombre = document.getElementById('product_name').value;
-                        const sku = document.getElementById('sku').value;
-                        const descripcion = document.getElementById('description').value;
-                        
-                        fetch('comparar_precios.php', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ nombre, sku, descripcion })
-                        })
-                        .then(res => res.json())
-                        .then(data => {
-                            tablaComparadorTbody.innerHTML = '';
-                            if (data && data.length > 0) {
-                                data.forEach(tienda => {
-                                    let enlaceHtml = '-';
-                                    if (tienda.enlace && tienda.enlace !== '-') {
-                                        enlaceHtml = `<a href="${tienda.enlace}" target="_blank" class="btn btn-sm btn-outline-primary">Ver producto</a>`;
-                                    }
-                                    
-                                    let precioHtml = tienda.precio !== '-' ? '$' + tienda.precio : '<small class="text-muted">Haz clic en "Ver producto"</small>';
-                                    
-                                    let notaHtml = '';
-                                    if (tienda.nota) {
-                                        notaHtml = `<br><small class="text-info">${tienda.nota}</small>`;
-                                    }
-                                    
-                                    let nombreProductoHtml = '';
-                                    if (tienda.nombre_producto) {
-                                        nombreProductoHtml = `<br><small class="text-success">${tienda.nombre_producto.substring(0, 50)}${tienda.nombre_producto.length > 50 ? '...' : ''}</small>`;
-                                    }
-                                    
-                                    tablaComparadorTbody.innerHTML += `<tr>
-                                        <td><strong>${tienda.tienda}</strong>${notaHtml}${nombreProductoHtml}</td>
-                                        <td>${precioHtml}</td>
-                                        <td>${enlaceHtml}</td>
-                                    </tr>`;
-                                });
-                            } else {
-                                tablaComparadorTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Sin resultados</td></tr>';
-                            }
-                            btnComparar.disabled = false;
-                            btnComparar.innerHTML = '<i class="bi bi-arrow-repeat"></i> Actualizar precios';
-                        })
-                        .catch(() => {
-                            tablaComparadorTbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger">Error al buscar precios</td></tr>';
-                            btnComparar.disabled = false;
-                            btnComparar.innerHTML = '<i class="bi bi-arrow-repeat"></i> Actualizar precios';
-                        });
-                    });
-                }
-            </script>
         </body>
     </html>
