@@ -32,6 +32,10 @@
                     <span class="nav-text">Inventario</span>
                     <span class="badge bg-success">8</span>
                 </a>
+                <a href="../cotizaciones/maqueta.php" class="sidebar-cotizaciones" title="Realizar cotización">
+                    <i class="bi bi-file-earmark-text"></i>
+                    <span class="nav-text">Realizar cotización</span>
+                </a>
             </div>
         </div>
 
