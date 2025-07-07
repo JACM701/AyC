@@ -386,7 +386,12 @@
             </div>
             <?php if ($bobinas && $bobinas->num_rows > 0): ?>
                 <div class="mt-4">
-                    <h4><i class="bi bi-receipt"></i> Bobinas asociadas</h4>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4><i class="bi bi-receipt"></i> Bobinas asociadas</h4>
+                        <a href="../bobinas/add.php?product_id=<?= $product_id ?>" class="btn btn-primary btn-sm">
+                            <i class="bi bi-plus-circle"></i> Agregar bobina
+                        </a>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-striped table-hover">
                             <thead>
@@ -411,6 +416,16 @@
                             </tbody>
                         </table>
                     </div>
+                </div>
+            <?php elseif ($tipo_gestion_actual === 'bobina'): ?>
+                <div class="mt-4">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Producto tipo bobina:</strong> Este producto está configurado para gestionarse por metros en bobinas, pero aún no tiene bobinas registradas.
+                    </div>
+                    <a href="../bobinas/add.php?product_id=<?= $product_id ?>" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Registrar primera bobina
+                    </a>
                 </div>
             <?php endif; ?>
             <script src="../assets/js/script.js"></script>

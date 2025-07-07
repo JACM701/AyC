@@ -1,127 +1,50 @@
 <?php
 require_once '../auth/middleware.php';
+require_once '../config/sample_data.php';
 
-// Datos simulados de productos
-$productos = [
-    [
-        'id' => 1,
-        'nombre' => 'Cámara Bullet 5MP',
-        'sku' => 'CAM-001',
-        'categoria' => 'Cámaras',
-        'stock' => 15,
-        'precio' => 1250.00,
-        'proveedor' => 'Dahua',
-        'imagen' => '../assets/img/camera.png',
-        'descripcion' => 'Cámara de seguridad exterior 5MP con visión nocturna',
-        'estado' => 'disponible'
-    ],
-    [
-        'id' => 2,
-        'nombre' => 'Cable UTP Cat6',
-        'sku' => 'CAB-002',
-        'categoria' => 'Cables',
-        'stock' => 500,
-        'precio' => 8.50,
-        'proveedor' => 'Syscom',
-        'imagen' => '../assets/img/cable.png',
-        'descripcion' => 'Cable de red UTP Cat6 305m',
-        'estado' => 'disponible'
-    ],
-    [
-        'id' => 3,
-        'nombre' => 'DVR 8 Canales',
-        'sku' => 'DVR-003',
-        'categoria' => 'Grabadores',
-        'stock' => 8,
-        'precio' => 2800.00,
-        'proveedor' => 'Hikvision',
-        'imagen' => '../assets/img/dvr.png',
-        'descripcion' => 'Grabador digital de video 8 canales',
-        'estado' => 'disponible'
-    ],
-    [
-        'id' => 4,
-        'nombre' => 'Fuente de Poder 12V',
-        'sku' => 'FUENTE-004',
-        'categoria' => 'Accesorios',
-        'stock' => 25,
-        'precio' => 150.00,
-        'proveedor' => 'Genérica',
-        'imagen' => '../assets/img/power.png',
-        'descripcion' => 'Fuente de alimentación 12V 2A',
-        'estado' => 'disponible'
-    ],
-    [
-        'id' => 5,
-        'nombre' => 'Conector RJ45',
-        'sku' => 'CONN-005',
-        'categoria' => 'Conectores',
-        'stock' => 200,
-        'precio' => 2.50,
-        'proveedor' => 'Syscom',
-        'imagen' => '../assets/img/connector.png',
-        'descripcion' => 'Conector RJ45 macho para cable UTP',
-        'estado' => 'disponible'
-    ],
-    [
-        'id' => 6,
-        'nombre' => 'Alarma Residencial',
-        'sku' => 'ALARM-006',
-        'categoria' => 'Alarmas',
-        'stock' => 3,
-        'precio' => 3500.00,
-        'proveedor' => 'Bosch',
-        'imagen' => '../assets/img/alarm.png',
-        'descripcion' => 'Sistema de alarma residencial 8 zonas',
-        'estado' => 'bajo_stock'
-    ],
-    [
-        'id' => 7,
-        'nombre' => 'Switch POE 8 Puertos',
-        'sku' => 'SW-007',
-        'categoria' => 'Redes',
-        'stock' => 12,
-        'precio' => 1800.00,
-        'proveedor' => 'TP-Link',
-        'imagen' => '../assets/img/switch.png',
-        'descripcion' => 'Switch POE 8 puertos para cámaras IP',
-        'estado' => 'disponible'
-    ],
-    [
-        'id' => 8,
-        'nombre' => 'Sensor de Movimiento',
-        'sku' => 'SENS-008',
-        'categoria' => 'Sensores',
-        'stock' => 0,
-        'precio' => 180.00,
-        'proveedor' => 'Honeywell',
-        'imagen' => '../assets/img/sensor.png',
-        'descripcion' => 'Sensor de movimiento PIR para alarmas',
-        'estado' => 'agotado'
-    ]
-];
+// Obtener productos del inventario unificado
+$productos_inventario = getProductosInventario();
 
 // Filtros
 $categoria_filtro = isset($_GET['categoria']) ? $_GET['categoria'] : '';
 $busqueda = isset($_GET['busqueda']) ? $_GET['busqueda'] : '';
+$estado_filtro = isset($_GET['estado']) ? $_GET['estado'] : '';
 
 // Aplicar filtros
 if ($categoria_filtro) {
-    $productos = array_filter($productos, function($p) use ($categoria_filtro) {
+    $productos_inventario = array_filter($productos_inventario, function($p) use ($categoria_filtro) {
         return $p['categoria'] === $categoria_filtro;
     });
 }
 
 if ($busqueda) {
-    $productos = array_filter($productos, function($p) use ($busqueda) {
+    $productos_inventario = array_filter($productos_inventario, function($p) use ($busqueda) {
         return stripos($p['nombre'], $busqueda) !== false || 
                stripos($p['sku'], $busqueda) !== false ||
                stripos($p['descripcion'], $busqueda) !== false;
     });
 }
 
+if ($estado_filtro) {
+    $productos_inventario = array_filter($productos_inventario, function($p) use ($estado_filtro) {
+        $stock = $p['stock'];
+        if ($estado_filtro === 'disponible') return $stock > 10;
+        if ($estado_filtro === 'bajo_stock') return $stock > 0 && $stock <= 10;
+        if ($estado_filtro === 'agotado') return $stock == 0;
+        return true;
+    });
+}
+
 // Obtener categorías únicas
-$categorias = array_unique(array_column($productos, 'categoria'));
+$categorias = array_unique(array_column($productos_inventario, 'categoria'));
+
+// Calcular estadísticas
+$estadisticas = getEstadisticasInventario();
+$total_productos = $estadisticas['total_productos'];
+$disponibles = $estadisticas['disponibles'];
+$bajo_stock = $estadisticas['bajo_stock'];
+$agotados = $estadisticas['agotados'];
+$valor_total = $estadisticas['valor_total'];
 ?>
 
 <!DOCTYPE html>
@@ -345,6 +268,16 @@ $categorias = array_unique(array_column($productos, 'categoria'));
             color: #ccc;
             margin-bottom: 20px;
         }
+        .tipo-gestion-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            background: #f0f4ff;
+            color: #3f51b5;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            margin-left: 8px;
+        }
         @media (max-width: 900px) {
             .main-content { 
                 width: calc(100vw - 70px); 
@@ -374,46 +307,59 @@ $categorias = array_unique(array_column($productos, 'categoria'));
                 <h1 class="inventory-title">
                     <i class="bi bi-boxes"></i> Inventario
                 </h1>
-                <p class="text-muted mb-0">Gestión visual de productos en almacén</p>
+                <p class="text-muted mb-0">Stock actual de productos del catálogo</p>
             </div>
             <div class="inventory-stats">
                 <div class="stat-item">
-                    <span class="stat-number"><?= count($productos) ?></span>
+                    <span class="stat-number"><?= $total_productos ?></span>
                     <span class="stat-label">Productos</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-number"><?= count(array_filter($productos, function($p) { return $p['estado'] === 'disponible'; })) ?></span>
+                    <span class="stat-number"><?= $disponibles ?></span>
                     <span class="stat-label">Disponibles</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-number"><?= count(array_filter($productos, function($p) { return $p['estado'] === 'bajo_stock'; })) ?></span>
+                    <span class="stat-number"><?= $bajo_stock ?></span>
                     <span class="stat-label">Bajo Stock</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-number"><?= count(array_filter($productos, function($p) { return $p['estado'] === 'agotado'; })) ?></span>
+                    <span class="stat-number"><?= $agotados ?></span>
                     <span class="stat-label">Agotados</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">$<?= number_format($valor_total, 0) ?></span>
+                    <span class="stat-label">Valor Total</span>
                 </div>
             </div>
         </div>
 
         <div class="filters-section">
             <form method="GET" class="row g-3">
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label for="busqueda" class="form-label">Buscar producto</label>
                     <input type="text" class="form-control" id="busqueda" name="busqueda" 
                            value="<?= htmlspecialchars($busqueda) ?>" 
                            placeholder="Nombre, SKU, descripción...">
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label for="categoria" class="form-label">Categoría</label>
                     <select class="form-select" id="categoria" name="categoria">
-                        <option value="">Todas las categorías</option>
+                        <option value="">Todas</option>
                         <?php foreach ($categorias as $cat): ?>
                             <option value="<?= htmlspecialchars($cat) ?>" 
                                     <?= $categoria_filtro === $cat ? 'selected' : '' ?>>
                                 <?= htmlspecialchars($cat) ?>
                             </option>
                         <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="estado" class="form-label">Estado</label>
+                    <select class="form-select" id="estado" name="estado">
+                        <option value="">Todos</option>
+                        <option value="disponible" <?= $estado_filtro === 'disponible' ? 'selected' : '' ?>>Disponible</option>
+                        <option value="bajo_stock" <?= $estado_filtro === 'bajo_stock' ? 'selected' : '' ?>>Bajo Stock</option>
+                        <option value="agotado" <?= $estado_filtro === 'agotado' ? 'selected' : '' ?>>Agotado</option>
                     </select>
                 </div>
                 <div class="col-md-3">
@@ -429,27 +375,35 @@ $categorias = array_unique(array_column($productos, 'categoria'));
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">&nbsp;</label>
-                    <a href="add.php" class="btn btn-success w-100">
-                        <i class="bi bi-plus-circle"></i> Agregar
-                    </a>
+                    <div class="d-flex gap-2">
+                        <a href="../products/list.php" class="btn btn-outline-info w-100">
+                            <i class="bi bi-box-seam"></i> Catálogo
+                        </a>
+                    </div>
                 </div>
             </form>
         </div>
 
-        <?php if (empty($productos)): ?>
+        <?php if (empty($productos_inventario)): ?>
             <div class="empty-state">
                 <i class="bi bi-boxes"></i>
                 <h5>No se encontraron productos</h5>
-                <p>Intenta ajustar los filtros de búsqueda.</p>
+                <p>Intenta ajustar los filtros de búsqueda o agrega productos al catálogo.</p>
+                <a href="../products/add.php" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Agregar Producto
+                </a>
             </div>
         <?php else: ?>
             <div class="product-grid">
-                <?php foreach ($productos as $producto): ?>
+                <?php foreach ($productos_inventario as $producto): ?>
                     <div class="product-card">
                         <div class="product-header">
                             <div>
                                 <h5 class="product-title"><?= htmlspecialchars($producto['nombre']) ?></h5>
-                                <div class="product-sku">SKU: <?= htmlspecialchars($producto['sku']) ?></div>
+                                <div class="product-sku">
+                                    SKU: <?= htmlspecialchars($producto['sku']) ?>
+                                    <span class="tipo-gestion-badge"><?= ucfirst($producto['tipo_gestion']) ?></span>
+                                </div>
                             </div>
                         </div>
                         
@@ -460,12 +414,20 @@ $categorias = array_unique(array_column($productos, 'categoria'));
                         </div>
                         
                         <div class="stock-status">
-                            <span class="status-badge status-<?= $producto['estado'] ?>">
+                            <span class="status-badge status-<?php
+                                $stock = $producto['stock'];
+                                if ($stock > 10) echo 'disponible';
+                                elseif ($stock > 0) echo 'bajo_stock';
+                                else echo 'agotado';
+                            ?>">
                                 <?php
-                                switch($producto['estado']) {
-                                    case 'disponible': echo '<i class="bi bi-check-circle"></i> Disponible'; break;
-                                    case 'bajo_stock': echo '<i class="bi bi-exclamation-triangle"></i> Bajo Stock'; break;
-                                    case 'agotado': echo '<i class="bi bi-x-circle"></i> Agotado'; break;
+                                $stock = $producto['stock'];
+                                if ($stock > 10) {
+                                    echo '<i class="bi bi-check-circle"></i> Disponible';
+                                } elseif ($stock > 0) {
+                                    echo '<i class="bi bi-exclamation-triangle"></i> Bajo Stock';
+                                } else {
+                                    echo '<i class="bi bi-x-circle"></i> Agotado';
                                 }
                                 ?>
                             </span>
@@ -474,7 +436,12 @@ $categorias = array_unique(array_column($productos, 'categoria'));
                         <div class="product-details">
                             <div class="detail-item">
                                 <div class="detail-label">Stock</div>
-                                <div class="detail-value"><?= $producto['stock'] ?></div>
+                                <div class="detail-value">
+                                    <?= $producto['stock'] ?>
+                                    <?php if ($producto['tipo_gestion'] === 'bobina'): ?>
+                                        <small>m</small>
+                                    <?php endif; ?>
+                                </div>
                             </div>
                             <div class="detail-item">
                                 <div class="detail-label">Precio</div>
@@ -511,11 +478,11 @@ $categorias = array_unique(array_column($productos, 'categoria'));
         document.querySelector('.sidebar-inventario').classList.add('active');
         
         function editarProducto(id) {
-            alert('Función de editar producto ' + id + ' (maquetado)');
+            window.location.href = '../products/edit.php?id=' + id;
         }
         
         function registrarMovimiento(id) {
-            alert('Función de registrar movimiento para producto ' + id + ' (maquetado)');
+            window.location.href = '../movements/new.php?product_id=' + id;
         }
     </script>
 </body>

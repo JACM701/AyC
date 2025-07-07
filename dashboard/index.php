@@ -1,6 +1,7 @@
 <?php
     require_once '../auth/middleware.php';
     require_once '../connection.php';
+    require_once '../config/sample_data.php';
 
     // Obtener nombre de usuario
     $username = '';
@@ -22,84 +23,31 @@
         $stmt->close();
     }
 
-    // Estadísticas principales
-    $result = $mysqli->query("SELECT COUNT(*) AS total_products FROM products");
-    $total_products = $result->fetch_assoc()['total_products'];
-
-    $result = $mysqli->query("SELECT SUM(quantity) AS total_quantity FROM products");
-    $total_quantity = $result->fetch_assoc()['total_quantity'] ?? 0;
-
-    // Calcular totales de movimientos usando movement_type_id
-    $result = $mysqli->query("SELECT SUM(quantity) AS total_in FROM movements WHERE movement_type_id = 1");
-    $total_in = $result->fetch_assoc()['total_in'] ?? 0;
-
-    $result = $mysqli->query("SELECT SUM(quantity) AS total_out FROM movements WHERE movement_type_id = 2");
-    $total_out = $result->fetch_assoc()['total_out'] ?? 0;
-
-    // Producto con menor stock
-    $result = $mysqli->query("SELECT product_name, quantity FROM products ORDER BY quantity ASC LIMIT 1");
-    $min_stock = $result->fetch_assoc();
-
-    // Producto con mayor stock
-    $result = $mysqli->query("SELECT product_name, quantity FROM products ORDER BY quantity DESC LIMIT 1");
-    $max_stock = $result->fetch_assoc();
-
-    // Último producto agregado
-    $result = $mysqli->query("SELECT product_name, created_at FROM products ORDER BY created_at DESC LIMIT 1");
-    $last_product = $result->fetch_assoc();
-
-    // Movimientos de hoy
-    $today = date('Y-m-d');
-    $result = $mysqli->query("SELECT COUNT(*) AS movimientos_hoy FROM movements WHERE DATE(movement_date) = '$today'");
-    $movimientos_hoy = $result->fetch_assoc()['movimientos_hoy'];
-
-    // Producto más movido (más movimientos sumando entradas y salidas)
-    $result = $mysqli->query("SELECT p.product_name, COUNT(m.movement_id) AS total_movs FROM movements m JOIN products p ON m.product_id = p.product_id GROUP BY m.product_id ORDER BY total_movs DESC LIMIT 1");
-    $most_moved = $result->fetch_assoc();
-
-    // Categoría con más productos
-    $result = $mysqli->query("
-        SELECT c.name as category_name, COUNT(p.product_id) as total 
-        FROM categories c 
-        LEFT JOIN products p ON c.category_id = p.category_id 
-        GROUP BY c.category_id, c.name 
-        ORDER BY total DESC 
-        LIMIT 1
-    ");
-    $top_category = $result->fetch_assoc();
-
-    // Proveedor con más productos
-    $result = $mysqli->query("SELECT supplier, COUNT(*) as total FROM products WHERE supplier IS NOT NULL AND supplier != '' GROUP BY supplier ORDER BY total DESC LIMIT 1");
-    $top_supplier = $result->fetch_assoc();
-
+    // Obtener datos del inventario unificado
+    $productos_inventario = getProductosInventario();
+    $estadisticas = getEstadisticasInventario();
+    
+    // Extraer estadísticas
+    $total_products = $estadisticas['total_productos'];
+    $disponibles = $estadisticas['disponibles'];
+    $bajo_stock = $estadisticas['bajo_stock'];
+    $agotados = $estadisticas['agotados'];
+    
+    // Datos para el dashboard
+    $min_stock = $datos_dashboard['min_stock'];
+    $max_stock = $datos_dashboard['max_stock'];
+    $last_product = $datos_dashboard['last_product'];
+    $movimientos_hoy = $datos_dashboard['movimientos_hoy'];
+    $most_moved = $datos_dashboard['most_moved'];
+    $top_category = $datos_dashboard['top_category'];
+    $top_supplier = $datos_dashboard['top_supplier'];
+    
     // --- DATOS PARA GRÁFICAS ---
-    // Stock por producto (para gráfica de pastel)
-    $result = $mysqli->query("SELECT product_name, quantity FROM products ORDER BY product_name");
-    $labels_stock = [];
-    $data_stock = [];
-    while ($row = $result->fetch_assoc()) {
-        $labels_stock[] = $row['product_name'];
-        $data_stock[] = (int)$row['quantity'];
-    }
-
-    // Movimientos últimos 7 días (para gráfica de barras)
-    $result = $mysqli->query("
-        SELECT DATE(movement_date) as fecha, 
-               SUM(CASE WHEN movement_type_id = 1 THEN quantity ELSE 0 END) as entradas,
-               SUM(CASE WHEN movement_type_id = 2 THEN quantity ELSE 0 END) as salidas
-        FROM movements
-        WHERE movement_date >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
-        GROUP BY fecha
-        ORDER BY fecha ASC
-    ");
-    $labels_movs = [];
-    $data_entradas = [];
-    $data_salidas = [];
-    while ($row = $result->fetch_assoc()) {
-        $labels_movs[] = date('d/m', strtotime($row['fecha']));
-        $data_entradas[] = (int)$row['entradas'];
-        $data_salidas[] = (int)$row['salidas'];
-    }
+    $labels_stock = $datos_graficas['labels_stock'];
+    $data_stock = $datos_graficas['data_stock'];
+    $labels_movs = $datos_graficas['labels_movimientos'];
+    $data_entradas = $datos_graficas['data_entradas'];
+    $data_salidas = $datos_graficas['data_salidas'];
 ?>
 
 <!DOCTYPE html>
@@ -323,48 +271,48 @@
                 <div class="card">
                     <span class="icon"><i class="bi bi-boxes"></i></span>
                     <h3>Productos en inventario</h3>
-                    <p>8</p>
+                    <p><?= $total_products ?></p>
                 </div>
                 <div class="card">
                     <span class="icon"><i class="bi bi-check-circle"></i></span>
                     <h3>Disponibles</h3>
-                    <p>6</p>
+                    <p><?= $disponibles ?></p>
                 </div>
                 <div class="card">
                     <span class="icon"><i class="bi bi-exclamation-triangle"></i></span>
                     <h3>Bajo stock</h3>
-                    <p>1</p>
+                    <p><?= $bajo_stock ?></p>
                 </div>
                 <div class="card">
                     <span class="icon"><i class="bi bi-x-circle"></i></span>
                     <h3>Agotados</h3>
-                    <p>1</p>
+                    <p><?= $agotados ?></p>
                 </div>
             </section>
             <section class="dashboard-extra">
                 <div class="extra-card alert-stock">
                     <h4><i class="bi bi-exclamation-triangle"></i> Producto con menor stock</h4>
-                    <p>Sensor de Movimiento (0 unidades)</p>
+                    <p><?= htmlspecialchars($min_stock['nombre']) ?> (<?= $min_stock['stock'] ?> unidades)</p>
                 </div>
                 <div class="extra-card alert-categoria">
                     <h4><i class="bi bi-tags"></i> Categoría más popular</h4>
-                    <p>Cámaras (2 productos)</p>
+                    <p><?= htmlspecialchars($top_category['category_name']) ?> (<?= $top_category['total'] ?> productos)</p>
                 </div>
                 <div class="extra-card alert-proveedor">
                     <h4><i class="bi bi-truck"></i> Proveedor principal</h4>
-                    <p>Syscom (3 productos)</p>
+                    <p><?= htmlspecialchars($top_supplier['supplier']) ?> (<?= $top_supplier['total'] ?> productos)</p>
                 </div>
                 <div class="extra-card alert-ultimo">
                     <h4><i class="bi bi-plus-circle"></i> Último agregado</h4>
-                    <p>Switch POE 8 Puertos (hoy)</p>
+                    <p><?= htmlspecialchars($last_product['product_name']) ?> (<?= date('d/m/Y', strtotime($last_product['created_at'])) ?>)</p>
                 </div>
                 <div class="extra-card alert-movido">
                     <h4><i class="bi bi-arrow-repeat"></i> Más movimientos</h4>
-                    <p>Cámara Bullet 5MP (15 movs)</p>
+                    <p><?= htmlspecialchars($most_moved['product_name']) ?> (<?= $most_moved['total_movs'] ?> movs)</p>
                 </div>
                 <div class="extra-card alert-hoy">
                     <h4><i class="bi bi-calendar-event"></i> Movimientos hoy</h4>
-                    <p>3 movimientos</p>
+                    <p><?= $movimientos_hoy ?> movimientos</p>
                 </div>
             </section>
             <section class="dashboard-graficas">
@@ -403,9 +351,9 @@
         new Chart(ctxStock, {
             type: 'pie',
             data: {
-                labels: ['Cámaras', 'Cables', 'Grabadores', 'Accesorios', 'Conectores', 'Alarmas', 'Redes', 'Sensores'],
+                labels: <?= json_encode($labels_stock) ?>,
                 datasets: [{
-                    data: [15, 500, 8, 25, 200, 3, 12, 0],
+                    data: <?= json_encode($data_stock) ?>,
                     backgroundColor: [
                         '#121866', '#232a7c', '#388e3c', '#e53935', '#ffc107', '#00bcd4', '#8e24aa', '#fbc02d'
                     ],
@@ -427,16 +375,16 @@
         new Chart(ctxMovs, {
             type: 'bar',
             data: {
-                labels: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
+                labels: <?= json_encode($labels_movs) ?>,
                 datasets: [
                     {
                         label: 'Entradas',
-                        data: [5, 3, 8, 2, 6, 1, 4],
+                        data: <?= json_encode($data_entradas) ?>,
                         backgroundColor: '#388e3c',
                     },
                     {
                         label: 'Salidas',
-                        data: [2, 4, 1, 7, 3, 0, 2],
+                        data: <?= json_encode($data_salidas) ?>,
                         backgroundColor: '#e53935',
                     }
                 ]

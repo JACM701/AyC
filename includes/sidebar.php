@@ -30,11 +30,19 @@
                 <a href="../inventory/index.php" class="sidebar-inventario" title="Inventario">
                     <i class="bi bi-boxes"></i>
                     <span class="nav-text">Inventario</span>
-                    <span class="badge bg-success">8</span>
+                    <span class="badge bg-success"><?= $total_products ?? 8 ?></span>
                 </a>
-                <a href="../cotizaciones/maqueta.php" class="sidebar-cotizaciones" title="Realizar cotización">
+                <a href="../cotizaciones/index.php" class="sidebar-cotizaciones" title="Cotizaciones">
                     <i class="bi bi-file-earmark-text"></i>
-                    <span class="nav-text">Realizar cotización</span>
+                    <span class="nav-text">Cotizaciones</span>
+                </a>
+                <a href="../equipos/equipos.php" class="sidebar-equipos" title="Equipos">
+                    <i class="bi bi-tools"></i>
+                    <span class="nav-text">Equipos</span>
+                </a>
+                <a href="../insumos/insumos.php" class="sidebar-insumos" title="Insumos">
+                    <i class="bi bi-box2"></i>
+                    <span class="nav-text">Insumos</span>
                 </a>
             </div>
         </div>
@@ -74,27 +82,6 @@
                     <i class="bi bi-people"></i>
                     <span class="nav-text">Clientes</span>
                 </a>
-                <a href="../purchase_orders/index.php" class="sidebar-ordenes" title="Órdenes de Compra">
-                    <i class="bi bi-cart-check"></i>
-                    <span class="nav-text">Órdenes de Compra</span>
-                </a>
-            </div>
-        </div>
-
-        <!-- Sección Almacén -->
-        <div class="nav-section">
-            <div class="nav-section-header">
-                <span class="section-title">Almacén</span>
-            </div>
-            <div class="nav-links">
-                <a href="../warehouses/index.php" class="sidebar-almacenes" title="Almacenes">
-                    <i class="bi bi-building"></i>
-                    <span class="nav-text">Almacenes</span>
-                </a>
-                <a href="../locations/index.php" class="sidebar-ubicaciones" title="Ubicaciones">
-                    <i class="bi bi-geo-alt"></i>
-                    <span class="nav-text">Ubicaciones</span>
-                </a>
             </div>
         </div>
 
@@ -108,10 +95,6 @@
                     <i class="bi bi-graph-up"></i>
                     <span class="nav-text">Reportes</span>
                 </a>
-                <a href="../audit/index.php" class="sidebar-auditorias" title="Auditorías">
-                    <i class="bi bi-clipboard-check"></i>
-                    <span class="nav-text">Auditorías</span>
-                </a>
             </div>
         </div>
 
@@ -123,7 +106,7 @@
             <div class="nav-links">
                 <a href="../configuracion/index.php" class="sidebar-configuracion" title="Configuración">
                     <i class="bi bi-gear"></i>
-                    <span class="nav-text">Configuración</span>
+                    <span class="nav-text">Usuarios</span>
                 </a>
                 <a href="../system_config/index.php" class="sidebar-sistema" title="Sistema">
                     <i class="bi bi-sliders"></i>
