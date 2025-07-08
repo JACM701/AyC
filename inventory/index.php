@@ -1,50 +1,64 @@
 <?php
 require_once '../auth/middleware.php';
-require_once '../config/sample_data.php';
-
-// Obtener productos del inventario unificado
-$productos_inventario = getProductosInventario();
+require_once '../connection.php';
 
 // Filtros
 $categoria_filtro = isset($_GET['categoria']) ? $_GET['categoria'] : '';
 $busqueda = isset($_GET['busqueda']) ? $_GET['busqueda'] : '';
 $estado_filtro = isset($_GET['estado']) ? $_GET['estado'] : '';
 
-// Aplicar filtros
+// Construir consulta base
+$query = "SELECT p.*, c.name as categoria, s.name as proveedor FROM products p
+          LEFT JOIN categories c ON p.category_id = c.category_id
+          LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id WHERE 1=1";
+$params = [];
+$types = '';
+
 if ($categoria_filtro) {
-    $productos_inventario = array_filter($productos_inventario, function($p) use ($categoria_filtro) {
-        return $p['categoria'] === $categoria_filtro;
-    });
+    $query .= " AND c.category_id = ?";
+    $params[] = $categoria_filtro;
+    $types .= 'i';
 }
-
 if ($busqueda) {
-    $productos_inventario = array_filter($productos_inventario, function($p) use ($busqueda) {
-        return stripos($p['nombre'], $busqueda) !== false || 
-               stripos($p['sku'], $busqueda) !== false ||
-               stripos($p['descripcion'], $busqueda) !== false;
-    });
+    $query .= " AND (p.product_name LIKE ? OR p.sku LIKE ? OR p.description LIKE ?)";
+    $like = "%$busqueda%";
+    $params[] = $like; $params[] = $like; $params[] = $like;
+    $types .= 'sss';
 }
-
 if ($estado_filtro) {
-    $productos_inventario = array_filter($productos_inventario, function($p) use ($estado_filtro) {
-        $stock = $p['stock'];
-        if ($estado_filtro === 'disponible') return $stock > 10;
-        if ($estado_filtro === 'bajo_stock') return $stock > 0 && $stock <= 10;
-        if ($estado_filtro === 'agotado') return $stock == 0;
-        return true;
-    });
+    if ($estado_filtro === 'disponible') {
+        $query .= " AND p.quantity > 10";
+    } elseif ($estado_filtro === 'bajo_stock') {
+        $query .= " AND p.quantity > 0 AND p.quantity <= 10";
+    } elseif ($estado_filtro === 'agotado') {
+        $query .= " AND p.quantity = 0";
+    }
 }
+$query .= " ORDER BY p.product_name ASC";
+
+$stmt = $mysqli->prepare($query);
+if (!empty($params)) {
+    $stmt->bind_param($types, ...$params);
+}
+$stmt->execute();
+$productos = $stmt->get_result();
 
 // Obtener categorías únicas
-$categorias = array_unique(array_column($productos_inventario, 'categoria'));
+$categorias = $mysqli->query("SELECT category_id, name FROM categories ORDER BY name");
 
 // Calcular estadísticas
-$estadisticas = getEstadisticasInventario();
-$total_productos = $estadisticas['total_productos'];
-$disponibles = $estadisticas['disponibles'];
-$bajo_stock = $estadisticas['bajo_stock'];
-$agotados = $estadisticas['agotados'];
-$valor_total = $estadisticas['valor_total'];
+$stats_query = "SELECT COUNT(*) as total_productos,
+    SUM(CASE WHEN quantity > 10 THEN 1 ELSE 0 END) as disponibles,
+    SUM(CASE WHEN quantity > 0 AND quantity <= 10 THEN 1 ELSE 0 END) as bajo_stock,
+    SUM(CASE WHEN quantity = 0 THEN 1 ELSE 0 END) as agotados,
+    SUM(quantity * price) as valor_total
+    FROM products";
+$stats = $mysqli->query($stats_query)->fetch_assoc();
+$total_productos = $stats['total_productos'];
+$disponibles = $stats['disponibles'];
+$bajo_stock = $stats['bajo_stock'];
+$agotados = $stats['agotados'];
+$valor_total = $stats['valor_total'];
 ?>
 
 <!DOCTYPE html>
@@ -345,12 +359,14 @@ $valor_total = $estadisticas['valor_total'];
                     <label for="categoria" class="form-label">Categoría</label>
                     <select class="form-select" id="categoria" name="categoria">
                         <option value="">Todas</option>
-                        <?php foreach ($categorias as $cat): ?>
-                            <option value="<?= htmlspecialchars($cat) ?>" 
-                                    <?= $categoria_filtro === $cat ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($cat) ?>
-                            </option>
-                        <?php endforeach; ?>
+                        <?php 
+                        if ($categorias) {
+                            while ($row = $categorias->fetch_assoc()) {
+                                $selected = ($categoria_filtro == $row['category_id']) ? 'selected' : '';
+                                echo "<option value='{$row['category_id']}' $selected>{$row['name']}</option>";
+                            }
+                        }
+                        ?>
                     </select>
                 </div>
                 <div class="col-md-2">
@@ -384,7 +400,7 @@ $valor_total = $estadisticas['valor_total'];
             </form>
         </div>
 
-        <?php if (empty($productos_inventario)): ?>
+        <?php if ($productos->num_rows === 0): ?>
             <div class="empty-state">
                 <i class="bi bi-boxes"></i>
                 <h5>No se encontraron productos</h5>
@@ -395,11 +411,11 @@ $valor_total = $estadisticas['valor_total'];
             </div>
         <?php else: ?>
             <div class="product-grid">
-                <?php foreach ($productos_inventario as $producto): ?>
+                <?php while ($producto = $productos->fetch_assoc()): ?>
                     <div class="product-card">
                         <div class="product-header">
                             <div>
-                                <h5 class="product-title"><?= htmlspecialchars($producto['nombre']) ?></h5>
+                                <h5 class="product-title"><?= htmlspecialchars($producto['product_name']) ?></h5>
                                 <div class="product-sku">
                                     SKU: <?= htmlspecialchars($producto['sku']) ?>
                                     <span class="tipo-gestion-badge"><?= ucfirst($producto['tipo_gestion']) ?></span>
@@ -410,18 +426,18 @@ $valor_total = $estadisticas['valor_total'];
                         <div class="product-category"><?= htmlspecialchars($producto['categoria']) ?></div>
                         
                         <div class="product-description">
-                            <?= htmlspecialchars($producto['descripcion']) ?>
+                            <?= htmlspecialchars($producto['description']) ?>
                         </div>
                         
                         <div class="stock-status">
                             <span class="status-badge status-<?php
-                                $stock = $producto['stock'];
+                                $stock = $producto['quantity'];
                                 if ($stock > 10) echo 'disponible';
                                 elseif ($stock > 0) echo 'bajo_stock';
                                 else echo 'agotado';
                             ?>">
                                 <?php
-                                $stock = $producto['stock'];
+                                $stock = $producto['quantity'];
                                 if ($stock > 10) {
                                     echo '<i class="bi bi-check-circle"></i> Disponible';
                                 } elseif ($stock > 0) {
@@ -437,7 +453,7 @@ $valor_total = $estadisticas['valor_total'];
                             <div class="detail-item">
                                 <div class="detail-label">Stock</div>
                                 <div class="detail-value">
-                                    <?= $producto['stock'] ?>
+                                    <?= $producto['quantity'] ?>
                                     <?php if ($producto['tipo_gestion'] === 'bobina'): ?>
                                         <small>m</small>
                                     <?php endif; ?>
@@ -445,7 +461,7 @@ $valor_total = $estadisticas['valor_total'];
                             </div>
                             <div class="detail-item">
                                 <div class="detail-label">Precio</div>
-                                <div class="detail-value">$<?= number_format($producto['precio'], 2) ?></div>
+                                <div class="detail-value">$<?= number_format($producto['price'], 2) ?></div>
                             </div>
                             <div class="detail-item">
                                 <div class="detail-label">Proveedor</div>
@@ -453,23 +469,23 @@ $valor_total = $estadisticas['valor_total'];
                             </div>
                             <div class="detail-item">
                                 <div class="detail-label">Valor Total</div>
-                                <div class="detail-value">$<?= number_format($producto['stock'] * $producto['precio'], 2) ?></div>
+                                <div class="detail-value">$<?= number_format($producto['quantity'] * $producto['price'], 2) ?></div>
                             </div>
                         </div>
                         
                         <div class="product-actions">
-                            <button class="btn-action btn-edit" onclick="editarProducto(<?= $producto['id'] ?>)">
+                            <button class="btn-action btn-edit" onclick="editarProducto(<?= $producto['product_id'] ?>)">
                                 <i class="bi bi-pencil"></i> Editar
                             </button>
-                            <button class="btn-action btn-movement" onclick="registrarMovimiento(<?= $producto['id'] ?>)">
+                            <button class="btn-action btn-movement" onclick="registrarMovimiento(<?= $producto['product_id'] ?>)">
                                 <i class="bi bi-arrow-left-right"></i> Movimiento
                             </button>
-                            <button class="btn-action" style="background: #e3f2fd; color: #1565c0;" onclick="buscarPrecios(<?= $producto['id'] ?>)">
+                            <button class="btn-action" style="background: #e3f2fd; color: #1565c0;" onclick="buscarPrecios(<?= $producto['product_id'] ?>)">
                                 <i class="bi bi-search"></i> Precios
                             </button>
                         </div>
                     </div>
-                <?php endforeach; ?>
+                <?php endwhile; ?>
             </div>
         <?php endif; ?>
     </main>

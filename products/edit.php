@@ -34,7 +34,7 @@
     $categorias = $mysqli->query("SELECT category_id, name FROM categories ORDER BY name");
     
     // Obtener proveedores existentes para el select
-    $proveedores = $mysqli->query("SELECT DISTINCT supplier FROM products WHERE supplier IS NOT NULL AND supplier != '' ORDER BY supplier");
+    $proveedores = $mysqli->query("SELECT supplier_id, name FROM suppliers ORDER BY name");
 
     // Obtener tipo de gestión actual
     $tipo_gestion_actual = isset($product['tipo_gestion']) ? $product['tipo_gestion'] : 'normal';
@@ -64,10 +64,16 @@
         }
         
         // Manejar proveedor (existente o nuevo)
-        $supplier = trim($_POST['supplier']);
-        $new_supplier = trim($_POST['new_supplier']);
+        $supplier_id = isset($_POST['supplier_id']) ? intval($_POST['supplier_id']) : null;
+        $new_supplier = trim($_POST['new_supplier'] ?? '');
         if (!empty($new_supplier)) {
-            $supplier = $new_supplier;
+            // Insertar nuevo proveedor
+            $stmt = $mysqli->prepare("INSERT INTO suppliers (name) VALUES (?)");
+            $stmt->bind_param("s", $new_supplier);
+            if ($stmt->execute()) {
+                $supplier_id = $stmt->insert_id;
+            }
+            $stmt->close();
         }
         
         $description = isset($_POST['description']) ? trim($_POST['description']) : null;
@@ -109,8 +115,8 @@
         }
 
         if ($product_name && $price >= 0 && $quantity >= 0) {
-            $stmt = $mysqli->prepare("UPDATE products SET product_name = ?, sku = ?, price = ?, quantity = ?, category_id = ?, supplier = ?, description = ?, barcode = ?, image = ?, tipo_gestion = ? WHERE product_id = ?");
-            $stmt->bind_param("ssdiisssssi", $product_name, $sku, $price, $quantity, $category_id, $supplier, $description, $barcode, $image_path, $tipo_gestion, $product_id);
+            $stmt = $mysqli->prepare("UPDATE products SET product_name = ?, sku = ?, price = ?, quantity = ?, category_id = ?, supplier_id = ?, description = ?, barcode = ?, image = ?, tipo_gestion = ? WHERE product_id = ?");
+            $stmt->bind_param("ssdiisssssi", $product_name, $sku, $price, $quantity, $category_id, $supplier_id, $description, $barcode, $image_path, $tipo_gestion, $product_id);
 
             if ($stmt->execute()) {
                 $success = "Producto actualizado correctamente.";
@@ -120,7 +126,7 @@
                 $product['price'] = $price;
                 $product['quantity'] = $quantity;
                 $product['category_id'] = $category_id;
-                $product['supplier'] = $supplier;
+                $product['supplier_id'] = $supplier_id;
                 $product['description'] = $description;
                 $product['barcode'] = $barcode;
                 $product['image'] = $image_path;
@@ -330,21 +336,15 @@
                     </div>
 
                     <div class="mb-3">
-                        <label for="supplier" class="form-label">Proveedor:</label>
-                        <select class="form-select" name="supplier" id="supplier">
+                        <label for="supplier_id" class="form-label">Proveedor</label>
+                        <select class="form-select" name="supplier_id" id="supplier_id">
                             <option value="">Selecciona un proveedor</option>
-                            <?php 
-                            // Reset the result set
-                            $proveedores->data_seek(0);
-                            while ($proveedor = $proveedores->fetch_assoc()): 
-                            ?>
-                                <option value="<?= htmlspecialchars($proveedor['supplier']) ?>" <?= htmlspecialchars($product['supplier']) === htmlspecialchars($proveedor['supplier']) ? 'selected' : '' ?>><?= htmlspecialchars($proveedor['supplier']) ?></option>
-                            <?php endwhile; ?>
+                            <?php if ($proveedores) { while ($prov = $proveedores->fetch_assoc()): ?>
+                                <option value="<?= $prov['supplier_id'] ?>" <?= (isset($product['supplier_id']) && $product['supplier_id'] == $prov['supplier_id']) ? 'selected' : '' ?>><?= htmlspecialchars($prov['name']) ?></option>
+                            <?php endwhile; } ?>
                         </select>
-                        <div class="mt-2">
-                            <small class="text-muted">O escribe un nuevo proveedor:</small>
-                            <input type="text" class="form-control mt-1" name="new_supplier" id="new_supplier" placeholder="Nuevo proveedor (opcional)">
-                        </div>
+                        <small class="text-muted">O agrega un nuevo proveedor:</small>
+                        <input type="text" class="form-control mt-2" name="new_supplier" placeholder="Nuevo proveedor">
                     </div>
 
                     <div class="mb-3">

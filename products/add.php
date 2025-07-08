@@ -12,7 +12,7 @@
     $categorias = $mysqli->query("SELECT category_id, name FROM categories ORDER BY name");
     
     // Obtener proveedores existentes para el select
-    $proveedores = $mysqli->query("SELECT DISTINCT supplier FROM products WHERE supplier IS NOT NULL AND supplier != '' ORDER BY supplier");
+    $proveedores = $mysqli->query("SELECT supplier_id, name FROM suppliers ORDER BY name");
 
     // ID de la categoría 'Cables y Conectores'
     $bobina_category_id = 13;
@@ -43,11 +43,16 @@
         }
         
         // Manejar proveedor (existente o nuevo)
-        $supplier = isset($_POST['supplier']) ? trim($_POST['supplier']) : null;
-        if ($supplier === '') $supplier = null;
+        $supplier_id = isset($_POST['supplier_id']) ? intval($_POST['supplier_id']) : null;
         $new_supplier = trim($_POST['new_supplier'] ?? '');
         if (!empty($new_supplier)) {
-            $supplier = $new_supplier;
+            // Insertar nuevo proveedor
+            $stmt = $mysqli->prepare("INSERT INTO suppliers (name) VALUES (?)");
+            $stmt->bind_param("s", $new_supplier);
+            if ($stmt->execute()) {
+                $supplier_id = $stmt->insert_id;
+            }
+            $stmt->close();
         }
         
         $description = isset($_POST['description']) ? trim($_POST['description']) : null;
@@ -91,8 +96,8 @@
 
         // Validación básica
         if ($product_name && $price >= 0 && $quantity >= 0 && $quantity > 0) {
-            $stmt = $mysqli->prepare("INSERT INTO products (product_name, sku, price, quantity, category_id, supplier, description, barcode, image, tipo_gestion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("ssdiisssss", $product_name, $sku, $price, $quantity, $category_id, $supplier, $description, $barcode, $image_path, $tipo_gestion);
+            $stmt = $mysqli->prepare("INSERT INTO products (product_name, sku, price, quantity, category_id, supplier_id, description, barcode, image, tipo_gestion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("ssdiisssss", $product_name, $sku, $price, $quantity, $category_id, $supplier_id, $description, $barcode, $image_path, $tipo_gestion);
             if ($stmt->execute()) {
                 $new_product_id = $stmt->insert_id;
                 // Si el tipo de gestión es bobina, mostrar opción de registrar bobinas
@@ -535,19 +540,16 @@
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <div class="floating-label">
-                                    <select class="form-select" name="supplier" id="supplier">
+                                <div class="mb-3">
+                                    <label for="supplier_id" class="form-label">Proveedor</label>
+                                    <select class="form-select" name="supplier_id" id="supplier_id">
                                         <option value="">Selecciona un proveedor</option>
-                                        <?php $proveedores->data_seek(0); while ($row = $proveedores->fetch_assoc()): ?>
-                                            <option value="<?= htmlspecialchars($row['supplier']) ?>"><?= htmlspecialchars($row['supplier']) ?></option>
-                                        <?php endwhile; ?>
+                                        <?php if ($proveedores) { while ($prov = $proveedores->fetch_assoc()): ?>
+                                            <option value="<?= $prov['supplier_id'] ?>"><?= htmlspecialchars($prov['name']) ?></option>
+                                        <?php endwhile; } ?>
                                     </select>
-                                    <label for="supplier">Proveedor</label>
-                                    <small class="text-muted">O escribe uno nuevo:</small>
-                                    <div class="floating-label mt-2">
-                                        <input type="text" class="form-control" name="new_supplier" id="new_supplier" placeholder=" ">
-                                        <label for="new_supplier">Nuevo proveedor</label>
-                                    </div>
+                                    <small class="text-muted">O agrega un nuevo proveedor:</small>
+                                    <input type="text" class="form-control mt-2" name="new_supplier" placeholder="Nuevo proveedor">
                                 </div>
                             </div>
                         </div>
@@ -651,7 +653,7 @@
         // Manejar campos de nueva categoría y proveedor
         const categorySelect = document.getElementById('category');
         const newCategoryInput = document.getElementById('new_category');
-        const supplierSelect = document.getElementById('supplier');
+        const supplierSelect = document.getElementById('supplier_id'); // Changed to supplier_id
         const newSupplierInput = document.getElementById('new_supplier');
 
         // Cuando se selecciona una categoría existente, limpiar el campo de nueva categoría
@@ -671,22 +673,24 @@
             }
         });
 
-        // Cuando se selecciona un proveedor existente, limpiar el campo de nuevo proveedor
-        supplierSelect.addEventListener('change', function() {
-            if (this.value !== '') {
-                newSupplierInput.value = '';
-                newSupplierInput.disabled = true;
-            } else {
-                newSupplierInput.disabled = false;
-            }
-        });
+        // Manejar proveedores existentes y nuevos
+        const supplierSelectElement = document.getElementById('supplier_id');
+        const newSupplierInputElement = document.getElementById('new_supplier');
 
-        // Cuando se escribe en nuevo proveedor, limpiar el select
-        newSupplierInput.addEventListener('input', function() {
-            if (this.value.trim() !== '') {
-                supplierSelect.value = '';
-            }
-        });
+        // Si el select de proveedores tiene un valor, significa que es un proveedor existente
+        // Si el input de nuevo proveedor tiene un valor, significa que es un nuevo proveedor
+        // Si el select está vacío, significa que el usuario quiere agregar un nuevo proveedor
+        // Si el input de nuevo proveedor está vacío, significa que el usuario quiere agregar un nuevo proveedor
+
+        // Al cargar, verificar si el proveedor seleccionado es un nuevo proveedor
+        const selectedSupplierOption = supplierSelectElement.options[supplierSelectElement.selectedIndex];
+        if (selectedSupplierOption.value === '') {
+            newSupplierInputElement.value = ''; // Limpiar el input de nuevo proveedor si ya hay un proveedor seleccionado
+            newSupplierInputElement.disabled = false; // Habilitar el input de nuevo proveedor
+        } else {
+            newSupplierInputElement.value = ''; // Limpiar el input de nuevo proveedor si ya hay un proveedor seleccionado
+            newSupplierInputElement.disabled = true; // Deshabilitar el input de nuevo proveedor
+        }
 
         // Mostrar/ocultar campos de bobina según tipo_gestion
         const tipoGestionRadios = document.querySelectorAll('input[name="tipo_gestion"]');
