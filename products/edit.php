@@ -114,11 +114,43 @@
             $sku_auto_generado = true;
         }
 
+        // 1. Frontend: Cambiar label y comportamiento del campo cuando es bobina
+        $metros_bobina = isset($_POST['quantity']) ? intval($_POST['quantity']) : 0;
+        
+        if ($tipo_gestion === 'bobina') {
+            $cantidad_inicial = 1; // Siempre 1 bobina
+            if ($metros_bobina <= 0) {
+                $error = 'Los metros de la bobina deben ser mayores a 0.';
+            }
+        } else {
+            $cantidad_inicial = $metros_bobina;
+            if ($cantidad_inicial <= 0) {
+                $error = 'La cantidad inicial debe ser mayor a 0.';
+            }
+        }
+
         if ($product_name && $price >= 0 && $quantity >= 0) {
             $stmt = $mysqli->prepare("UPDATE products SET product_name = ?, sku = ?, price = ?, quantity = ?, category_id = ?, supplier_id = ?, description = ?, barcode = ?, image = ?, tipo_gestion = ? WHERE product_id = ?");
             $stmt->bind_param("ssdiisssssi", $product_name, $sku, $price, $quantity, $category_id, $supplier_id, $description, $barcode, $image_path, $tipo_gestion, $product_id);
 
             if ($stmt->execute()) {
+                // 2. Backend: Manejar bobinas en la edición
+                if ($tipo_gestion === 'bobina' && $metros_bobina > 0) {
+                    $stmt_check = $mysqli->prepare("SELECT COUNT(*) as total FROM bobinas WHERE product_id = ?");
+                    $stmt_check->bind_param("i", $product_id);
+                    $stmt_check->execute();
+                    $result = $stmt_check->get_result();
+                    $bobinas_existentes = $result->fetch_assoc()['total'];
+                    $stmt_check->close();
+                    
+                    if ($bobinas_existentes == 0) {
+                        $stmt_bobina = $mysqli->prepare("INSERT INTO bobinas (product_id, metros_actuales, identificador) VALUES (?, ?, ?)");
+                        $identificador = "Bobina #1";
+                        $stmt_bobina->bind_param("ids", $product_id, $metros_bobina, $identificador);
+                        $stmt_bobina->execute();
+                        $stmt_bobina->close();
+                    }
+                }
                 $success = "Producto actualizado correctamente.";
                 // Refresh product data
                 $product['product_name'] = $product_name;
@@ -378,8 +410,8 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="form-row-horizontal">
-                            <label for="quantity">Cantidad</label>
+                        <div class="form-row-horizontal" id="rowCantidadInicial" style="display:<?= $tipo_gestion_actual === 'bobina' ? '' : 'none' ?>;">
+                            <label for="quantity">Cantidad inicial *</label>
                             <input type="number" class="form-control" name="quantity" id="quantity" value="<?= $product['quantity'] ?>" required>
                         </div>
                         <div class="form-row-horizontal">
@@ -595,6 +627,44 @@
               .catch(() => {
                 document.getElementById('nuevoProveedorMsg').innerHTML = '<div class="alert alert-danger">Error de red</div>';
               });
+            });
+            </script>
+            <script>
+            // 1. Frontend: Cambiar label y comportamiento del campo cuando es bobina
+            document.addEventListener('DOMContentLoaded', function() {
+                const tipoGestionRadios = document.querySelectorAll('input[name="tipo_gestion"]');
+                const bobinaSection = document.getElementById('bobinaSection');
+                const cantidadInput = document.getElementById('quantity');
+                const rowCantidadInicial = document.getElementById('rowCantidadInicial');
+                const cantidadLabel = document.querySelector('label[for="quantity"]');
+
+                function actualizarBobina() {
+                    const checked = document.querySelector('input[name="tipo_gestion"]:checked');
+                    if (checked && checked.value === 'bobina') {
+                        if (bobinaSection) bobinaSection.style.display = '';
+                        if (cantidadInput) {
+                            cantidadInput.disabled = false;
+                            cantidadInput.required = true;
+                            cantidadInput.placeholder = 'Ej: 305, 610, etc.';
+                        }
+                        if (cantidadLabel) cantidadLabel.textContent = 'Metros de la bobina inicial *';
+                        if (rowCantidadInicial) rowCantidadInicial.style.display = '';
+                    } else {
+                        if (bobinaSection) bobinaSection.style.display = 'none';
+                        if (cantidadInput) {
+                            cantidadInput.disabled = false;
+                            cantidadInput.required = true;
+                            cantidadInput.placeholder = 'Ej: 10, 50, etc.';
+                        }
+                        if (cantidadLabel) cantidadLabel.textContent = 'Cantidad inicial *';
+                        if (rowCantidadInicial) rowCantidadInicial.style.display = '';
+                    }
+                }
+
+                tipoGestionRadios.forEach(radio => {
+                    radio.addEventListener('change', actualizarBobina);
+                });
+                actualizarBobina();
             });
             </script>
         </body>

@@ -7,10 +7,15 @@ $categoria_filtro = isset($_GET['categoria']) ? $_GET['categoria'] : '';
 $busqueda = isset($_GET['busqueda']) ? $_GET['busqueda'] : '';
 $estado_filtro = isset($_GET['estado']) ? $_GET['estado'] : '';
 
-// Construir consulta base
-$query = "SELECT p.*, c.name as categoria, s.name as proveedor FROM products p
+// Construir consulta base con información de bobinas
+$query = "SELECT p.*, c.name as categoria, s.name as proveedor,
+          COALESCE(SUM(b.metros_actuales), 0) as metros_totales,
+          COUNT(b.bobina_id) as total_bobinas
+          FROM products p
           LEFT JOIN categories c ON p.category_id = c.category_id
-          LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id WHERE 1=1";
+          LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id
+          LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
+          WHERE 1=1";
 $params = [];
 $types = '';
 
@@ -34,7 +39,7 @@ if ($estado_filtro) {
         $query .= " AND p.quantity = 0";
     }
 }
-$query .= " ORDER BY p.product_name ASC";
+$query .= " GROUP BY p.product_id, p.product_name, p.sku, p.price, p.quantity, p.category_id, p.supplier_id, p.description, p.barcode, p.image, p.tipo_gestion, p.cost_price, p.min_stock, p.max_stock, p.unit_measure, p.is_active, p.created_at, p.updated_at, c.name, s.name ORDER BY p.product_name ASC";
 
 $stmt = $mysqli->prepare($query);
 if (!empty($params)) {
@@ -431,13 +436,21 @@ $valor_total = $stats['valor_total'];
                         
                         <div class="stock-status">
                             <span class="status-badge status-<?php
-                                $stock = $producto['quantity'];
+                                if ($producto['tipo_gestion'] === 'bobina') {
+                                    $stock = $producto['metros_totales'];
+                                } else {
+                                    $stock = $producto['quantity'];
+                                }
                                 if ($stock > 10) echo 'disponible';
                                 elseif ($stock > 0) echo 'bajo_stock';
                                 else echo 'agotado';
                             ?>">
                                 <?php
-                                $stock = $producto['quantity'];
+                                if ($producto['tipo_gestion'] === 'bobina') {
+                                    $stock = $producto['metros_totales'];
+                                } else {
+                                    $stock = $producto['quantity'];
+                                }
                                 if ($stock > 10) {
                                     echo '<i class="bi bi-check-circle"></i> Disponible';
                                 } elseif ($stock > 0) {
@@ -453,10 +466,13 @@ $valor_total = $stats['valor_total'];
                             <div class="detail-item">
                                 <div class="detail-label">Stock</div>
                                 <div class="detail-value">
-                                    <?= $producto['quantity'] ?>
-                                    <?php if ($producto['tipo_gestion'] === 'bobina'): ?>
-                                        <small>m</small>
-                                    <?php endif; ?>
+                                    <?php
+                                    if ($producto['tipo_gestion'] === 'bobina') {
+                                        echo $producto['metros_totales'] . ' m';
+                                    } else {
+                                        echo $producto['quantity'];
+                                    }
+                                    ?>
                                 </div>
                             </div>
                             <div class="detail-item">
@@ -469,7 +485,12 @@ $valor_total = $stats['valor_total'];
                             </div>
                             <div class="detail-item">
                                 <div class="detail-label">Valor Total</div>
-                                <div class="detail-value">$<?= number_format($producto['quantity'] * $producto['price'], 2) ?></div>
+                                <div class="detail-value">
+                                    $<?= number_format(
+                                        ($producto['tipo_gestion'] === 'bobina' ? $producto['metros_totales'] : $producto['quantity']) * $producto['price'], 
+                                        2
+                                    ) ?>
+                                </div>
                             </div>
                         </div>
                         

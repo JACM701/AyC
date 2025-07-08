@@ -105,10 +105,25 @@
 
         // Validación básica
         if ($product_name && $price >= 0 && $quantity >= 0 && $quantity > 0) {
+            $cantidad_inicial = $quantity; // Asignar la cantidad ingresada al principio
+            if ($tipo_gestion === 'bobina') {
+                $cantidad_inicial = 0; // Para gestión de bobina, la cantidad inicial es 0
+            }
+
             $stmt = $mysqli->prepare("INSERT INTO products (product_name, sku, price, quantity, category_id, supplier_id, description, barcode, image, tipo_gestion, cost_price, min_stock, max_stock, unit_measure) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("ssdiissssssddi", $product_name, $sku, $price, $quantity, $category_id, $supplier_id, $description, $barcode, $image_path, $tipo_gestion, $cost_price, $min_stock, $max_stock, $unit_measure);
+            $stmt->bind_param("ssdiissssssddi", $product_name, $sku, $price, $cantidad_inicial, $category_id, $supplier_id, $description, $barcode, $image_path, $tipo_gestion, $cost_price, $min_stock, $max_stock, $unit_measure);
             if ($stmt->execute()) {
                 $new_product_id = $stmt->insert_id;
+                
+                // Si es bobina, crear automáticamente el registro en bobinas
+                if ($tipo_gestion === 'bobina' && $quantity > 0) {
+                    $stmt_bobina = $mysqli->prepare("INSERT INTO bobinas (product_id, metros_actuales, identificador) VALUES (?, ?, ?)");
+                    $identificador = "Bobina #1";
+                    $stmt_bobina->bind_param("ids", $new_product_id, $quantity, $identificador);
+                    $stmt_bobina->execute();
+                    $stmt_bobina->close();
+                }
+                
                 // Si el tipo de gestión es bobina, mostrar opción de registrar bobinas
                 if ($tipo_gestion === 'bobina') {
                     $success = "Producto tipo bobina agregado correctamente. Ahora puedes registrar las bobinas individuales.";
@@ -124,7 +139,7 @@
                 $error = "El nombre del producto es obligatorio.";
             } elseif ($price < 0) {
                 $error = "El precio no puede ser negativo.";
-            } elseif ($quantity <= 0) {
+            } elseif ($tipo_gestion !== 'bobina' && $cantidad_inicial <= 0) {
                 $error = "La cantidad inicial debe ser mayor a 0.";
             } else {
                 $error = "Por favor, completa todos los campos correctamente.";
@@ -556,7 +571,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="row mb-3">
+                        <div class="row mb-3" id="rowCantidadInicial" style="display:none;">
                             <div class="col-md-4">
                                 <label for="quantity" class="form-label">Cantidad inicial *</label>
                                 <input type="number" class="form-control" name="quantity" id="quantity" required>
@@ -605,31 +620,6 @@
                             <div class="col-md-6">
                                 <label for="description" class="form-label">Descripción</label>
                                 <textarea class="form-control" name="description" id="description" rows="3"></textarea>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- SECCIÓN 5: CONFIGURACIÓN DE BOBINA (solo si es bobina) -->
-                    <div class="form-section" id="bobinaSection" style="display:none;">
-                        <h6><i class="bi bi-receipt"></i> Configuración de Bobina</h6>
-                        <div class="alert alert-info">
-                            <i class="bi bi-info-circle"></i>
-                            <strong>Producto tipo bobina:</strong> Después de crear el producto, podrás registrar las bobinas individuales con sus metros.
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="floating-label">
-                                    <input type="number" step="0.01" min="0.01" class="form-control" name="metros_iniciales" id="metros_iniciales" placeholder=" ">
-                                    <label for="metros_iniciales">Metros sugeridos por bobina</label>
-                                    <small class="text-muted">Solo para referencia</small>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="floating-label">
-                                    <input type="text" class="form-control" name="identificador" id="identificador" placeholder=" ">
-                                    <label for="identificador">Formato de identificador</label>
-                                    <small class="text-muted">Solo para referencia</small>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -734,17 +724,28 @@
         // --- Lógica robusta para tipo de gestión bobina ---
         document.addEventListener('DOMContentLoaded', function() {
             const tipoGestionRadios = document.querySelectorAll('input[name="tipo_gestion"]');
-            const bobinaSection = document.getElementById('bobinaSection');
             const cantidadInput = document.getElementById('quantity');
+            const rowCantidadInicial = document.getElementById('rowCantidadInicial');
+            const cantidadLabel = document.querySelector('label[for="quantity"]');
 
             function actualizarBobina() {
                 const checked = document.querySelector('input[name="tipo_gestion"]:checked');
                 if (checked && checked.value === 'bobina') {
-                    if (bobinaSection) bobinaSection.style.display = '';
-                    if (cantidadInput) cantidadInput.disabled = true;
+                    if (cantidadInput) {
+                        cantidadInput.disabled = false;
+                        cantidadInput.required = true;
+                        cantidadInput.placeholder = 'Ej: 305, 610, etc.';
+                    }
+                    if (cantidadLabel) cantidadLabel.textContent = 'Metros de la bobina inicial *';
+                    if (rowCantidadInicial) rowCantidadInicial.style.display = '';
                 } else {
-                    if (bobinaSection) bobinaSection.style.display = 'none';
-                    if (cantidadInput) cantidadInput.disabled = false;
+                    if (cantidadInput) {
+                        cantidadInput.disabled = false;
+                        cantidadInput.required = true;
+                        cantidadInput.placeholder = 'Ej: 10, 50, etc.';
+                    }
+                    if (cantidadLabel) cantidadLabel.textContent = 'Cantidad inicial *';
+                    if (rowCantidadInicial) rowCantidadInicial.style.display = '';
                 }
             }
 

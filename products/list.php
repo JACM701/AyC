@@ -2,12 +2,16 @@
     require_once '../auth/middleware.php';
     require_once '../connection.php';
 
-    // Obtener todos los productos con información de categoría y proveedor
+    // Obtener todos los productos con información de categoría, proveedor y bobinas
     $result = $mysqli->query("
-        SELECT p.*, c.name as category_name, s.name as supplier_name
+        SELECT p.*, c.name as category_name, s.name as supplier_name,
+               COALESCE(SUM(b.metros_actuales), 0) as metros_totales,
+               COUNT(b.bobina_id) as total_bobinas
         FROM products p 
         LEFT JOIN categories c ON p.category_id = c.category_id 
         LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id
+        LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
+        GROUP BY p.product_id, p.product_name, p.sku, p.price, p.quantity, p.category_id, p.supplier_id, p.description, p.barcode, p.image, p.tipo_gestion, p.cost_price, p.min_stock, p.max_stock, p.unit_measure, p.is_active, p.created_at, p.updated_at, c.name, s.name
         ORDER BY p.created_at DESC
     ");
 
@@ -231,9 +235,17 @@
                                 <td><?= htmlspecialchars($row['supplier_name'] ?? 'Sin proveedor') ?></td>
                                 <td>$<?= number_format($row['price'], 2) ?></td>
                                 <td>
-                                    <span class="badge <?= $row['quantity'] > 10 ? 'bg-success' : ($row['quantity'] > 0 ? 'bg-warning' : 'bg-danger') ?>">
-                                        <?= $row['quantity'] ?>
-                                    </span>
+                                    <?php if ($row['tipo_gestion'] === 'bobina'): ?>
+                                        <?php if ($row['total_bobinas'] > 0): ?>
+                                            <?= $row['total_bobinas'] ?> bobina<?= $row['total_bobinas'] != 1 ? 's' : '' ?> (<?= number_format($row['metros_totales'], 0) ?>m)
+                                        <?php else: ?>
+                                            0 bobinas
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                        <span class="badge <?= $row['quantity'] > 10 ? 'bg-success' : ($row['quantity'] > 0 ? 'bg-warning' : 'bg-danger') ?>">
+                                            <?= $row['quantity'] ?>
+                                        </span>
+                                    <?php endif; ?>
                                 </td>
                                 <td><?= date('d/m/Y', strtotime($row['created_at'])) ?></td>
                                 <td>

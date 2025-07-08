@@ -7,6 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
             let valid = true;
 
             inputs.forEach(input => {
+                // Ignorar inputs ocultos o deshabilitados
+                if (input.offsetParent === null || input.disabled) return;
                 if (!input.value.trim()) {
                     valid = false;
                     input.classList.add('is-invalid');
