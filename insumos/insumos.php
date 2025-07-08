@@ -536,11 +536,13 @@ $consumo_semanal_total = array_sum(array_column($insumos, 'consumo_semanal'));
         <?php endif; ?>
     </main>
 
+    <script>
+        window.insumosData = <?= json_encode($insumos) ?>;
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="../assets/js/script.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Resalta el menú activo
-        document.querySelector('.sidebar-insumos').classList.add('active');
         
         function agregarInsumo() {
             // Obtener productos del catálogo desde PHP

@@ -1,3 +1,12 @@
+<?php
+// Obtener total de productos para el badge
+if (!isset($total_products)) {
+    require_once __DIR__ . '/../connection.php';
+    $total_query = "SELECT COUNT(*) as total FROM products";
+    $total_result = $mysqli->query($total_query);
+    $total_products = $total_result ? $total_result->fetch_assoc()['total'] : 0;
+}
+?>
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-header sidebar-header-compact">
         <div class="sidebar-toggle-container">
@@ -30,7 +39,7 @@
                 <a href="../inventory/index.php" class="sidebar-inventario" title="Inventario">
                     <i class="bi bi-boxes"></i>
                     <span class="nav-text">Inventario</span>
-                    <span class="badge bg-success"><?= $total_products ?? 8 ?></span>
+                    <span class="badge bg-success"><?= $total_products ?></span>
                 </a>
                 <a href="../cotizaciones/index.php" class="sidebar-cotizaciones" title="Cotizaciones">
                     <i class="bi bi-file-earmark-text"></i>
@@ -61,7 +70,7 @@
                     <i class="bi bi-arrow-left-right"></i>
                     <span class="nav-text">Movimientos</span>
                 </a>
-                <a href="../categories/index.php" class="sidebar-categorias" title="Categorías">
+                <a href="../products/categories.php" class="sidebar-categorias" title="Categorías">
                     <i class="bi bi-tags"></i>
                     <span class="nav-text">Categorías</span>
                 </a>
@@ -74,8 +83,8 @@
                 <span class="section-title">Comercial</span>
             </div>
             <div class="nav-links">
-                <a href="../suppliers/index.php" class="sidebar-proveedores" title="Proveedores">
-                    <i class="bi bi-truck"></i>
+                <a href="../proveedores/index.php" class="sidebar-proveedores" title="Proveedores">
+                    <i class="bi bi-globe"></i>
                     <span class="nav-text">Proveedores</span>
                 </a>
                 <a href="../clients/index.php" class="sidebar-clientes" title="Clientes">
@@ -104,8 +113,8 @@
                 <span class="section-title">Sistema</span>
             </div>
             <div class="nav-links">
-                <a href="../configuracion/index.php" class="sidebar-configuracion" title="Configuración">
-                    <i class="bi bi-gear"></i>
+                <a href="../usuarios/index.php" class="sidebar-configuracion" title="Usuarios">
+                    <i class="bi bi-person-gear"></i>
                     <span class="nav-text">Usuarios</span>
                 </a>
                 <a href="../system_config/index.php" class="sidebar-sistema" title="Sistema">
@@ -149,5 +158,17 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Debug: mostrar en consola el estado del sidebar
     console.log('Sidebar inicial:', sidebar.classList.contains('collapsed') ? 'colapsado' : 'expandido');
+
+    // Guardar y restaurar la posición del scroll del sidebar
+    const guardarScrollSidebar = () => {
+        localStorage.setItem('sidebar-scroll', sidebar.scrollTop);
+    };
+    // Restaurar al cargar
+    const scrollGuardado = localStorage.getItem('sidebar-scroll');
+    if (scrollGuardado !== null) {
+        sidebar.scrollTop = parseInt(scrollGuardado);
+    }
+    // Guardar al hacer scroll
+    sidebar.addEventListener('scroll', guardarScrollSidebar);
 });
 </script> 

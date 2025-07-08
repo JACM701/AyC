@@ -388,9 +388,14 @@
                 <div class="mt-4">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h4><i class="bi bi-receipt"></i> Bobinas asociadas</h4>
-                        <a href="../bobinas/add.php?product_id=<?= $product_id ?>" class="btn btn-primary btn-sm">
-                            <i class="bi bi-plus-circle"></i> Agregar bobina
-                        </a>
+                        <div class="d-flex gap-2">
+                            <a href="../bobinas/gestionar.php?product_id=<?= $product_id ?>" class="btn btn-info btn-sm">
+                                <i class="bi bi-gear"></i> Gestionar bobinas
+                            </a>
+                            <a href="../bobinas/add.php?product_id=<?= $product_id ?>" class="btn btn-primary btn-sm">
+                                <i class="bi bi-plus-circle"></i> Agregar bobina
+                            </a>
+                        </div>
                     </div>
                     <div class="table-responsive">
                         <table class="table table-striped table-hover">

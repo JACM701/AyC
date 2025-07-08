@@ -464,6 +464,9 @@ $valor_total = $estadisticas['valor_total'];
                             <button class="btn-action btn-movement" onclick="registrarMovimiento(<?= $producto['id'] ?>)">
                                 <i class="bi bi-arrow-left-right"></i> Movimiento
                             </button>
+                            <button class="btn-action" style="background: #e3f2fd; color: #1565c0;" onclick="buscarPrecios(<?= $producto['id'] ?>)">
+                                <i class="bi bi-search"></i> Precios
+                            </button>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -483,6 +486,10 @@ $valor_total = $estadisticas['valor_total'];
         
         function registrarMovimiento(id) {
             window.location.href = '../movements/new.php?product_id=' + id;
+        }
+        
+        function buscarPrecios(id) {
+            window.location.href = '../proveedores/buscar_producto.php?id=' + id;
         }
     </script>
 </body>

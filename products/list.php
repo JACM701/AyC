@@ -255,6 +255,9 @@
                                 <td><?= date('d/m/Y', strtotime($row['created_at'])) ?></td>
                                 <td>
                                     <div class="acciones">
+                                        <a href="../proveedores/buscar_producto.php?id=<?= $row['product_id'] ?>" class="btn btn-outline-info btn-sm" title="Buscar precios">
+                                            <i class="bi bi-search"></i>
+                                        </a>
                                         <a href="edit.php?id=<?= $row['product_id'] ?>" class="btn btn-outline-primary btn-sm" title="Editar">
                                             <i class="bi bi-pencil-square"></i>
                                         </a>

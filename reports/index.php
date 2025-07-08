@@ -2,33 +2,89 @@
 require_once '../auth/middleware.php';
 require_once '../connection.php';
 
-// Simular datos para los reportes
-$report_data = [
-    'total_products' => 156,
-    'total_value' => 1250000,
-    'low_stock_products' => 12,
-    'out_of_stock' => 3,
-    'monthly_movements' => [
-        ['month' => 'Ene', 'in' => 45, 'out' => 32],
-        ['month' => 'Feb', 'in' => 38, 'out' => 41],
-        ['month' => 'Mar', 'in' => 52, 'out' => 29],
-        ['month' => 'Abr', 'in' => 41, 'out' => 35],
-        ['month' => 'May', 'in' => 47, 'out' => 38],
-        ['month' => 'Jun', 'in' => 39, 'out' => 42]
-    ],
-    'top_categories' => [
-        ['name' => 'Cámaras de Seguridad', 'count' => 45, 'value' => 450000],
-        ['name' => 'Alarmas', 'count' => 32, 'value' => 320000],
-        ['name' => 'Cables y Conectores', 'count' => 28, 'value' => 28000],
-        ['name' => 'Fuentes de Poder', 'count' => 15, 'value' => 150000],
-        ['name' => 'Accesorios', 'count' => 36, 'value' => 72000]
-    ],
-    'top_suppliers' => [
-        ['name' => 'Syscom', 'products' => 45, 'total_value' => 450000],
-        ['name' => 'PCH', 'products' => 32, 'total_value' => 320000],
-        ['name' => 'Dahua Technology', 'products' => 28, 'total_value' => 280000]
-    ]
-];
+// Obtener estadísticas reales del sistema
+$stats_query = "
+    SELECT 
+        COUNT(*) as total_products,
+        SUM(quantity * price) as total_value,
+        COUNT(CASE WHEN quantity <= 10 AND quantity > 0 THEN 1 END) as low_stock_products,
+        COUNT(CASE WHEN quantity = 0 THEN 1 END) as out_of_stock,
+        COUNT(CASE WHEN quantity > 10 THEN 1 END) as good_stock_products
+    FROM products
+";
+$stats = $mysqli->query($stats_query)->fetch_assoc();
+
+// Obtener movimientos de los últimos 6 meses
+$movements_query = "
+    SELECT 
+        DATE_FORMAT(movement_date, '%Y-%m') as month,
+        COUNT(CASE WHEN quantity > 0 THEN 1 END) as entradas,
+        COUNT(CASE WHEN quantity < 0 THEN 1 END) as salidas
+    FROM movements 
+    WHERE movement_date >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+    GROUP BY DATE_FORMAT(movement_date, '%Y-%m')
+    ORDER BY month DESC
+    LIMIT 6
+";
+$movements = $mysqli->query($movements_query);
+
+// Obtener top categorías por valor
+$categories_query = "
+    SELECT 
+        c.name as category_name,
+        COUNT(p.product_id) as product_count,
+        SUM(p.quantity * p.price) as total_value
+    FROM categories c
+    LEFT JOIN products p ON c.category_id = p.category_id
+    WHERE p.product_id IS NOT NULL
+    GROUP BY c.category_id, c.name
+    HAVING total_value > 0
+    ORDER BY total_value DESC
+    LIMIT 5
+";
+$categories = $mysqli->query($categories_query);
+
+// Obtener top proveedores
+$suppliers_query = "
+    SELECT 
+        supplier,
+        COUNT(*) as product_count,
+        SUM(quantity * price) as total_value
+    FROM products 
+    WHERE supplier IS NOT NULL AND supplier != ''
+    GROUP BY supplier
+    HAVING total_value > 0
+    ORDER BY total_value DESC
+    LIMIT 5
+";
+$suppliers = $mysqli->query($suppliers_query);
+
+// Obtener productos más vendidos (por movimientos de salida)
+$top_products_query = "
+    SELECT 
+        p.product_name,
+        p.sku,
+        ABS(SUM(m.quantity)) as total_movements,
+        COUNT(m.movement_id) as movement_count
+    FROM movements m
+    JOIN products p ON m.product_id = p.product_id
+    WHERE m.quantity < 0
+    GROUP BY p.product_id, p.product_name, p.sku
+    ORDER BY total_movements DESC
+    LIMIT 10
+";
+$top_products = $mysqli->query($top_products_query);
+
+// Obtener estadísticas de cotizaciones
+$quotes_stats_query = "
+    SELECT 
+        COUNT(*) as total_quotes,
+        COUNT(DISTINCT cliente_nombre) as unique_clients,
+        SUM(total) as total_sales,
+        AVG(total) as avg_quote_value
+    FROM cotizaciones
+";
+$quotes_stats = $mysqli->query($quotes_stats_query)->fetch_assoc();
 ?>
 
 <!DOCTYPE html>
@@ -79,6 +135,11 @@ $report_data = [
             text-align: center;
             position: relative;
             overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(18,24,102,0.15);
         }
         .stat-card::before {
             content: '';
@@ -197,6 +258,46 @@ $report_data = [
             background: #138496;
             color: #fff;
         }
+        .product-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .product-item:last-child {
+            border-bottom: none;
+        }
+        .product-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .product-rank {
+            font-weight: 700;
+            color: #121866;
+            font-size: 1.1rem;
+        }
+        .product-details h6 {
+            margin: 0;
+            color: #121866;
+            font-weight: 600;
+        }
+        .product-details small {
+            color: #666;
+        }
+        .product-stats {
+            text-align: right;
+        }
+        .product-stats .stat-number {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #121866;
+        }
+        .product-stats .stat-label {
+            font-size: 0.8rem;
+            color: #666;
+        }
         @media (max-width: 900px) {
             .main-content { 
                 width: calc(100vw - 70px); 
@@ -223,29 +324,43 @@ $report_data = [
                 <div class="stat-icon">
                     <i class="bi bi-box-seam"></i>
                 </div>
-                <div class="stat-number"><?= number_format($report_data['total_products']) ?></div>
+                <div class="stat-number"><?= number_format($stats['total_products'] ?? 0) ?></div>
                 <div class="stat-label">Total de Productos</div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon">
                     <i class="bi bi-currency-dollar"></i>
                 </div>
-                <div class="stat-number">$<?= number_format($report_data['total_value'], 0, ',', '.') ?></div>
+                <div class="stat-number">$<?= number_format($stats['total_value'] ?? 0, 0, ',', '.') ?></div>
                 <div class="stat-label">Valor Total del Inventario</div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon">
                     <i class="bi bi-exclamation-triangle"></i>
                 </div>
-                <div class="stat-number"><?= $report_data['low_stock_products'] ?></div>
+                <div class="stat-number"><?= $stats['low_stock_products'] ?? 0 ?></div>
                 <div class="stat-label">Productos con Stock Bajo</div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon">
                     <i class="bi bi-x-circle"></i>
                 </div>
-                <div class="stat-number"><?= $report_data['out_of_stock'] ?></div>
+                <div class="stat-number"><?= $stats['out_of_stock'] ?? 0 ?></div>
                 <div class="stat-label">Productos Sin Stock</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="bi bi-file-earmark-text"></i>
+                </div>
+                <div class="stat-number"><?= number_format($quotes_stats['total_quotes'] ?? 0) ?></div>
+                <div class="stat-label">Total Cotizaciones</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="bi bi-people"></i>
+                </div>
+                <div class="stat-number"><?= number_format($quotes_stats['unique_clients'] ?? 0) ?></div>
+                <div class="stat-label">Clientes Únicos</div>
             </div>
         </div>
 
@@ -254,13 +369,13 @@ $report_data = [
             <div class="report-header">
                 <h5 class="report-title">
                     <i class="bi bi-bar-chart"></i> 
-                    Movimientos Mensuales
+                    Movimientos de los Últimos 6 Meses
                 </h5>
                 <div class="export-buttons">
-                    <button class="btn-export btn-pdf">
+                    <button class="btn-export btn-pdf" onclick="exportToPDF('movements')">
                         <i class="bi bi-file-pdf"></i> PDF
                     </button>
-                    <button class="btn-export btn-excel">
+                    <button class="btn-export btn-excel" onclick="exportToExcel('movements')">
                         <i class="bi bi-file-earmark-excel"></i> Excel
                     </button>
                 </div>
@@ -278,7 +393,7 @@ $report_data = [
                     Top Categorías por Valor
                 </h5>
                 <div class="export-buttons">
-                    <button class="btn-export btn-csv">
+                    <button class="btn-export btn-csv" onclick="exportToCSV('categories')">
                         <i class="bi bi-file-earmark-text"></i> CSV
                     </button>
                 </div>
@@ -295,19 +410,25 @@ $report_data = [
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($report_data['top_categories'] as $category): ?>
+                        <?php if ($categories && $categories->num_rows > 0): ?>
+                            <?php while ($category = $categories->fetch_assoc()): ?>
+                                <tr>
+                                    <td><strong><?= htmlspecialchars($category['category_name']) ?></strong></td>
+                                    <td><?= $category['product_count'] ?></td>
+                                    <td>$<?= number_format($category['total_value'], 0, ',', '.') ?></td>
+                                    <td><?= round(($category['total_value'] / ($stats['total_value'] ?? 1)) * 100, 1) ?>%</td>
+                                    <td style="width: 200px;">
+                                        <div class="progress-custom">
+                                            <div class="progress-bar-custom" style="width: <?= ($category['total_value'] / ($stats['total_value'] ?? 1)) * 100 ?>%"></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endwhile; ?>
+                        <?php else: ?>
                             <tr>
-                                <td><strong><?= htmlspecialchars($category['name']) ?></strong></td>
-                                <td><?= $category['count'] ?></td>
-                                <td>$<?= number_format($category['value'], 0, ',', '.') ?></td>
-                                <td><?= round(($category['value'] / $report_data['total_value']) * 100, 1) ?>%</td>
-                                <td style="width: 200px;">
-                                    <div class="progress-custom">
-                                        <div class="progress-bar-custom" style="width: <?= ($category['value'] / $report_data['total_value']) * 100 ?>%"></div>
-                                    </div>
-                                </td>
+                                <td colspan="5" class="text-center text-muted">No hay datos de categorías disponibles</td>
                             </tr>
-                        <?php endforeach; ?>
+                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>
@@ -321,7 +442,7 @@ $report_data = [
                     Top Proveedores
                 </h5>
                 <div class="export-buttons">
-                    <button class="btn-export btn-excel">
+                    <button class="btn-export btn-excel" onclick="exportToExcel('suppliers')">
                         <i class="bi bi-file-earmark-excel"></i> Excel
                     </button>
                 </div>
@@ -337,14 +458,65 @@ $report_data = [
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($report_data['top_suppliers'] as $supplier): ?>
+                        <?php if ($suppliers && $suppliers->num_rows > 0): ?>
+                            <?php while ($supplier = $suppliers->fetch_assoc()): ?>
+                                <tr>
+                                    <td><strong><?= htmlspecialchars($supplier['supplier']) ?></strong></td>
+                                    <td><?= $supplier['product_count'] ?></td>
+                                    <td>$<?= number_format($supplier['total_value'], 0, ',', '.') ?></td>
+                                    <td>$<?= number_format($supplier['total_value'] / $supplier['product_count'], 0, ',', '.') ?></td>
+                                </tr>
+                            <?php endwhile; ?>
+                        <?php else: ?>
                             <tr>
-                                <td><strong><?= htmlspecialchars($supplier['name']) ?></strong></td>
-                                <td><?= $supplier['products'] ?></td>
-                                <td>$<?= number_format($supplier['total_value'], 0, ',', '.') ?></td>
-                                <td>$<?= number_format($supplier['total_value'] / $supplier['products'], 0, ',', '.') ?></td>
+                                <td colspan="4" class="text-center text-muted">No hay datos de proveedores disponibles</td>
                             </tr>
-                        <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Productos más vendidos -->
+        <div class="report-section">
+            <div class="report-header">
+                <h5 class="report-title">
+                    <i class="bi bi-star"></i> 
+                    Productos Más Vendidos
+                </h5>
+                <div class="export-buttons">
+                    <button class="btn-export btn-excel" onclick="exportToExcel('products')">
+                        <i class="bi bi-file-earmark-excel"></i> Excel
+                    </button>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Producto</th>
+                            <th>SKU</th>
+                            <th>Movimientos</th>
+                            <th>Frecuencia</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if ($top_products && $top_products->num_rows > 0): ?>
+                            <?php $rank = 1; while ($product = $top_products->fetch_assoc()): ?>
+                                <tr>
+                                    <td><strong><?= $rank ?></strong></td>
+                                    <td><?= htmlspecialchars($product['product_name']) ?></td>
+                                    <td><code><?= htmlspecialchars($product['sku']) ?></code></td>
+                                    <td><?= number_format($product['total_movements']) ?></td>
+                                    <td><?= $product['movement_count'] ?> veces</td>
+                                </tr>
+                            <?php $rank++; endwhile; ?>
+                        <?php else: ?>
+                            <tr>
+                                <td colspan="5" class="text-center text-muted">No hay datos de productos vendidos disponibles</td>
+                            </tr>
+                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>
@@ -361,13 +533,13 @@ $report_data = [
                         </h5>
                     </div>
                     <div class="d-grid gap-2">
-                        <button class="btn btn-outline-primary">
+                        <button class="btn btn-outline-primary" onclick="generateReport('weekly')">
                             <i class="bi bi-calendar-week"></i> Reporte Semanal
                         </button>
-                        <button class="btn btn-outline-primary">
+                        <button class="btn btn-outline-primary" onclick="generateReport('monthly')">
                             <i class="bi bi-calendar-month"></i> Reporte Mensual
                         </button>
-                        <button class="btn btn-outline-primary">
+                        <button class="btn btn-outline-primary" onclick="generateReport('custom')">
                             <i class="bi bi-calendar-range"></i> Reporte Personalizado
                         </button>
                     </div>
@@ -378,19 +550,19 @@ $report_data = [
                     <div class="report-header">
                         <h5 class="report-title">
                             <i class="bi bi-gear"></i> 
-                            Configuración de Reportes
+                            Acciones Rápidas
                         </h5>
                     </div>
                     <div class="d-grid gap-2">
-                        <button class="btn btn-outline-secondary">
-                            <i class="bi bi-clock"></i> Programar Reportes
-                        </button>
-                        <button class="btn btn-outline-secondary">
-                            <i class="bi bi-envelope"></i> Envío por Email
-                        </button>
-                        <button class="btn btn-outline-secondary">
-                            <i class="bi bi-person"></i> Destinatarios
-                        </button>
+                        <a href="../inventory/index.php" class="btn btn-outline-info">
+                            <i class="bi bi-boxes"></i> Ver Inventario
+                        </a>
+                        <a href="../movements/index.php" class="btn btn-outline-info">
+                            <i class="bi bi-arrow-left-right"></i> Ver Movimientos
+                        </a>
+                        <a href="../cotizaciones/index.php" class="btn btn-outline-info">
+                            <i class="bi bi-file-earmark-text"></i> Ver Cotizaciones
+                        </a>
                     </div>
                 </div>
             </div>
@@ -410,21 +582,31 @@ $report_data = [
     <script>
         // Gráfica de movimientos mensuales
         const ctx = document.getElementById('movementsChart').getContext('2d');
+        
+        // Preparar datos para la gráfica
+        const movementsData = <?= json_encode($movements ? $movements->fetch_all(MYSQLI_ASSOC) : []) ?>;
+        const labels = movementsData.map(item => {
+            const date = new Date(item.month + '-01');
+            return date.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' });
+        });
+        const entradas = movementsData.map(item => parseInt(item.entradas));
+        const salidas = movementsData.map(item => parseInt(item.salidas));
+        
         new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: <?= json_encode(array_column($report_data['monthly_movements'], 'month')) ?>,
+                labels: labels,
                 datasets: [
                     {
                         label: 'Entradas',
-                        data: <?= json_encode(array_column($report_data['monthly_movements'], 'in')) ?>,
+                        data: entradas,
                         backgroundColor: '#28a745',
                         borderColor: '#28a745',
                         borderWidth: 1
                     },
                     {
                         label: 'Salidas',
-                        data: <?= json_encode(array_column($report_data['monthly_movements'], 'out')) ?>,
+                        data: salidas,
                         backgroundColor: '#dc3545',
                         borderColor: '#dc3545',
                         borderWidth: 1
@@ -449,6 +631,35 @@ $report_data = [
                 }
             }
         });
+
+        // Funciones de exportación
+        function exportToPDF(type) {
+            alert('Función de exportación a PDF en desarrollo');
+        }
+
+        function exportToExcel(type) {
+            alert('Función de exportación a Excel en desarrollo');
+        }
+
+        function exportToCSV(type) {
+            alert('Función de exportación a CSV en desarrollo');
+        }
+
+        function generateReport(type) {
+            switch(type) {
+                case 'weekly':
+                    window.location.href = 'semanal.php';
+                    break;
+                case 'monthly':
+                    window.location.href = 'mensual.php';
+                    break;
+                case 'custom':
+                    window.location.href = 'personalizado.php';
+                    break;
+                default:
+                    alert('Tipo de reporte no válido');
+            }
+        }
     </script>
 </body>
 </html> 

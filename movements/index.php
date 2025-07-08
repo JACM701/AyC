@@ -2,18 +2,23 @@
     require_once '../auth/middleware.php';
     require_once '../connection.php';
 
-    // Obtener movimientos con nombre de producto y tipo de movimiento
+    // Obtener movimientos con nombre de producto, tipo de movimiento e información de bobina
     $query = "
         SELECT 
             m.*, 
             p.product_name,
-            mt.nombre AS movement_type_nombre
+            p.tipo_gestion,
+            mt.nombre AS movement_type_nombre,
+            b.identificador AS bobina_identificador,
+            b.metros_actuales AS bobina_metros_actuales
         FROM 
             movements m
         JOIN 
             products p ON m.product_id = p.product_id
         LEFT JOIN
             movement_type mt ON m.movement_type_id = mt.Id_tipo
+        LEFT JOIN
+            bobinas b ON m.bobina_id = b.bobina_id
         ORDER BY 
             m.movement_date DESC
     ";
@@ -69,6 +74,19 @@
         .badge {
             font-size: 0.85rem;
         }
+        .bobina-info {
+            background: #e3f2fd;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            color: #1565c0;
+            margin-top: 2px;
+            display: inline-block;
+        }
+        .quantity-bobina {
+            color: #7b1fa2;
+            font-weight: 600;
+        }
         @media (max-width: 900px) {
             .main-content h2 { font-size: 1.1rem; }
             .add-btn { display: block; width: 100%; }
@@ -95,11 +113,31 @@
                     <?php while ($row = $result->fetch_assoc()): ?>
                         <tr>
                             <td><?= $row['movement_id'] ?></td>
-                            <td><?= htmlspecialchars($row['product_name']) ?></td>
+                            <td>
+                                <div>
+                                    <?= htmlspecialchars($row['product_name']) ?>
+                                    <?php if ($row['tipo_gestion'] === 'bobina' && $row['bobina_identificador']): ?>
+                                        <div class="bobina-info">
+                                            <i class="bi bi-receipt"></i>
+                                            <?= htmlspecialchars($row['bobina_identificador']) ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
                             <td>
                                 <span class="badge bg-info text-dark"><?= htmlspecialchars($row['movement_type_nombre']) ?></span>
                             </td>
-                            <td><strong><?= $row['quantity'] ?></strong></td>
+                            <td>
+                                <strong class="<?= $row['tipo_gestion'] === 'bobina' ? 'quantity-bobina' : '' ?>">
+                                    <?= $row['quantity'] ?>
+                                    <?php if ($row['tipo_gestion'] === 'bobina'): ?>
+                                        m
+                                    <?php endif; ?>
+                                </strong>
+                                <?php if ($row['tipo_gestion'] === 'bobina' && $row['bobina_metros_actuales'] !== null): ?>
+                                    <br><small class="text-muted">Restante: <?= $row['bobina_metros_actuales'] ?>m</small>
+                                <?php endif; ?>
+                            </td>
                             <td><?= date('d/m/Y H:i', strtotime($row['movement_date'])) ?></td>
                         </tr>
                     <?php endwhile; ?>

@@ -130,10 +130,12 @@
     <style>
         body {
             background: #f4f6fb;
+            min-height: 100vh;
         }
         .form-wrapper {
-            max-width: 520px;
+            max-width: 800px;
             margin: 40px auto 0 auto;
+            padding: 0 20px;
         }
         .card-form {
             background: #fff;
@@ -141,6 +143,11 @@
             box-shadow: 0 4px 32px rgba(18,24,102,0.10);
             padding: 36px 32px 32px 32px;
             margin-bottom: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+        .card-form::before {
+            display: none;
         }
         .card-form h2 {
             text-align: center;
@@ -148,61 +155,125 @@
             color: #121866;
             font-size: 2.1rem;
             font-weight: 700;
+            position: relative;
+        }
+        .card-form h2 i {
+            color: #232a7c;
+            margin-right: 10px;
+            background: none;
+            -webkit-background-clip: unset;
+            -webkit-text-fill-color: unset;
         }
         .form-section {
             margin-bottom: 22px;
-            padding-bottom: 18px;
-            border-bottom: 1.5px solid #f0f0f0;
+            padding: 22px 18px 18px 18px;
+            border-radius: 15px;
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            transition: all 0.3s ease;
         }
-        .form-section:last-child {
-            border-bottom: none;
+        .form-section:hover {
+            transform: none;
+            box-shadow: none;
+        }
+        .form-section h6 {
+            color: #232a7c;
+            font-weight: 700;
+            font-size: 1.1rem;
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .form-section h6 i {
+            color: #667eea;
+            font-size: 1.2rem;
         }
         .form-label {
             font-weight: 600;
             color: #232a7c;
+            margin-bottom: 8px;
+            font-size: 0.95rem;
         }
         .input-group-text {
             background: #f4f6fb;
             border: none;
             color: #232a7c;
             font-size: 1.2rem;
+            border-radius: 8px 0 0 8px;
         }
         .form-control, .form-select {
             border-radius: 8px;
             border: 1.5px solid #cfd8dc;
             background: #f7f9fc;
             font-size: 1rem;
+            padding: 12px 15px;
+            transition: all 0.3s ease;
         }
         .form-control:focus, .form-select:focus {
             border-color: #121866;
             box-shadow: 0 0 0 2px #e3e6fa;
+            background: #fff;
         }
         .form-actions {
             display: flex;
             gap: 10px;
             margin-top: 18px;
+            padding-top: 18px;
+            border-top: 1.5px solid #f0f0f0;
         }
-        .form-actions button {
+        .form-actions button, .form-actions a {
             flex: 1;
-        }
-        .alert-auto-sku {
+            padding: 12px 18px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            text-decoration: none;
             display: flex;
             align-items: center;
-            gap: 10px;
-            background: #e3f2fd;
-            color: #1565c0;
-            border: 1.5px solid #90caf9;
-            border-radius: 8px;
-            padding: 10px 14px;
-            margin-bottom: 18px;
-            font-size: 1.05rem;
+            justify-content: center;
+            gap: 8px;
+        }
+        .btn-primary {
+            background: #232a7c;
+            border: none;
+        }
+        .btn-primary:hover {
+            background: #121866;
+            transform: none;
+            box-shadow: none;
+        }
+        .btn-secondary {
+            background: #6c757d;
+            border: none;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #5a6268;
+            color: white;
+        }
+        .alert {
+            border-radius: 12px;
+            border: none;
+            padding: 15px 20px;
+            margin-bottom: 25px;
             font-weight: 500;
         }
-        .alert-auto-sku svg {
-            width: 26px;
-            height: 26px;
-            fill: #1565c0;
-            flex-shrink: 0;
+        .alert-info {
+            background: #e3f2fd;
+            color: #1565c0;
+            border-left: 4px solid #2196f3;
+        }
+        .alert-success {
+            background: #e8f5e8;
+            color: #2e7d32;
+            border-left: 4px solid #4caf50;
+        }
+        .alert-danger {
+            background: #ffebee;
+            color: #c62828;
+            border-left: 4px solid #f44336;
         }
         .form-check {
             border: 1.5px solid #e3e6f0;
@@ -211,6 +282,7 @@
             margin-bottom: 8px;
             transition: all 0.2s ease;
             background: #f7f9fc;
+            cursor: pointer;
         }
         .form-check:hover {
             border-color: #121866;
@@ -223,29 +295,101 @@
         .form-check-label {
             cursor: pointer;
             display: flex;
-            flex-direction: column;
             align-items: center;
-            text-align: center;
-            gap: 4px;
+            gap: 10px;
+            font-weight: 500;
         }
         .form-check-label i {
-            font-size: 1.2rem;
-            margin-right: 6px;
-            vertical-align: middle;
-            color: #232a7c;
+            font-size: 1.3rem;
+            color: #667eea;
         }
         .form-check-input:checked ~ .form-check-label i {
-            color: #121866;
+            color: #667eea;
         }
-        .form-switch {
-            background: none !important;
-            border: none !important;
-            padding: 0 !important;
+        .form-check-inline {
+            margin-right: 15px;
         }
-        @media (max-width: 700px) {
-            .form-wrapper { max-width: 98vw; padding: 0 2vw; }
-            .card-form { padding: 18px 6px; }
-            .form-check { padding: 12px; }
+        .text-muted {
+            color: #6c757d !important;
+            font-size: 0.9rem;
+        }
+        .input-group .form-control {
+            border-radius: 0 8px 8px 0;
+        }
+        .btn-close {
+            opacity: 0.7;
+        }
+        .btn-close:hover {
+            opacity: 1;
+        }
+        .d-flex.gap-2 .btn {
+            padding: 8px 16px;
+            font-size: 0.9rem;
+            border-radius: 8px;
+        }
+        @media (max-width: 768px) {
+            .form-wrapper { 
+                max-width: 95vw; 
+                padding: 0 10px; 
+            }
+            .card-form { 
+                padding: 18px 6px; 
+            }
+            .form-section {
+                padding: 12px;
+            }
+            .form-actions {
+                flex-direction: column;
+            }
+            .form-check-inline {
+                display: block;
+                margin-bottom: 10px;
+            }
+        }
+        .floating-label {
+            position: relative;
+            margin-bottom: 20px;
+        }
+        .floating-label input,
+        .floating-label textarea,
+        .floating-label select {
+            width: 100%;
+            padding: 15px;
+            border: 1.5px solid #cfd8dc;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background: #f7f9fc;
+        }
+        .floating-label input:focus,
+        .floating-label textarea:focus,
+        .floating-label select:focus {
+            border-color: #121866;
+            box-shadow: 0 0 0 2px #e3e6fa;
+            outline: none;
+            background: #fff;
+        }
+        .floating-label label {
+            position: absolute;
+            left: 15px;
+            top: 15px;
+            color: #6c757d;
+            transition: all 0.3s ease;
+            pointer-events: none;
+            font-size: 1rem;
+        }
+        .floating-label input:focus + label,
+        .floating-label input:not(:placeholder-shown) + label,
+        .floating-label textarea:focus + label,
+        .floating-label textarea:not(:placeholder-shown) + label,
+        .floating-label select:focus + label,
+        .floating-label select:not([value=""]) + label {
+            top: -10px;
+            left: 10px;
+            font-size: 0.8rem;
+            color: #667eea;
+            background: #fff;
+            padding: 0 5px;
         }
     </style>
 </head>
@@ -255,6 +399,7 @@
         <div class="form-wrapper">
             <div class="card-form">
                 <h2><i class="bi bi-plus-circle"></i> Agregar producto</h2>
+                
                 <?php if ($sku_auto_generado): ?>
                     <div class="alert alert-info alert-dismissible fade show" role="alert">
                         <i class="bi bi-info-circle"></i>
@@ -262,11 +407,13 @@
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                 <?php endif; ?>
-                <div id="alertSkuRealtime" class="alert alert-info" style="display:none;margin-bottom:18px;">
+                
+                <div id="alertSkuRealtime" class="alert alert-info" style="display:none;margin-bottom:25px;">
                     <i class="bi bi-info-circle"></i>
                     Si dejas este campo vacío, el sistema generará un SKU automáticamente al guardar.
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
+                
                 <?php if ($success): ?>
                     <div class="alert alert-success alert-dismissible fade show d-flex flex-column align-items-start gap-2" role="alert">
                         <div>
@@ -301,62 +448,66 @@
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                 <?php endif; ?>
+                
                 <form action="" method="POST" id="formAgregarProducto" enctype="multipart/form-data">
                     
                     <!-- SECCIÓN 1: INFORMACIÓN BÁSICA -->
                     <div class="form-section">
-                        <h6 class="form-label mb-3"><i class="bi bi-box"></i> Información Básica</h6>
+                        <h6><i class="bi bi-box"></i> Información Básica</h6>
                         <div class="row">
                             <div class="col-md-8">
-                                <div class="mb-3">
-                                    <label for="product_name" class="form-label">Nombre del producto *</label>
-                                    <input type="text" class="form-control" name="product_name" id="product_name" required placeholder="Ej: Cámara Bullet 5MP">
+                                <div class="floating-label">
+                                    <input type="text" class="form-control" name="product_name" id="product_name" required placeholder=" ">
+                                    <label for="product_name">Nombre del producto *</label>
                                 </div>
                             </div>
                             <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label for="sku" class="form-label">SKU</label>
-                                    <input type="text" class="form-control" name="sku" id="sku" placeholder="Dejar vacío para auto-generar">
+                                <div class="floating-label">
+                                    <input type="text" class="form-control" name="sku" id="sku" placeholder=" ">
+                                    <label for="sku">SKU</label>
                                     <small class="text-muted">Se genera automáticamente si está vacío</small>
                                 </div>
                             </div>
                         </div>
-                        <div class="mb-3">
-                            <label for="description" class="form-label">Descripción</label>
-                            <textarea class="form-control" name="description" id="description" rows="2" placeholder="Descripción breve del producto"></textarea>
+                        <div class="floating-label">
+                            <textarea class="form-control" name="description" id="description" rows="3" placeholder=" "></textarea>
+                            <label for="description">Descripción</label>
                         </div>
                     </div>
 
                     <!-- SECCIÓN 2: PRECIOS Y CANTIDAD -->
                     <div class="form-section">
-                        <h6 class="form-label mb-3"><i class="bi bi-currency-dollar"></i> Precios y Cantidad</h6>
+                        <h6><i class="bi bi-currency-dollar"></i> Precios y Cantidad</h6>
                         <div class="row align-items-end">
                             <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label for="price" class="form-label">Precio *</label>
+                                <div class="floating-label">
                                     <div class="input-group">
                                         <span class="input-group-text"><i class="bi bi-currency-dollar"></i></span>
-                                        <input type="number" step="0.01" class="form-control" name="price" id="price" required>
+                                        <input type="number" step="0.01" class="form-control" name="price" id="price" required placeholder=" ">
                                     </div>
+                                    <label for="price">Precio *</label>
                                 </div>
                             </div>
                             <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label for="quantity" class="form-label">Cantidad inicial *</label>
+                                <div class="floating-label">
                                     <div class="input-group">
                                         <span class="input-group-text"><i class="bi bi-123"></i></span>
-                                        <input type="number" class="form-control" name="quantity" id="quantity" required>
+                                        <input type="number" class="form-control" name="quantity" id="quantity" required placeholder=" ">
                                     </div>
+                                    <label for="quantity">Cantidad inicial *</label>
                                 </div>
                             </div>
                             <div class="col-md-4">
                                 <div class="mb-3">
-                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
                                         <input class="form-check-input" type="checkbox" id="toggleBarcode">
                                         <label class="form-check-label mb-0" for="toggleBarcode">Agregar código de barras</label>
                                     </div>
                                     <div id="barcodeField" style="display:none;">
-                                        <input type="text" class="form-control" name="barcode" id="barcode" placeholder="Código de barras">
+                                        <div class="floating-label">
+                                            <input type="text" class="form-control" name="barcode" id="barcode" placeholder=" ">
+                                            <label for="barcode">Código de barras</label>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -365,30 +516,38 @@
 
                     <!-- SECCIÓN 3: CATEGORÍA Y PROVEEDOR -->
                     <div class="form-section">
-                        <h6 class="form-label mb-3"><i class="bi bi-tags"></i> Categoría y Proveedor</h6>
+                        <h6><i class="bi bi-tags"></i> Categoría y Proveedor</h6>
                         <div class="row">
                             <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="category" class="form-label">Categoría</label>
+                                <div class="floating-label">
                                     <select class="form-select" name="category" id="category">
                                         <option value="">Selecciona una categoría</option>
                                         <?php $categorias->data_seek(0); while ($row = $categorias->fetch_assoc()): ?>
                                             <option value="<?= htmlspecialchars($row['category_id']) ?>"><?= htmlspecialchars($row['name']) ?></option>
                                         <?php endwhile; ?>
                                     </select>
-                                    <small class="text-muted">O escribe una nueva: <input type="text" class="form-control mt-1" name="new_category" id="new_category" placeholder="Nueva categoría"></small>
+                                    <label for="category">Categoría</label>
+                                    <small class="text-muted">O escribe una nueva:</small>
+                                    <div class="floating-label mt-2">
+                                        <input type="text" class="form-control" name="new_category" id="new_category" placeholder=" ">
+                                        <label for="new_category">Nueva categoría</label>
+                                    </div>
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="supplier" class="form-label">Proveedor</label>
+                                <div class="floating-label">
                                     <select class="form-select" name="supplier" id="supplier">
                                         <option value="">Selecciona un proveedor</option>
                                         <?php $proveedores->data_seek(0); while ($row = $proveedores->fetch_assoc()): ?>
                                             <option value="<?= htmlspecialchars($row['supplier']) ?>"><?= htmlspecialchars($row['supplier']) ?></option>
                                         <?php endwhile; ?>
                                     </select>
-                                    <small class="text-muted">O escribe uno nuevo: <input type="text" class="form-control mt-1" name="new_supplier" id="new_supplier" placeholder="Nuevo proveedor"></small>
+                                    <label for="supplier">Proveedor</label>
+                                    <small class="text-muted">O escribe uno nuevo:</small>
+                                    <div class="floating-label mt-2">
+                                        <input type="text" class="form-control" name="new_supplier" id="new_supplier" placeholder=" ">
+                                        <label for="new_supplier">Nuevo proveedor</label>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -396,7 +555,7 @@
 
                     <!-- SECCIÓN 4: TIPO DE GESTIÓN -->
                     <div class="form-section">
-                        <h6 class="form-label mb-3"><i class="bi bi-gear"></i> Tipo de Gestión</h6>
+                        <h6><i class="bi bi-gear"></i> Tipo de Gestión</h6>
                         <div class="d-flex flex-wrap gap-3">
                             <div class="form-check form-check-inline">
                                 <input class="form-check-input" type="radio" name="tipo_gestion" id="tipo_normal" value="normal" checked>
@@ -419,23 +578,23 @@
 
                     <!-- SECCIÓN 5: CONFIGURACIÓN DE BOBINA (oculta por defecto) -->
                     <div class="form-section" id="bobinaSection" style="display:none;">
-                        <h6 class="form-label mb-3"><i class="bi bi-receipt"></i> Configuración de Bobina</h6>
+                        <h6><i class="bi bi-receipt"></i> Configuración de Bobina</h6>
                         <div class="alert alert-info">
                             <i class="bi bi-info-circle"></i>
                             <strong>Producto tipo bobina:</strong> Después de crear el producto, podrás registrar las bobinas individuales con sus metros.
                         </div>
                         <div class="row">
                             <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="metros_iniciales" class="form-label">Metros sugeridos por bobina</label>
-                                    <input type="number" step="0.01" min="0.01" class="form-control" name="metros_iniciales" id="metros_iniciales" placeholder="Ej: 100.00">
+                                <div class="floating-label">
+                                    <input type="number" step="0.01" min="0.01" class="form-control" name="metros_iniciales" id="metros_iniciales" placeholder=" ">
+                                    <label for="metros_iniciales">Metros sugeridos por bobina</label>
                                     <small class="text-muted">Solo para referencia</small>
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="identificador" class="form-label">Formato de identificador</label>
-                                    <input type="text" class="form-control" name="identificador" id="identificador" placeholder="Ej: Bobina #1">
+                                <div class="floating-label">
+                                    <input type="text" class="form-control" name="identificador" id="identificador" placeholder=" ">
+                                    <label for="identificador">Formato de identificador</label>
                                     <small class="text-muted">Solo para referencia</small>
                                 </div>
                             </div>
@@ -444,17 +603,18 @@
 
                     <!-- SECCIÓN 6: IMAGEN -->
                     <div class="form-section">
-                        <h6 class="form-label mb-3"><i class="bi bi-image"></i> Imagen del Producto</h6>
-                        <div class="mb-3">
+                        <h6><i class="bi bi-image"></i> Imagen del Producto</h6>
+                        <div class="floating-label">
                             <input type="file" class="form-control" name="image" id="image" accept="image/*">
                             <small class="text-muted">Opcional - Formatos: JPG, PNG, GIF</small>
                         </div>
                     </div>
+                    
                     <div class="form-actions">
-                        <button type="submit" class="btn btn-primary flex-fill">
+                        <button type="submit" class="btn btn-primary">
                             <i class="bi bi-plus-circle"></i> Agregar producto
                         </button>
-                        <a href="list.php" class="btn btn-secondary flex-fill">
+                        <a href="list.php" class="btn btn-secondary">
                             <i class="bi bi-arrow-left"></i> Volver al listado
                         </a>
                     </div>
