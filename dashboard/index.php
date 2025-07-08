@@ -336,31 +336,28 @@
 </head>
 <body>
     <?php include '../includes/sidebar.php'; ?>
-    
-    <div class="dashboard-container">
-        <div class="header-empresa">
-            <div class="header-logo-nombre">
-                <img src="../assets/img/LogoWeb.png" alt="Logo empresa" class="logo-empresa">
-                <div class="nombre-empresa">ALARMAS & CAMARAS DEL SURESTE</div>
+    <main class="main-content">
+        <div class="dashboard-container">
+            <div class="header-empresa">
+                <div class="header-logo-nombre">
+                    <img src="../assets/img/LogoWeb.png" alt="Logo empresa" class="logo-empresa">
+                    <div class="nombre-empresa">ALARMAS & CAMARAS DEL SURESTE</div>
+                </div>
             </div>
-        </div>
-        
-        <div class="header-hora">
-            <div class="saludo">
-                ¡Bienvenido, <?= htmlspecialchars($username) ?>!
+            <div class="header-hora">
+                <div class="saludo">
+                    ¡Bienvenido, <?= htmlspecialchars($username) ?>!
+                </div>
+                <div class="hora" id="horaActual"></div>
+                <div class="usuario">
+                    <i class="bi bi-person-circle"></i> <?= htmlspecialchars($user_role) ?>
+                </div>
             </div>
-            <div class="hora" id="horaActual"></div>
-            <div class="usuario">
-                <i class="bi bi-person-circle"></i> <?= htmlspecialchars($user_role) ?>
-            </div>
-        </div>
-
-        <div class="main-content">
+            <!-- INICIO DEL CONTENIDO PRINCIPAL -->
             <div class="dashboard-header">
                 <h2><i class="bi bi-speedometer2"></i> Dashboard</h2>
                 <p>Panel de control del sistema de gestión de inventarios</p>
             </div>
-
             <div class="dashboard-cards">
                 <div class="card">
                     <div class="icon"><i class="bi bi-box"></i></div>
@@ -383,7 +380,6 @@
                     <p><?= $stats['agotados'] ?? 0 ?></p>
                 </div>
             </div>
-
             <div class="dashboard-extra">
                 <div class="extra-card alert-stock">
                     <h4><i class="bi bi-exclamation-triangle"></i> Menor Stock</h4>
@@ -409,8 +405,7 @@
                     <h4><i class="bi bi-graph-up"></i> Mayor Stock</h4>
                     <p><?= $max_stock ? htmlspecialchars($max_stock['product_name']) : 'N/A' ?> (<?= $max_stock ? $max_stock['quantity'] : 0 ?>)</p>
                 </div>
-            </div>
-
+                </div>
             <div class="dashboard-graficas">
                 <div class="grafica-card">
                     <h3><i class="bi bi-pie-chart"></i> Stock por Producto</h3>
@@ -421,9 +416,9 @@
                     <canvas id="movementsChart"></canvas>
                 </div>
             </div>
+            <!-- FIN DEL CONTENIDO PRINCIPAL -->
         </div>
-    </div>
-
+    </main>
     <script src="../assets/js/script.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -479,15 +474,15 @@
             data: {
                 labels: <?= json_encode($labels_movs) ?>,
                 datasets: [{
-                    label: 'Entradas',
-                    data: <?= json_encode($data_entradas) ?>,
+                        label: 'Entradas',
+                        data: <?= json_encode($data_entradas) ?>,
                     backgroundColor: '#43a047',
                     borderColor: '#2e7d32',
                     borderWidth: 1
                 }, {
-                    label: 'Salidas',
-                    data: <?= json_encode($data_salidas) ?>,
-                    backgroundColor: '#e53935',
+                        label: 'Salidas',
+                        data: <?= json_encode($data_salidas) ?>,
+                        backgroundColor: '#e53935',
                     borderColor: '#b71c1c',
                     borderWidth: 1
                 }]

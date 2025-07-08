@@ -64,14 +64,15 @@ $top_categories = $stmt->get_result();
 // Obtener proveedores más utilizados
 $top_suppliers_query = "
     SELECT 
-        p.supplier,
+        s.name as supplier_name,
         COUNT(m.movement_id) as movimientos,
         SUM(ABS(m.quantity)) as unidades_movidas
     FROM movements m
     JOIN products p ON m.product_id = p.product_id
+    LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id
     WHERE DATE_FORMAT(m.movement_date, '%Y-%m') = ? 
-    AND p.supplier IS NOT NULL AND p.supplier != ''
-    GROUP BY p.supplier
+        AND p.supplier_id IS NOT NULL
+    GROUP BY p.supplier_id
     ORDER BY movimientos DESC
     LIMIT 10
 ";
@@ -286,7 +287,7 @@ $quotes = $stmt->get_result();
                             <?php $rank = 1; while ($supplier = $top_suppliers->fetch_assoc()): ?>
                                 <tr>
                                     <td><strong><?= $rank ?></strong></td>
-                                    <td><?= htmlspecialchars($supplier['supplier']) ?></td>
+                                    <td><?= htmlspecialchars($supplier['supplier_name']) ?></td>
                                     <td><?= number_format($supplier['movimientos']) ?></td>
                                     <td><?= number_format($supplier['unidades_movidas']) ?></td>
                                 </tr>

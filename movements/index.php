@@ -8,7 +8,7 @@
             m.*, 
             p.product_name,
             p.tipo_gestion,
-            mt.nombre AS movement_type_nombre,
+            mt.name AS movement_type_nombre,
             b.identificador AS bobina_identificador,
             b.metros_actuales AS bobina_metros_actuales
         FROM 
@@ -16,7 +16,7 @@
         JOIN 
             products p ON m.product_id = p.product_id
         LEFT JOIN
-            movement_type mt ON m.movement_type_id = mt.Id_tipo
+            movement_types mt ON m.movement_type_id = mt.movement_type_id
         LEFT JOIN
             bobinas b ON m.bobina_id = b.bobina_id
         ORDER BY 

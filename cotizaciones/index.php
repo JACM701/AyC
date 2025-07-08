@@ -49,7 +49,7 @@ $query = "
         COUNT(cp.cotizacion_producto_id) as total_productos,
         SUM(cp.precio_total) as subtotal_productos
     FROM cotizaciones c
-    LEFT JOIN users u ON c.usuario_id = u.user_id
+    LEFT JOIN users u ON c.user_id = u.user_id
     LEFT JOIN cotizaciones_productos cp ON c.cotizacion_id = cp.cotizacion_id
     $where_clause
     GROUP BY c.cotizacion_id

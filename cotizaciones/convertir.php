@@ -44,10 +44,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     try {
         // Obtener tipo de movimiento "Venta"
-        $stmt = $mysqli->prepare("SELECT Id_tipo FROM movement_type WHERE nombre = 'Venta' LIMIT 1");
+        $stmt = $mysqli->prepare("SELECT movement_type_id FROM movement_types WHERE name = 'Venta' LIMIT 1");
         $stmt->execute();
         $movement_type = $stmt->get_result()->fetch_assoc();
-        $movement_type_id = $movement_type['Id_tipo'] ?? null;
+        $movement_type_id = $movement_type['movement_type_id'] ?? null;
         
         // Registrar movimientos de inventario para cada producto
         while ($producto = $productos->fetch_assoc()) {

@@ -5,7 +5,7 @@ require_once '../connection.php';
 $success = $error = '';
 
 // Obtener roles para los selects
-$roles = $mysqli->query("SELECT rol_id, nombre FROM rol ORDER BY nombre ASC");
+$roles = $mysqli->query("SELECT role_id, role_name FROM roles ORDER BY role_name ASC");
 $roles_array = [];
 if ($roles) {
     while ($r = $roles->fetch_assoc()) {
@@ -18,9 +18,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion']) && $_POST['
     $user_id = intval($_POST['user_id']);
     $username = trim($_POST['username']);
     $email = trim($_POST['email']);
-    $rol_id = intval($_POST['rol_id']);
+    $role_id = intval($_POST['role_id']);
     $password = $_POST['password'];
-    if ($user_id && $username && $email && $rol_id) {
+    if ($user_id && $username && $email && $role_id) {
         // Verificar duplicados (excepto el propio usuario)
         $stmt = $mysqli->prepare("SELECT COUNT(*) FROM users WHERE (username = ? OR email = ?) AND user_id != ?");
         $stmt->bind_param('ssi', $username, $email, $user_id);
@@ -33,11 +33,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion']) && $_POST['
         } else {
             if ($password) {
                 $hash = password_hash($password, PASSWORD_DEFAULT);
-                $stmt = $mysqli->prepare("UPDATE users SET username=?, email=?, password=?, rol_id=? WHERE user_id=?");
-                $stmt->bind_param('sssii', $username, $email, $hash, $rol_id, $user_id);
+                $stmt = $mysqli->prepare("UPDATE users SET username=?, email=?, password=?, role_id=? WHERE user_id=?");
+                $stmt->bind_param('sssii', $username, $email, $hash, $role_id, $user_id);
             } else {
-                $stmt = $mysqli->prepare("UPDATE users SET username=?, email=?, rol_id=? WHERE user_id=?");
-                $stmt->bind_param('ssii', $username, $email, $rol_id, $user_id);
+                $stmt = $mysqli->prepare("UPDATE users SET username=?, email=?, role_id=? WHERE user_id=?");
+                $stmt->bind_param('ssii', $username, $email, $role_id, $user_id);
             }
             if ($stmt->execute()) {
                 $success = 'Usuario actualizado correctamente.';
@@ -73,8 +73,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion']) && $_POST['
     $username = trim($_POST['username']);
     $email = trim($_POST['email']);
     $password = $_POST['password'];
-    $rol_id = intval($_POST['rol_id']);
-    if ($username && $email && $password && $rol_id) {
+    $role_id = intval($_POST['role_id']);
+    if ($username && $email && $password && $role_id) {
         // Verificar duplicados
         $stmt = $mysqli->prepare("SELECT COUNT(*) FROM users WHERE username = ? OR email = ?");
         $stmt->bind_param('ss', $username, $email);
@@ -86,8 +86,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion']) && $_POST['
             $error = 'El usuario o email ya existe.';
         } else {
             $hash = password_hash($password, PASSWORD_DEFAULT);
-            $stmt = $mysqli->prepare("INSERT INTO users (username, email, password, rol_id) VALUES (?, ?, ?, ?)");
-            $stmt->bind_param('sssi', $username, $email, $hash, $rol_id);
+            $stmt = $mysqli->prepare("INSERT INTO users (username, email, password, role_id) VALUES (?, ?, ?, ?)");
+            $stmt->bind_param('sssi', $username, $email, $hash, $role_id);
             if ($stmt->execute()) {
                 $success = 'Usuario agregado correctamente.';
             } else {
@@ -100,8 +100,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion']) && $_POST['
     }
 }
 
-// Obtener usuarios con JOIN a rol
-$usuarios = $mysqli->query("SELECT u.*, r.nombre AS rol_nombre FROM users u LEFT JOIN rol r ON u.rol_id = r.rol_id ORDER BY u.created_at DESC");
+// Obtener usuarios con JOIN a roles
+$usuarios = $mysqli->query("SELECT u.*, r.role_name AS role_name FROM users u LEFT JOIN roles r ON u.role_id = r.role_id ORDER BY u.created_at DESC");
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -154,14 +154,14 @@ $usuarios = $mysqli->query("SELECT u.*, r.nombre AS rol_nombre FROM users u LEFT
                             <td><?= $i++ ?></td>
                             <td><?= htmlspecialchars($u['username']) ?></td>
                             <td><?= htmlspecialchars($u['email']) ?></td>
-                            <td><span class="badge bg-info text-dark"><?= htmlspecialchars($u['rol_nombre']) ?></span></td>
+                            <td><span class="badge bg-info text-dark"><?= htmlspecialchars($u['role_name']) ?></span></td>
                             <td><?= date('d/m/Y', strtotime($u['created_at'])) ?></td>
                             <td class="acciones">
                                 <button class="btn btn-outline-primary btn-sm btn-edit-user" 
                                     data-user-id="<?= $u['user_id'] ?>"
                                     data-username="<?= htmlspecialchars($u['username']) ?>"
                                     data-email="<?= htmlspecialchars($u['email']) ?>"
-                                    data-rol-id="<?= $u['rol_id'] ?>"
+                                    data-role-id="<?= $u['role_id'] ?>"
                                     title="Editar"><i class="bi bi-pencil-square"></i></button>
                                 <button class="btn btn-outline-danger btn-sm btn-delete-user" 
                                     data-user-id="<?= $u['user_id'] ?>"
@@ -201,11 +201,11 @@ $usuarios = $mysqli->query("SELECT u.*, r.nombre AS rol_nombre FROM users u LEFT
                         <input type="password" class="form-control" name="password" id="password" required>
                     </div>
                     <div class="mb-3">
-                        <label for="rol_id" class="form-label">Rol</label>
-                        <select class="form-select" name="rol_id" id="rol_id" required>
+                        <label for="role_id" class="form-label">Rol</label>
+                        <select class="form-select" name="role_id" id="role_id" required>
                             <option value="">Selecciona un rol</option>
-                            <?php foreach ($roles_array as $rol): ?>
-                                <option value="<?= $rol['rol_id'] ?>"><?= htmlspecialchars($rol['nombre']) ?></option>
+                            <?php foreach ($roles_array as $r): ?>
+                                <option value="<?= $r['role_id'] ?>"><?= htmlspecialchars($r['role_name']) ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -243,11 +243,11 @@ $usuarios = $mysqli->query("SELECT u.*, r.nombre AS rol_nombre FROM users u LEFT
                         <input type="password" class="form-control" name="password" id="edit_password">
                     </div>
                     <div class="mb-3">
-                        <label for="edit_rol_id" class="form-label">Rol</label>
-                        <select class="form-select" name="rol_id" id="edit_rol_id" required>
+                        <label for="edit_role_id" class="form-label">Rol</label>
+                        <select class="form-select" name="role_id" id="edit_role_id" required>
                             <option value="">Selecciona un rol</option>
-                            <?php foreach ($roles_array as $rol): ?>
-                                <option value="<?= $rol['rol_id'] ?>"><?= htmlspecialchars($rol['nombre']) ?></option>
+                            <?php foreach ($roles_array as $r): ?>
+                                <option value="<?= $r['role_id'] ?>"><?= htmlspecialchars($r['role_name']) ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -293,7 +293,7 @@ $usuarios = $mysqli->query("SELECT u.*, r.nombre AS rol_nombre FROM users u LEFT
             document.getElementById('edit_user_id').value = this.dataset.userId;
             document.getElementById('edit_username').value = this.dataset.username;
             document.getElementById('edit_email').value = this.dataset.email;
-            document.getElementById('edit_rol_id').value = this.dataset.rolId;
+            document.getElementById('edit_role_id').value = this.dataset.roleId;
             document.getElementById('edit_password').value = '';
             const modal = new bootstrap.Modal(document.getElementById('modalEditarUsuario'));
             modal.show();

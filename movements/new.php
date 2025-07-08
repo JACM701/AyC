@@ -8,7 +8,7 @@ $success = $error = '';
 $products = $mysqli->query("SELECT product_id, product_name, tipo_gestion FROM products ORDER BY product_name");
 
 // Obtener tipos de movimiento para el select
-$movement_types = $mysqli->query("SELECT Id_tipo, nombre FROM movement_type ORDER BY nombre");
+$movement_types = $mysqli->query("SELECT movement_type_id, name FROM movement_types ORDER BY name");
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $product_id = isset($_POST['product_id']) ? intval($_POST['product_id']) : 0;
@@ -89,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     // Recargar selects tras el POST
     $products = $mysqli->query("SELECT product_id, product_name, tipo_gestion FROM products ORDER BY product_name");
-    $movement_types = $mysqli->query("SELECT Id_tipo, nombre FROM movement_type ORDER BY nombre");
+    $movement_types = $mysqli->query("SELECT movement_type_id, name FROM movement_types ORDER BY name");
 }
 ?>
 <!DOCTYPE html>
@@ -169,7 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <select name="movement_type_id" id="movement_type_id" class="form-select" required>
                 <option value="">-- Selecciona un tipo --</option>
                 <?php while ($mt = $movement_types->fetch_assoc()): ?>
-                    <option value="<?= $mt['Id_tipo'] ?>" <?= (isset($_POST['movement_type_id']) && $_POST['movement_type_id'] == $mt['Id_tipo']) ? 'selected' : '' ?>><?= htmlspecialchars($mt['nombre']) ?></option>
+                    <option value="<?= $mt['movement_type_id'] ?>" <?= (isset($_POST['movement_type_id']) && $_POST['movement_type_id'] == $mt['movement_type_id']) ? 'selected' : '' ?>><?= htmlspecialchars($mt['name']) ?></option>
                 <?php endwhile; ?>
             </select>
         </div>

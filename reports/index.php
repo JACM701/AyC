@@ -47,12 +47,13 @@ $categories = $mysqli->query($categories_query);
 // Obtener top proveedores
 $suppliers_query = "
     SELECT 
-        supplier,
-        COUNT(*) as product_count,
-        SUM(quantity * price) as total_value
-    FROM products 
-    WHERE supplier IS NOT NULL AND supplier != ''
-    GROUP BY supplier
+        s.name as supplier_name,
+        COUNT(p.product_id) as product_count,
+        SUM(p.quantity * p.price) as total_value
+    FROM products p
+    LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id
+    WHERE p.supplier_id IS NOT NULL
+    GROUP BY p.supplier_id
     HAVING total_value > 0
     ORDER BY total_value DESC
     LIMIT 5
@@ -461,7 +462,7 @@ $quotes_stats = $mysqli->query($quotes_stats_query)->fetch_assoc();
                         <?php if ($suppliers && $suppliers->num_rows > 0): ?>
                             <?php while ($supplier = $suppliers->fetch_assoc()): ?>
                                 <tr>
-                                    <td><strong><?= htmlspecialchars($supplier['supplier']) ?></strong></td>
+                                    <td><strong><?= htmlspecialchars($supplier['supplier_name']) ?></strong></td>
                                     <td><?= $supplier['product_count'] ?></td>
                                     <td>$<?= number_format($supplier['total_value'], 0, ',', '.') ?></td>
                                     <td>$<?= number_format($supplier['total_value'] / $supplier['product_count'], 0, ',', '.') ?></td>
