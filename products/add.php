@@ -464,11 +464,10 @@
                 <?php endif; ?>
                 
                 <form action="" method="POST" id="formAgregarProducto" enctype="multipart/form-data">
-                    
-                    <!-- SECCIÓN 1: INFORMACIÓN BÁSICA -->
+                    <!-- SECCIÓN 1: IDENTIFICACIÓN DEL PRODUCTO -->
                     <div class="form-section">
-                        <h6><i class="bi bi-box"></i> Información Básica</h6>
-                        <div class="row">
+                        <h6><i class="bi bi-box"></i> Identificación del producto</h6>
+                        <div class="row mb-3">
                             <div class="col-md-8">
                                 <div class="floating-label">
                                     <input type="text" class="form-control" name="product_name" id="product_name" required placeholder=" ">
@@ -483,133 +482,129 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="floating-label">
-                            <textarea class="form-control" name="description" id="description" rows="3" placeholder=" "></textarea>
-                            <label for="description">Descripción</label>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="category" class="form-label">Categoría</label>
+                                <div class="input-group mb-3">
+                                    <select class="form-select" name="category" id="category">
+                                        <option value="">Selecciona una categoría</option>
+                                        <?php if ($categorias) { while ($cat = $categorias->fetch_assoc()): ?>
+                                            <option value="<?= $cat['category_id'] ?>"><?= htmlspecialchars($cat['name']) ?></option>
+                                        <?php endwhile; } ?>
+                                    </select>
+                                    <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNuevaCategoria" title="Nueva categoría">
+                                        <i class="bi bi-plus"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <!-- Selector de proveedor con botón + alineado -->
+                            <div class="col-md-6">
+                                <label for="supplier_id" class="form-label">Proveedor</label>
+                                <div class="input-group mb-3">
+                                    <select class="form-select" name="supplier_id" id="supplier_id">
+                                        <option value="">Selecciona un proveedor</option>
+                                        <?php if ($proveedores) { while ($prov = $proveedores->fetch_assoc()): ?>
+                                            <option value="<?= $prov['supplier_id'] ?>"><?= htmlspecialchars($prov['name']) ?></option>
+                                        <?php endwhile; } ?>
+                                    </select>
+                                    <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoProveedor" data-bs-toggle="tooltip" title="Nuevo proveedor">
+                                        <i class="bi bi-plus"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="toggleBarcode" onclick="toggleBarcodeInput()">
+                                <label class="form-check-label" for="toggleBarcode">Agregar código de barras</label>
+                            </div>
+                            <div class="mb-3" id="barcodeField" style="display:none;">
+                                <label for="barcode" class="form-label">Código de barras</label>
+                                <input type="text" class="form-control" name="barcode" id="barcode" maxlength="50" autocomplete="off">
+                                <small class="text-muted">Opcional. Escanea o ingresa el código de barras si aplica.</small>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- SECCIÓN 2: PRECIOS Y CANTIDAD -->
+                    <!-- SECCIÓN 2: INVENTARIO Y GESTIÓN -->
                     <div class="form-section">
-                        <h6><i class="bi bi-currency-dollar"></i> Precios y Cantidad</h6>
+                        <h6><i class="bi bi-gear"></i> Inventario y gestión</h6>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="unit_measure" class="form-label">Unidad de medida</label>
+                                <input type="text" class="form-control" name="unit_measure" id="unit_measure" placeholder="Ej: piezas, metros, cajas">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="tipo_gestion" class="form-label">Tipo de gestión</label>
+                                <div class="d-flex flex-wrap gap-3">
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="tipo_gestion" id="tipo_normal" value="normal" checked>
+                                        <label class="form-check-label" for="tipo_normal"><i class="bi bi-box"></i> Normal (por unidades)</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="tipo_gestion" id="tipo_bobina" value="bobina">
+                                        <label class="form-check-label" for="tipo_bobina"><i class="bi bi-receipt"></i> Bobina (por metros)</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="tipo_gestion" id="tipo_bolsa" value="bolsa">
+                                        <label class="form-check-label" for="tipo_bolsa"><i class="bi bi-bag"></i> Bolsa</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="tipo_gestion" id="tipo_par" value="par">
+                                        <label class="form-check-label" for="tipo_par"><i class="bi bi-2-circle"></i> Par</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         <div class="row mb-3">
                             <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label for="cost_price" class="form-label">Costo unitario de compra/fabricación *</label>
-                                    <div class="input-group">
-                                        <input type="number" step="0.01" class="form-control" name="cost_price" id="cost_price" required>
-                                        <span class="input-group-text" tabindex="0" data-bs-toggle="tooltip" title="Costo real de adquisición o fabricación del producto. El sistema sugerirá el precio de venta automáticamente como un 30% más, pero puedes editarlo."><i class="bi bi-question-circle-fill"></i></span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label for="price" class="form-label">Precio de venta *</label>
-                                    <div class="input-group">
-                                        <input type="number" step="0.01" class="form-control" name="price" id="price" required>
-                                        <span class="input-group-text" tabindex="0" data-bs-toggle="tooltip" title="Precio sugerido: costo + 30%. Puedes modificarlo si deseas otro margen de ganancia."><i class="bi bi-question-circle-fill"></i></span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-2">
-                                <div class="mb-3">
-                                    <label for="min_stock" class="form-label">Stock mínimo</label>
-                                    <div class="input-group">
-                                        <input type="number" class="form-control" name="min_stock" id="min_stock">
-                                        <span class="input-group-text" style="background:transparent;border:none;">&nbsp;</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-2">
-                                <div class="mb-3">
-                                    <label for="max_stock" class="form-label">Stock máximo</label>
-                                    <div class="input-group">
-                                        <input type="number" class="form-control" name="max_stock" id="max_stock">
-                                        <span class="input-group-text" style="background:transparent;border:none;">&nbsp;</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <!-- Campo de cantidad inicial -->
-                            <div class="col-md-4">
                                 <label for="quantity" class="form-label">Cantidad inicial *</label>
+                                <input type="number" class="form-control" name="quantity" id="quantity" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="min_stock" class="form-label">Stock mínimo</label>
+                                <input type="number" class="form-control" name="min_stock" id="min_stock">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="max_stock" class="form-label">Stock máximo</label>
+                                <input type="number" class="form-control" name="max_stock" id="max_stock">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SECCIÓN 3: PRECIOS -->
+                    <div class="form-section">
+                        <h6><i class="bi bi-currency-dollar"></i> Precios</h6>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="cost_price" class="form-label">Costo unitario de compra/fabricación *</label>
                                 <div class="input-group">
-                                    <input type="number" class="form-control" name="quantity" id="quantity" required>
+                                    <input type="number" step="0.01" class="form-control" name="cost_price" id="cost_price" required>
+                                    <span class="input-group-text" tabindex="0" data-bs-toggle="tooltip" title="Costo real de adquisición o fabricación del producto. El sistema sugerirá el precio de venta automáticamente como un 30% más, pero puedes editarlo."><i class="bi bi-question-circle-fill"></i></span>
                                 </div>
                             </div>
-                            <!-- Campo metros por bobina (oculto por defecto) -->
-                            <div class="col-md-4" id="metrosPorBobinaField" style="display:none;">
-                                <label for="metros_por_bobina" class="form-label">Metros por bobina *</label>
-                                <input type="number" class="form-control" name="metros_por_bobina" id="metros_por_bobina" min="1" value="350">
-                            </div>
-                            <!-- Mensaje informativo bobina (oculto por defecto) -->
-                            <div class="col-12" id="bobinaMsg" style="display:none;">
-                                <div class="alert alert-info py-2 my-2">
-                                    El stock de este producto se controla por bobinas. Agrega bobinas después de crear el producto.
+                            <div class="col-md-6">
+                                <label for="price" class="form-label">Precio de venta *</label>
+                                <div class="input-group">
+                                    <input type="number" step="0.01" class="form-control" name="price" id="price" required>
+                                    <span class="input-group-text" tabindex="0" data-bs-toggle="tooltip" title="Precio sugerido: costo + 30%. Puedes modificarlo si deseas otro margen de ganancia."><i class="bi bi-question-circle-fill"></i></span>
                                 </div>
                             </div>
-                            <div class="col-md-4 d-flex align-items-center justify-content-end">
-                                <input class="form-check-input me-2" type="checkbox" id="toggleBarcode" onchange="toggleBarcodeInput()">
-                                <label class="form-check-label mb-0" for="toggleBarcode">Agregar código de barras</label>
-                            </div>
-                        </div>
-                        <div class="mb-3" id="barcodeField" style="display:none;">
-                            <label for="barcode" class="form-label">Código de barras</label>
-                            <input type="text" class="form-control" name="barcode" id="barcode" maxlength="50" autocomplete="off">
-                            <small class="text-muted">Opcional. Escanea o ingresa el código de barras si aplica.</small>
                         </div>
                     </div>
 
-                    <!-- SECCIÓN 3: CATEGORÍA Y PROVEEDOR -->
+                    <!-- SECCIÓN 4: IMAGEN Y DESCRIPCIÓN -->
                     <div class="form-section">
-                        <h6><i class="bi bi-tags"></i> Categoría</h6>
-                        <div class="floating-label">
-                            <select class="form-select" name="category" id="category">
-                                <option value="">Selecciona una categoría</option>
-                                <?php $categorias->data_seek(0); while ($row = $categorias->fetch_assoc()): ?>
-                                    <option value="<?= htmlspecialchars($row['category_id']) ?>"><?= htmlspecialchars($row['name']) ?></option>
-                                <?php endwhile; ?>
-                            </select>
-                            <label for="category">Categoría</label>
-                            <small class="text-muted">O escribe una nueva:</small>
-                            <div class="floating-label mt-2">
-                                <input type="text" class="form-control" name="new_category" id="new_category" placeholder=" ">
-                                <label for="new_category">Nueva categoría</label>
+                        <h6><i class="bi bi-image"></i> Imagen y descripción</h6>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="image" class="form-label">Imagen del producto</label>
+                                <input type="file" class="form-control" name="image" id="image" accept="image/*">
+                                <small class="text-muted">Opcional - Formatos: JPG, PNG, GIF</small>
                             </div>
-                        </div>
-                    </div>
-                    <div class="form-section">
-                        <h6><i class="bi bi-truck"></i> Proveedor</h6>
-                        <div class="mb-3">
-                            <select class="form-select" name="supplier_id" id="supplier_id">
-                                <option value="">Selecciona un proveedor</option>
-                                <?php if ($proveedores) { while ($prov = $proveedores->fetch_assoc()): ?>
-                                    <option value="<?= $prov['supplier_id'] ?>"><?= htmlspecialchars($prov['name']) ?></option>
-                                <?php endwhile; } ?>
-                            </select>
-                            <small class="text-muted">O agrega un nuevo proveedor:</small>
-                            <input type="text" class="form-control mt-2" name="new_supplier" placeholder="Nuevo proveedor">
-                        </div>
-                    </div>
-
-                    <!-- SECCIÓN 4: TIPO DE GESTIÓN -->
-                    <div class="form-section">
-                        <h6><i class="bi bi-gear"></i> Tipo de Gestión</h6>
-                        <div class="d-flex flex-wrap gap-3">
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="tipo_gestion" id="tipo_normal" value="normal" checked>
-                                <label class="form-check-label" for="tipo_normal"><i class="bi bi-box"></i> Normal (por unidades)</label>
-                            </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="tipo_gestion" id="tipo_bobina" value="bobina">
-                                <label class="form-check-label" for="tipo_bobina"><i class="bi bi-receipt"></i> Bobina (por metros)</label>
-                            </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="tipo_gestion" id="tipo_bolsa" value="bolsa">
-                                <label class="form-check-label" for="tipo_bolsa"><i class="bi bi-bag"></i> Bolsa</label>
-                            </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="tipo_gestion" id="tipo_par" value="par">
-                                <label class="form-check-label" for="tipo_par"><i class="bi bi-2-circle"></i> Par</label>
+                            <div class="col-md-6">
+                                <label for="description" class="form-label">Descripción</label>
+                                <textarea class="form-control" name="description" id="description" rows="3"></textarea>
                             </div>
                         </div>
                     </div>
@@ -639,15 +634,6 @@
                         </div>
                     </div>
 
-                    <!-- SECCIÓN 6: IMAGEN -->
-                    <div class="form-section">
-                        <h6><i class="bi bi-image"></i> Imagen del Producto</h6>
-                        <div class="floating-label">
-                            <input type="file" class="form-control" name="image" id="image" accept="image/*">
-                            <small class="text-muted">Opcional - Formatos: JPG, PNG, GIF</small>
-                        </div>
-                    </div>
-                    
                     <div class="form-actions">
                         <button type="submit" class="btn btn-primary">
                             <i class="bi bi-plus-circle"></i> Agregar producto
@@ -796,6 +782,150 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
+});
+</script>
+
+<!-- Modal Alta Rápida Proveedor (compacto) -->
+<div class="modal fade" id="modalNuevoProveedor" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width: 370px;">
+    <div class="modal-content">
+      <form id="formNuevoProveedorRapido">
+        <div class="modal-header py-2">
+          <h6 class="modal-title"><i class="bi bi-person-plus"></i> Nuevo Proveedor</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body pb-2 pt-3">
+          <div class="mb-2">
+            <label class="form-label mb-1">Nombre del proveedor <span class="text-danger">*</span></label>
+            <input type="text" class="form-control form-control-sm" name="name" required autofocus placeholder="Ej: Syscom, PCH, etc.">
+          </div>
+          <div class="accordion accordion-flush mb-2" id="opcionalesProveedor">
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="headingOpcionales">
+                <button class="accordion-button collapsed py-1 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOpcionales" aria-expanded="false" aria-controls="collapseOpcionales" style="font-size:0.98rem;">
+                  Más datos opcionales
+                </button>
+              </h2>
+              <div id="collapseOpcionales" class="accordion-collapse collapse" aria-labelledby="headingOpcionales" data-bs-parent="#opcionalesProveedor">
+                <div class="accordion-body py-2 px-2">
+                  <div class="mb-2">
+                    <input type="text" class="form-control form-control-sm mb-1" name="contact_name" placeholder="Nombre de contacto">
+                    <input type="text" class="form-control form-control-sm mb-1" name="phone" placeholder="Teléfono">
+                    <input type="email" class="form-control form-control-sm mb-1" name="email" placeholder="Email">
+                    <textarea class="form-control form-control-sm" name="address" rows="1" placeholder="Dirección"></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="nuevoProveedorMsg" class="mb-1"></div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-circle"></i> Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+// Alta rápida de proveedor vía AJAX
+const formNuevoProveedor = document.getElementById('formNuevoProveedorRapido');
+formNuevoProveedor.addEventListener('submit', function(e) {
+  e.preventDefault();
+  const formData = new FormData(formNuevoProveedor);
+  fetch('../proveedores/add.php', {
+    method: 'POST',
+    body: formData
+  })
+  .then(res => res.json())
+  .then(data => {
+    const msg = document.getElementById('nuevoProveedorMsg');
+    if (data.success) {
+      msg.innerHTML = '<div class="alert alert-success"><i class="bi bi-check-circle"></i> ' + data.success + '</div>';
+      // Agregar al select y seleccionar
+      const select = document.getElementById('supplier_id');
+      const option = document.createElement('option');
+      option.value = data.id;
+      option.textContent = data.name;
+      select.appendChild(option);
+      select.value = data.id;
+      setTimeout(() => {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('modalNuevoProveedor'));
+        modal.hide();
+        msg.innerHTML = '';
+        formNuevoProveedor.reset();
+      }, 900);
+    } else {
+      msg.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> ' + (data.error || 'Error inesperado') + '</div>';
+    }
+  })
+  .catch(() => {
+    document.getElementById('nuevoProveedorMsg').innerHTML = '<div class="alert alert-danger">Error de red</div>';
+  });
+});
+</script>
+
+<!-- Modal Alta Rápida Categoría (compacto) -->
+<div class="modal fade" id="modalNuevaCategoria" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width: 340px;">
+    <div class="modal-content">
+      <form id="formNuevaCategoriaRapida">
+        <div class="modal-header py-2">
+          <h6 class="modal-title"><i class="bi bi-tags"></i> Nueva Categoría</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body pb-2 pt-3">
+          <div class="mb-2">
+            <label class="form-label mb-1">Nombre de la categoría <span class="text-danger">*</span></label>
+            <input type="text" class="form-control form-control-sm" name="name" required autofocus placeholder="Ej: Cables, Herramientas, etc.">
+          </div>
+          <div id="nuevaCategoriaMsg" class="mb-1"></div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-circle"></i> Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+// Alta rápida de categoría vía AJAX
+const formNuevaCategoria = document.getElementById('formNuevaCategoriaRapida');
+formNuevaCategoria.addEventListener('submit', function(e) {
+  e.preventDefault();
+  const formData = new FormData(formNuevaCategoria);
+  fetch('../categories/add.php', {
+    method: 'POST',
+    body: formData
+  })
+  .then(res => res.json())
+  .then(data => {
+    const msg = document.getElementById('nuevaCategoriaMsg');
+    if (data.success) {
+      msg.innerHTML = '<div class="alert alert-success"><i class="bi bi-check-circle"></i> ' + data.success + '</div>';
+      // Agregar al select y seleccionar
+      const select = document.getElementById('category');
+      const option = document.createElement('option');
+      option.value = data.id;
+      option.textContent = data.name;
+      select.appendChild(option);
+      select.value = data.id;
+      setTimeout(() => {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('modalNuevaCategoria'));
+        modal.hide();
+        msg.innerHTML = '';
+        formNuevaCategoria.reset();
+      }, 900);
+    } else {
+      msg.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> ' + (data.error || 'Error inesperado') + '</div>';
+    }
+  })
+  .catch(() => {
+    document.getElementById('nuevaCategoriaMsg').innerHTML = '<div class="alert alert-danger">Error de red</div>';
+  });
 });
 </script>
 </body>

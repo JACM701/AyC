@@ -5,7 +5,6 @@ require_once '../connection.php';
 $success = $error = '';
 
 // Filtros
-$filtro_estado = isset($_GET['estado']) ? $_GET['estado'] : '';
 $filtro_cliente = isset($_GET['cliente']) ? trim($_GET['cliente']) : '';
 $filtro_fecha_desde = isset($_GET['fecha_desde']) ? $_GET['fecha_desde'] : '';
 $filtro_fecha_hasta = isset($_GET['fecha_hasta']) ? $_GET['fecha_hasta'] : '';
@@ -14,12 +13,6 @@ $filtro_fecha_hasta = isset($_GET['fecha_hasta']) ? $_GET['fecha_hasta'] : '';
 $where_conditions = [];
 $params = [];
 $param_types = '';
-
-if ($filtro_estado) {
-    $where_conditions[] = "c.estado = ?";
-    $params[] = $filtro_estado;
-    $param_types .= 's';
-}
 
 if ($filtro_cliente) {
     $where_conditions[] = "c.cliente_nombre LIKE ?";
@@ -71,10 +64,6 @@ $cotizaciones = $stmt->get_result();
 $stats_query = "
     SELECT 
         COUNT(*) as total_cotizaciones,
-        COUNT(CASE WHEN estado = 'borrador' THEN 1 END) as borradores,
-        COUNT(CASE WHEN estado = 'enviada' THEN 1 END) as enviadas,
-        COUNT(CASE WHEN estado = 'aprobada' THEN 1 END) as aprobadas,
-        COUNT(CASE WHEN estado = 'convertida' THEN 1 END) as convertidas,
         SUM(total) as total_valor,
         AVG(total) as promedio_valor
     FROM cotizaciones
@@ -201,22 +190,6 @@ $stats = $stats_result->fetch_assoc();
                 <p>Total Cotizaciones</p>
             </div>
             <div class="stat-card">
-                <h3><?= $stats['borradores'] ?></h3>
-                <p>Borradores</p>
-            </div>
-            <div class="stat-card">
-                <h3><?= $stats['enviadas'] ?></h3>
-                <p>Enviadas</p>
-            </div>
-            <div class="stat-card">
-                <h3><?= $stats['aprobadas'] ?></h3>
-                <p>Aprobadas</p>
-            </div>
-            <div class="stat-card">
-                <h3><?= $stats['convertidas'] ?></h3>
-                <p>Convertidas</p>
-            </div>
-            <div class="stat-card">
                 <h3>$<?= number_format($stats['total_valor'] ?? 0, 2) ?></h3>
                 <p>Valor Total</p>
             </div>
@@ -226,17 +199,6 @@ $stats = $stats_result->fetch_assoc();
         <div class="filtros-container">
             <h5 class="mb-3"><i class="bi bi-funnel"></i> Filtros</h5>
             <form method="GET" class="row g-3">
-                <div class="col-md-3">
-                    <label class="form-label">Estado</label>
-                    <select name="estado" class="form-select">
-                        <option value="">Todos los estados</option>
-                        <option value="borrador" <?= $filtro_estado === 'borrador' ? 'selected' : '' ?>>Borrador</option>
-                        <option value="enviada" <?= $filtro_estado === 'enviada' ? 'selected' : '' ?>>Enviada</option>
-                        <option value="aprobada" <?= $filtro_estado === 'aprobada' ? 'selected' : '' ?>>Aprobada</option>
-                        <option value="rechazada" <?= $filtro_estado === 'rechazada' ? 'selected' : '' ?>>Rechazada</option>
-                        <option value="convertida" <?= $filtro_estado === 'convertida' ? 'selected' : '' ?>>Convertida</option>
-                    </select>
-                </div>
                 <div class="col-md-3">
                     <label class="form-label">Cliente</label>
                     <input type="text" name="cliente" class="form-control" value="<?= htmlspecialchars($filtro_cliente) ?>" placeholder="Buscar por cliente">
@@ -267,11 +229,6 @@ $stats = $stats_result->fetch_assoc();
                             <small class="text-muted"><?= htmlspecialchars($cot['cliente_telefono_real'] ?? $cot['cliente_telefono']) ?></small><br>
                             <small class="text-muted"><?= htmlspecialchars($cot['cliente_direccion_real'] ?? $cot['cliente_ubicacion']) ?></small>
                             <small class="text-muted"><?= date('d/m/Y', strtotime($cot['fecha_cotizacion'])) ?></small>
-                        </div>
-                        <div class="col-md-2">
-                            <span class="estado-badge estado-<?= $cot['estado'] ?>">
-                                <?= ucfirst($cot['estado']) ?>
-                            </span>
                         </div>
                         <div class="col-md-2">
                             <strong>$<?= number_format($cot['total'], 2) ?></strong>

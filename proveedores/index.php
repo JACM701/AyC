@@ -9,16 +9,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
         if ($_POST['action'] === 'add') {
             $name = trim($_POST['name']);
-            $website = trim($_POST['website']);
-            $notes = trim($_POST['notes']);
+            $contact_name = trim($_POST['contact_name']);
+            $phone = trim($_POST['phone']);
+            $email = trim($_POST['email']);
+            $address = trim($_POST['address']);
             
             if (!empty($name)) {
-                $stmt = $mysqli->prepare("INSERT INTO suppliers (name, website, notes, created_at) VALUES (?, ?, ?, NOW())");
-                $stmt->bind_param("sss", $name, $website, $notes);
+                $stmt = $mysqli->prepare("INSERT INTO suppliers (name, contact_name, phone, email, address, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+                $stmt->bind_param("sssss", $name, $contact_name, $phone, $email, $address);
                 if ($stmt->execute()) {
                     $success = "Proveedor agregado correctamente.";
                 } else {
                     $error = "Error al agregar proveedor: " . $stmt->error;
+                }
+                $stmt->close();
+            } else {
+                $error = "El nombre del proveedor es obligatorio.";
+            }
+        } elseif ($_POST['action'] === 'edit' && isset($_POST['supplier_id'])) {
+            $supplier_id = intval($_POST['supplier_id']);
+            $name = trim($_POST['name']);
+            $contact_name = trim($_POST['contact_name']);
+            $phone = trim($_POST['phone']);
+            $email = trim($_POST['email']);
+            $address = trim($_POST['address']);
+            
+            if (!empty($name)) {
+                $stmt = $mysqli->prepare("UPDATE suppliers SET name = ?, contact_name = ?, phone = ?, email = ?, address = ? WHERE supplier_id = ?");
+                $stmt->bind_param("sssssi", $name, $contact_name, $phone, $email, $address, $supplier_id);
+                if ($stmt->execute()) {
+                    $success = "Proveedor actualizado correctamente.";
+                } else {
+                    $error = "Error al actualizar proveedor: " . $stmt->error;
                 }
                 $stmt->close();
             } else {
@@ -421,16 +443,32 @@ $products = $mysqli->query("SELECT product_id, product_name, sku, tipo_gestion F
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="website" class="form-label">Sitio web</label>
-                                <input type="url" class="form-control" name="website" id="website" 
-                                       placeholder="https://www.proveedor.com">
+                                <label for="contact_name" class="form-label">Nombre de Contacto</label>
+                                <input type="text" class="form-control" name="contact_name" id="contact_name" 
+                                       placeholder="Ej: Juan Pérez">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="phone" class="form-label">Teléfono</label>
+                                <input type="tel" class="form-control" name="phone" id="phone" 
+                                       placeholder="Ej: 55 1234 5678">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Email</label>
+                                <input type="email" class="form-control" name="email" id="email" 
+                                       placeholder="Ej: info@proveedor.com">
                             </div>
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label for="notes" class="form-label">Notas (opcional)</label>
-                        <textarea class="form-control" name="notes" id="notes" rows="2" 
-                                  placeholder="Información adicional, contacto, horarios, etc."></textarea>
+                        <label for="address" class="form-label">Dirección</label>
+                        <textarea class="form-control" name="address" id="address" rows="2" 
+                                  placeholder="Ej: Calle Principal 123, Colonia Centro, Ciudad"></textarea>
                     </div>
                     <button type="submit" class="btn btn-primary">
                         <i class="bi bi-plus-circle"></i> Agregar Proveedor
@@ -461,18 +499,17 @@ $products = $mysqli->query("SELECT product_id, product_name, sku, tipo_gestion F
                                 </h6>
                             </div>
                             
-                            <?php if ($supplier['website']): ?>
-                                <a href="<?= htmlspecialchars($supplier['website']) ?>" 
-                                   target="_blank" class="supplier-website">
-                                    <i class="bi bi-link-45deg"></i>
-                                    <?= htmlspecialchars($supplier['website']) ?>
-                                </a>
+                            <?php if ($supplier['contact_name']): ?>
+                                <p class="mb-1"><strong>Contacto:</strong> <?= htmlspecialchars($supplier['contact_name']) ?></p>
                             <?php endif; ?>
-                            
-                            <?php if ($supplier['notes']): ?>
-                                <div class="supplier-notes">
-                                    <?= htmlspecialchars($supplier['notes']) ?>
-                                </div>
+                            <?php if ($supplier['phone']): ?>
+                                <p class="mb-1"><strong>Teléfono:</strong> <?= htmlspecialchars($supplier['phone']) ?></p>
+                            <?php endif; ?>
+                            <?php if ($supplier['email']): ?>
+                                <p class="mb-1"><strong>Email:</strong> <a href="mailto:<?= htmlspecialchars($supplier['email']) ?>" target="_blank"><?= htmlspecialchars($supplier['email']) ?></a></p>
+                            <?php endif; ?>
+                            <?php if ($supplier['address']): ?>
+                                <p class="mb-1"><strong>Dirección:</strong> <?= htmlspecialchars($supplier['address']) ?></p>
                             <?php endif; ?>
                             
                             <div class="supplier-actions">

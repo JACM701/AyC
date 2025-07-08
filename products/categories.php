@@ -8,7 +8,6 @@
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         if ($_POST['action'] === 'add' && !empty($_POST['category_name'])) {
             $category_name = trim($_POST['category_name']);
-            $description = trim($_POST['description'] ?? '');
             
             // Verificar si la categoría ya existe
             $stmt = $mysqli->prepare("SELECT COUNT(*) as count FROM categories WHERE name = ?");
@@ -22,8 +21,8 @@
                 $error = "La categoría ya existe.";
             } else {
                 // Insertar nueva categoría
-                $stmt = $mysqli->prepare("INSERT INTO categories (name, description) VALUES (?, ?)");
-                $stmt->bind_param("ss", $category_name, $description);
+                $stmt = $mysqli->prepare("INSERT INTO categories (name) VALUES (?)");
+                $stmt->bind_param("s", $category_name);
                 if ($stmt->execute()) {
                     $success = "Categoría agregada correctamente.";
                 } else {
@@ -34,7 +33,6 @@
         } elseif ($_POST['action'] === 'edit' && !empty($_POST['category_id']) && !empty($_POST['category_name'])) {
             $category_id = intval($_POST['category_id']);
             $category_name = trim($_POST['category_name']);
-            $description = trim($_POST['description'] ?? '');
             
             // Verificar si el nombre ya existe en otra categoría
             $stmt = $mysqli->prepare("SELECT COUNT(*) as count FROM categories WHERE name = ? AND category_id != ?");
@@ -48,8 +46,8 @@
                 $error = "Ya existe una categoría con ese nombre.";
             } else {
                 // Actualizar categoría
-                $stmt = $mysqli->prepare("UPDATE categories SET name = ?, description = ? WHERE category_id = ?");
-                $stmt->bind_param("ssi", $category_name, $description, $category_id);
+                $stmt = $mysqli->prepare("UPDATE categories SET name = ? WHERE category_id = ?");
+                $stmt->bind_param("si", $category_name, $category_id);
                 if ($stmt->execute()) {
                     $success = "Categoría actualizada correctamente.";
                 } else {
@@ -89,13 +87,12 @@
         SELECT 
             c.category_id,
             c.name, 
-            c.description,
             COUNT(p.product_id) as total_productos,
             SUM(p.quantity) as stock_total,
             AVG(p.price) as precio_promedio
         FROM categories c
         LEFT JOIN products p ON c.category_id = p.category_id
-        GROUP BY c.category_id, c.name, c.description
+        GROUP BY c.category_id, c.name
         ORDER BY total_productos DESC, c.name ASC
     ");
 ?>
@@ -360,13 +357,6 @@
                                        placeholder="Ej: Cámaras de Seguridad">
                             </div>
                         </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="description" class="form-label">Descripción (opcional)</label>
-                                <textarea class="form-control" name="description" id="description" rows="1" 
-                                          placeholder="Descripción breve de la categoría"></textarea>
-                            </div>
-                        </div>
                     </div>
                     <button type="submit" class="btn btn-primary">
                         <i class="bi bi-plus-circle"></i> Crear Categoría
@@ -397,7 +387,7 @@
                                 </h5>
                                 <div class="category-actions">
                                     <button type="button" class="btn-action btn-edit" 
-                                            onclick="editarCategoria(<?= $cat['category_id'] ?>, '<?= htmlspecialchars($cat['name']) ?>', '<?= htmlspecialchars($cat['description']) ?>')">
+                                            onclick="editarCategoria(<?= $cat['category_id'] ?>, '<?= htmlspecialchars($cat['name']) ?>')">
                                         <i class="bi bi-pencil"></i>
                                     </button>
                                     <?php if ($cat['total_productos'] == 0): ?>
@@ -408,12 +398,6 @@
                                     <?php endif; ?>
                                 </div>
                             </div>
-                            
-                            <?php if (!empty($cat['description'])): ?>
-                                <div class="category-description">
-                                    <?= htmlspecialchars($cat['description']) ?>
-                                </div>
-                            <?php endif; ?>
                             
                             <div class="category-stats">
                                 <div class="stat-item">
@@ -464,10 +448,6 @@
                             <label for="edit_category_name" class="form-label">Nombre de la categoría</label>
                             <input type="text" class="form-control" name="category_name" id="edit_category_name" required>
                         </div>
-                        <div class="mb-3">
-                            <label for="edit_description" class="form-label">Descripción (opcional)</label>
-                            <textarea class="form-control" name="description" id="edit_description" rows="3"></textarea>
-                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -513,10 +493,9 @@
         document.querySelector('.sidebar-productos').classList.add('active');
 
         // Función para editar categoría
-        function editarCategoria(id, nombre, descripcion) {
+        function editarCategoria(id, nombre) {
             document.getElementById('edit_category_id').value = id;
             document.getElementById('edit_category_name').value = nombre;
-            document.getElementById('edit_description').value = descripcion;
             
             const modal = new bootstrap.Modal(document.getElementById('modalEditarCategoria'));
             modal.show();
