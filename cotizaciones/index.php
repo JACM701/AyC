@@ -44,12 +44,16 @@ $where_clause = !empty($where_conditions) ? 'WHERE ' . implode(' AND ', $where_c
 // Consulta principal
 $query = "
     SELECT 
-        c.*,
+        c.*, 
         u.username as usuario_nombre,
+        cl.nombre as cliente_nombre_real,
+        cl.telefono as cliente_telefono_real,
+        cl.ubicacion as cliente_direccion_real,
         COUNT(cp.cotizacion_producto_id) as total_productos,
         SUM(cp.precio_total) as subtotal_productos
     FROM cotizaciones c
     LEFT JOIN users u ON c.user_id = u.user_id
+    LEFT JOIN clientes cl ON c.cliente_id = cl.cliente_id
     LEFT JOIN cotizaciones_productos cp ON c.cotizacion_id = cp.cotizacion_id
     $where_clause
     GROUP BY c.cotizacion_id
@@ -259,7 +263,9 @@ $stats = $stats_result->fetch_assoc();
                     <div class="row align-items-center">
                         <div class="col-md-3">
                             <h5 class="mb-1"><?= htmlspecialchars($cot['numero_cotizacion']) ?></h5>
-                            <p class="text-muted mb-0"><?= htmlspecialchars($cot['cliente_nombre']) ?></p>
+                            <p class="text-muted mb-0"><?= htmlspecialchars($cot['cliente_nombre_real'] ?? $cot['cliente_nombre']) ?></p>
+                            <small class="text-muted"><?= htmlspecialchars($cot['cliente_telefono_real'] ?? $cot['cliente_telefono']) ?></small><br>
+                            <small class="text-muted"><?= htmlspecialchars($cot['cliente_direccion_real'] ?? $cot['cliente_ubicacion']) ?></small>
                             <small class="text-muted"><?= date('d/m/Y', strtotime($cot['fecha_cotizacion'])) ?></small>
                         </div>
                         <div class="col-md-2">

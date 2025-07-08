@@ -4,19 +4,20 @@ require_once '../connection.php';
 
 $success = $error = '';
 
-// Obtener clientes de las cotizaciones
+// Obtener clientes y sus estadísticas
 $query = "
     SELECT 
-        c.cliente_nombre,
-        c.cliente_telefono,
-        c.cliente_ubicacion,
-        COUNT(cot.cotizacion_id) as total_cotizaciones,
-        SUM(cot.total) as total_ventas,
-        MAX(cot.fecha_cotizacion) as ultima_cotizacion,
-        MIN(cot.fecha_cotizacion) as primera_cotizacion
-    FROM cotizaciones c
-    LEFT JOIN cotizaciones cot ON c.cliente_nombre = cot.cliente_nombre
-    GROUP BY c.cliente_nombre, c.cliente_telefono, c.cliente_ubicacion
+        cl.cliente_id,
+        cl.nombre AS cliente_nombre,
+        cl.telefono AS cliente_telefono,
+        cl.ubicacion AS cliente_ubicacion,
+        COUNT(c.cotizacion_id) as total_cotizaciones,
+        SUM(c.total) as total_ventas,
+        MAX(c.fecha_cotizacion) as ultima_cotizacion,
+        MIN(c.fecha_cotizacion) as primera_cotizacion
+    FROM clientes cl
+    LEFT JOIN cotizaciones c ON cl.cliente_id = c.cliente_id
+    GROUP BY cl.cliente_id, cl.nombre, cl.telefono, cl.ubicacion
     ORDER BY ultima_cotizacion DESC
 ";
 $clientes = $mysqli->query($query);
@@ -24,11 +25,11 @@ $clientes = $mysqli->query($query);
 // Estadísticas generales
 $stats_query = "
     SELECT 
-        COUNT(DISTINCT cliente_nombre) as total_clientes,
-        COUNT(*) as total_cotizaciones,
-        SUM(total) as total_ventas,
-        AVG(total) as promedio_venta
-    FROM cotizaciones
+        COUNT(*) as total_clientes,
+        (SELECT COUNT(*) FROM cotizaciones) as total_cotizaciones,
+        (SELECT SUM(total) FROM cotizaciones) as total_ventas,
+        (SELECT AVG(total) FROM cotizaciones) as promedio_venta
+    FROM clientes
 ";
 $stats = $mysqli->query($stats_query)->fetch_assoc();
 ?>

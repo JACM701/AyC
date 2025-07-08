@@ -94,10 +94,19 @@
             $sku_auto_generado = true;
         }
 
+        $cost_price = isset($_POST['cost_price']) && $_POST['cost_price'] !== '' ? floatval($_POST['cost_price']) : null;
+        $min_stock = isset($_POST['min_stock']) && $_POST['min_stock'] !== '' ? intval($_POST['min_stock']) : null;
+        $max_stock = isset($_POST['max_stock']) && $_POST['max_stock'] !== '' ? intval($_POST['max_stock']) : null;
+        $unit_measure = isset($_POST['unit_measure']) ? trim($_POST['unit_measure']) : null;
+        // Si el precio está vacío y hay cost_price, sugerir price = cost_price * 1.3
+        if ((empty($_POST['price']) || $_POST['price'] == 0) && $cost_price !== null) {
+            $price = round($cost_price * 1.3, 2);
+        }
+
         // Validación básica
         if ($product_name && $price >= 0 && $quantity >= 0 && $quantity > 0) {
-            $stmt = $mysqli->prepare("INSERT INTO products (product_name, sku, price, quantity, category_id, supplier_id, description, barcode, image, tipo_gestion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("ssdiisssss", $product_name, $sku, $price, $quantity, $category_id, $supplier_id, $description, $barcode, $image_path, $tipo_gestion);
+            $stmt = $mysqli->prepare("INSERT INTO products (product_name, sku, price, quantity, category_id, supplier_id, description, barcode, image, tipo_gestion, cost_price, min_stock, max_stock, unit_measure) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("ssdiissssssddi", $product_name, $sku, $price, $quantity, $category_id, $supplier_id, $description, $barcode, $image_path, $tipo_gestion, $cost_price, $min_stock, $max_stock, $unit_measure);
             if ($stmt->execute()) {
                 $new_product_id = $stmt->insert_id;
                 // Si el tipo de gestión es bobina, mostrar opción de registrar bobinas
@@ -483,75 +492,102 @@
                     <!-- SECCIÓN 2: PRECIOS Y CANTIDAD -->
                     <div class="form-section">
                         <h6><i class="bi bi-currency-dollar"></i> Precios y Cantidad</h6>
-                        <div class="row align-items-end">
+                        <div class="row mb-3">
                             <div class="col-md-4">
-                                <div class="floating-label">
+                                <div class="mb-3">
+                                    <label for="cost_price" class="form-label">Costo unitario de compra/fabricación *</label>
                                     <div class="input-group">
-                                        <span class="input-group-text"><i class="bi bi-currency-dollar"></i></span>
-                                        <input type="number" step="0.01" class="form-control" name="price" id="price" required placeholder=" ">
+                                        <input type="number" step="0.01" class="form-control" name="cost_price" id="cost_price" required>
+                                        <span class="input-group-text" tabindex="0" data-bs-toggle="tooltip" title="Costo real de adquisición o fabricación del producto. El sistema sugerirá el precio de venta automáticamente como un 30% más, pero puedes editarlo."><i class="bi bi-question-circle-fill"></i></span>
                                     </div>
-                                    <label for="price">Precio *</label>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="floating-label">
-                                    <div class="input-group">
-                                        <span class="input-group-text"><i class="bi bi-123"></i></span>
-                                        <input type="number" class="form-control" name="quantity" id="quantity" required placeholder=" ">
-                                    </div>
-                                    <label for="quantity">Cantidad inicial *</label>
                                 </div>
                             </div>
                             <div class="col-md-4">
                                 <div class="mb-3">
-                                    <div class="d-flex align-items-center gap-2 mb-2">
-                                        <input class="form-check-input" type="checkbox" id="toggleBarcode">
-                                        <label class="form-check-label mb-0" for="toggleBarcode">Agregar código de barras</label>
-                                    </div>
-                                    <div id="barcodeField" style="display:none;">
-                                        <div class="floating-label">
-                                            <input type="text" class="form-control" name="barcode" id="barcode" placeholder=" ">
-                                            <label for="barcode">Código de barras</label>
-                                        </div>
+                                    <label for="price" class="form-label">Precio de venta *</label>
+                                    <div class="input-group">
+                                        <input type="number" step="0.01" class="form-control" name="price" id="price" required>
+                                        <span class="input-group-text" tabindex="0" data-bs-toggle="tooltip" title="Precio sugerido: costo + 30%. Puedes modificarlo si deseas otro margen de ganancia."><i class="bi bi-question-circle-fill"></i></span>
                                     </div>
                                 </div>
                             </div>
+                            <div class="col-md-2">
+                                <div class="mb-3">
+                                    <label for="min_stock" class="form-label">Stock mínimo</label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" name="min_stock" id="min_stock">
+                                        <span class="input-group-text" style="background:transparent;border:none;">&nbsp;</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="mb-3">
+                                    <label for="max_stock" class="form-label">Stock máximo</label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" name="max_stock" id="max_stock">
+                                        <span class="input-group-text" style="background:transparent;border:none;">&nbsp;</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Campo de cantidad inicial -->
+                            <div class="col-md-4">
+                                <label for="quantity" class="form-label">Cantidad inicial *</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" name="quantity" id="quantity" required>
+                                </div>
+                            </div>
+                            <!-- Campo metros por bobina (oculto por defecto) -->
+                            <div class="col-md-4" id="metrosPorBobinaField" style="display:none;">
+                                <label for="metros_por_bobina" class="form-label">Metros por bobina *</label>
+                                <input type="number" class="form-control" name="metros_por_bobina" id="metros_por_bobina" min="1" value="350">
+                            </div>
+                            <!-- Mensaje informativo bobina (oculto por defecto) -->
+                            <div class="col-12" id="bobinaMsg" style="display:none;">
+                                <div class="alert alert-info py-2 my-2">
+                                    El stock de este producto se controla por bobinas. Agrega bobinas después de crear el producto.
+                                </div>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-center justify-content-end">
+                                <input class="form-check-input me-2" type="checkbox" id="toggleBarcode" onchange="toggleBarcodeInput()">
+                                <label class="form-check-label mb-0" for="toggleBarcode">Agregar código de barras</label>
+                            </div>
+                        </div>
+                        <div class="mb-3" id="barcodeField" style="display:none;">
+                            <label for="barcode" class="form-label">Código de barras</label>
+                            <input type="text" class="form-control" name="barcode" id="barcode" maxlength="50" autocomplete="off">
+                            <small class="text-muted">Opcional. Escanea o ingresa el código de barras si aplica.</small>
                         </div>
                     </div>
 
                     <!-- SECCIÓN 3: CATEGORÍA Y PROVEEDOR -->
                     <div class="form-section">
-                        <h6><i class="bi bi-tags"></i> Categoría y Proveedor</h6>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="floating-label">
-                                    <select class="form-select" name="category" id="category">
-                                        <option value="">Selecciona una categoría</option>
-                                        <?php $categorias->data_seek(0); while ($row = $categorias->fetch_assoc()): ?>
-                                            <option value="<?= htmlspecialchars($row['category_id']) ?>"><?= htmlspecialchars($row['name']) ?></option>
-                                        <?php endwhile; ?>
-                                    </select>
-                                    <label for="category">Categoría</label>
-                                    <small class="text-muted">O escribe una nueva:</small>
-                                    <div class="floating-label mt-2">
-                                        <input type="text" class="form-control" name="new_category" id="new_category" placeholder=" ">
-                                        <label for="new_category">Nueva categoría</label>
-                                    </div>
-                                </div>
+                        <h6><i class="bi bi-tags"></i> Categoría</h6>
+                        <div class="floating-label">
+                            <select class="form-select" name="category" id="category">
+                                <option value="">Selecciona una categoría</option>
+                                <?php $categorias->data_seek(0); while ($row = $categorias->fetch_assoc()): ?>
+                                    <option value="<?= htmlspecialchars($row['category_id']) ?>"><?= htmlspecialchars($row['name']) ?></option>
+                                <?php endwhile; ?>
+                            </select>
+                            <label for="category">Categoría</label>
+                            <small class="text-muted">O escribe una nueva:</small>
+                            <div class="floating-label mt-2">
+                                <input type="text" class="form-control" name="new_category" id="new_category" placeholder=" ">
+                                <label for="new_category">Nueva categoría</label>
                             </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="supplier_id" class="form-label">Proveedor</label>
-                                    <select class="form-select" name="supplier_id" id="supplier_id">
-                                        <option value="">Selecciona un proveedor</option>
-                                        <?php if ($proveedores) { while ($prov = $proveedores->fetch_assoc()): ?>
-                                            <option value="<?= $prov['supplier_id'] ?>"><?= htmlspecialchars($prov['name']) ?></option>
-                                        <?php endwhile; } ?>
-                                    </select>
-                                    <small class="text-muted">O agrega un nuevo proveedor:</small>
-                                    <input type="text" class="form-control mt-2" name="new_supplier" placeholder="Nuevo proveedor">
-                                </div>
-                            </div>
+                        </div>
+                    </div>
+                    <div class="form-section">
+                        <h6><i class="bi bi-truck"></i> Proveedor</h6>
+                        <div class="mb-3">
+                            <select class="form-select" name="supplier_id" id="supplier_id">
+                                <option value="">Selecciona un proveedor</option>
+                                <?php if ($proveedores) { while ($prov = $proveedores->fetch_assoc()): ?>
+                                    <option value="<?= $prov['supplier_id'] ?>"><?= htmlspecialchars($prov['name']) ?></option>
+                                <?php endwhile; } ?>
+                            </select>
+                            <small class="text-muted">O agrega un nuevo proveedor:</small>
+                            <input type="text" class="form-control mt-2" name="new_supplier" placeholder="Nuevo proveedor">
                         </div>
                     </div>
 
@@ -578,7 +614,7 @@
                         </div>
                     </div>
 
-                    <!-- SECCIÓN 5: CONFIGURACIÓN DE BOBINA (oculta por defecto) -->
+                    <!-- SECCIÓN 5: CONFIGURACIÓN DE BOBINA (solo si es bobina) -->
                     <div class="form-section" id="bobinaSection" style="display:none;">
                         <h6><i class="bi bi-receipt"></i> Configuración de Bobina</h6>
                         <div class="alert alert-info">
@@ -631,88 +667,136 @@
         const skuInput = document.getElementById('sku');
         const alertSku = document.getElementById('alertSkuRealtime');
         function checkSkuAlert() {
-            if (skuInput.value.trim() === '') {
-                alertSku.style.display = 'block';
-            } else {
-                alertSku.style.display = 'none';
+            if (skuInput) { // Proteger la variable
+                if (skuInput.value.trim() === '') {
+                    if (alertSku) alertSku.style.display = 'block';
+                } else {
+                    if (alertSku) alertSku.style.display = 'none';
+                }
             }
         }
-        skuInput.addEventListener('input', checkSkuAlert);
-        checkSkuAlert(); // Mostrar alerta al cargar si está vacío
+        if (skuInput) { // Proteger la variable
+            skuInput.addEventListener('input', checkSkuAlert);
+            checkSkuAlert(); // Mostrar alerta al cargar si está vacío
+        }
 
         // Mostrar/ocultar campo de código de barras
-        const toggleBarcode = document.getElementById('toggleBarcode');
-        const barcodeField = document.getElementById('barcodeField');
-        toggleBarcode.addEventListener('change', function() {
-            barcodeField.style.display = this.checked ? '' : 'none';
-            if (!this.checked) {
-                document.getElementById('barcode').value = '';
+        function toggleBarcodeInput() {
+            const cb = document.getElementById('toggleBarcode');
+            const field = document.getElementById('barcodeField');
+            if (cb && field) { // Proteger las variables
+                if (cb.checked) {
+                    field.style.display = 'block';
+                } else {
+                    field.style.display = 'none';
+                    document.getElementById('barcode').value = '';
+                }
+            }
+        }
+        // Si el usuario ya había ingresado un código de barras, mostrar el campo al cargar
+        window.addEventListener('DOMContentLoaded', function() {
+            const barcode = document.getElementById('barcode');
+            if (barcode && barcode.value) {
+                const toggleBarcode = document.getElementById('toggleBarcode');
+                if (toggleBarcode) toggleBarcode.checked = true;
+                const barcodeField = document.getElementById('barcodeField');
+                if (barcodeField) barcodeField.style.display = 'block';
             }
         });
 
-        // Manejar campos de nueva categoría y proveedor
+        // Manejar campos de nueva categoría y proveedor protegida
         const categorySelect = document.getElementById('category');
         const newCategoryInput = document.getElementById('new_category');
-        const supplierSelect = document.getElementById('supplier_id'); // Changed to supplier_id
-        const newSupplierInput = document.getElementById('new_supplier');
-
-        // Cuando se selecciona una categoría existente, limpiar el campo de nueva categoría
-        categorySelect.addEventListener('change', function() {
-            if (this.value !== '') {
-                newCategoryInput.value = '';
-                newCategoryInput.disabled = true;
-            } else {
-                newCategoryInput.disabled = false;
-            }
-        });
-
-        // Cuando se escribe en nueva categoría, limpiar el select
-        newCategoryInput.addEventListener('input', function() {
-            if (this.value.trim() !== '') {
-                categorySelect.value = '';
-            }
-        });
-
-        // Manejar proveedores existentes y nuevos
-        const supplierSelectElement = document.getElementById('supplier_id');
-        const newSupplierInputElement = document.getElementById('new_supplier');
-
-        // Si el select de proveedores tiene un valor, significa que es un proveedor existente
-        // Si el input de nuevo proveedor tiene un valor, significa que es un nuevo proveedor
-        // Si el select está vacío, significa que el usuario quiere agregar un nuevo proveedor
-        // Si el input de nuevo proveedor está vacío, significa que el usuario quiere agregar un nuevo proveedor
-
-        // Al cargar, verificar si el proveedor seleccionado es un nuevo proveedor
-        const selectedSupplierOption = supplierSelectElement.options[supplierSelectElement.selectedIndex];
-        if (selectedSupplierOption.value === '') {
-            newSupplierInputElement.value = ''; // Limpiar el input de nuevo proveedor si ya hay un proveedor seleccionado
-            newSupplierInputElement.disabled = false; // Habilitar el input de nuevo proveedor
-        } else {
-            newSupplierInputElement.value = ''; // Limpiar el input de nuevo proveedor si ya hay un proveedor seleccionado
-            newSupplierInputElement.disabled = true; // Deshabilitar el input de nuevo proveedor
-        }
-
-        // Mostrar/ocultar campos de bobina según tipo_gestion
-        const tipoGestionRadios = document.querySelectorAll('input[name="tipo_gestion"]');
-        const bobinaSection = document.getElementById('bobinaSection');
-        
-        tipoGestionRadios.forEach(radio => {
-            radio.addEventListener('change', function() {
-                if (this.value === 'bobina') {
-                    bobinaSection.style.display = '';
+        if (categorySelect && newCategoryInput) { // Proteger las variables
+            // Cuando se selecciona una categoría existente, limpiar el campo de nueva categoría
+            categorySelect.addEventListener('change', function() {
+                if (this.value !== '') {
+                    if (newCategoryInput) newCategoryInput.value = '';
+                    if (newCategoryInput) newCategoryInput.disabled = true;
                 } else {
-                    bobinaSection.style.display = 'none';
-                    document.getElementById('metros_iniciales').value = '';
-                    document.getElementById('identificador').value = '';
+                    if (newCategoryInput) newCategoryInput.disabled = false;
                 }
             });
-        });
-        
-        // Al cargar, mostrar si corresponde
-        const checkedRadio = document.querySelector('input[name="tipo_gestion"]:checked');
-        if (checkedRadio && checkedRadio.value === 'bobina') {
-            bobinaSection.style.display = '';
+
+            // Cuando se escribe en nueva categoría, limpiar el select
+            newCategoryInput.addEventListener('input', function() {
+                if (this.value.trim() !== '') {
+                    if (categorySelect) categorySelect.value = '';
+                }
+            });
         }
+        const supplierSelect = document.getElementById('supplier_id');
+        const newSupplierInput = document.getElementById('new_supplier');
+        if (supplierSelect && newSupplierInput) { // Proteger las variables
+            // Manejar proveedores existentes y nuevos
+            // Si el select de proveedores tiene un valor, significa que es un proveedor existente
+            // Si el input de nuevo proveedor tiene un valor, significa que es un nuevo proveedor
+            // Si el select está vacío, significa que el usuario quiere agregar un nuevo proveedor
+            // Si el input de nuevo proveedor está vacío, significa que el usuario quiere agregar un nuevo proveedor
+
+            // Al cargar, verificar si el proveedor seleccionado es un nuevo proveedor
+            const selectedSupplierOption = supplierSelect.options[supplierSelect.selectedIndex];
+            if (selectedSupplierOption && selectedSupplierOption.value === '') {
+                if (newSupplierInput) newSupplierInput.value = ''; // Limpiar el input de nuevo proveedor si ya hay un proveedor seleccionado
+                if (newSupplierInput) newSupplierInput.disabled = false; // Habilitar el input de nuevo proveedor
+            } else {
+                if (newSupplierInput) newSupplierInput.value = ''; // Limpiar el input de nuevo proveedor si ya hay un proveedor seleccionado
+                if (newSupplierInput) newSupplierInput.disabled = true; // Deshabilitar el input de nuevo proveedor
+            }
+        }
+
+        // --- Lógica robusta para tipo de gestión bobina ---
+        document.addEventListener('DOMContentLoaded', function() {
+            const tipoGestionRadios = document.querySelectorAll('input[name="tipo_gestion"]');
+            const bobinaSection = document.getElementById('bobinaSection');
+            const cantidadInput = document.getElementById('quantity');
+
+            function actualizarBobina() {
+                const checked = document.querySelector('input[name="tipo_gestion"]:checked');
+                if (checked && checked.value === 'bobina') {
+                    if (bobinaSection) bobinaSection.style.display = '';
+                    if (cantidadInput) cantidadInput.disabled = true;
+                } else {
+                    if (bobinaSection) bobinaSection.style.display = 'none';
+                    if (cantidadInput) cantidadInput.disabled = false;
+                }
+            }
+
+            tipoGestionRadios.forEach(radio => {
+                radio.addEventListener('change', actualizarBobina);
+            });
+            actualizarBobina();
+        });
     </script>
+    <script>
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+        new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+
+    var costInput = document.getElementById('cost_price');
+    var priceInput = document.getElementById('price');
+    var userEdited = false;
+
+    // Detecta si el usuario edita manualmente el precio
+    priceInput.addEventListener('input', function() {
+        userEdited = true;
+        if (!this.value || parseFloat(this.value) === 0) {
+            userEdited = false; // Si borra el precio, vuelve a sugerir
+        }
+    });
+
+    costInput.addEventListener('input', function() {
+        var costo = parseFloat(this.value);
+        if (!isNaN(costo) && costo > 0) {
+            var sugerido = Math.round(costo * 1.3 * 100) / 100;
+            if (!userEdited || !priceInput.value || parseFloat(priceInput.value) === 0) {
+                priceInput.value = sugerido;
+            }
+        }
+    });
+});
+</script>
 </body>
 </html>

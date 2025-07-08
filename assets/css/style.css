@@ -1236,3 +1236,27 @@ tbody tr:hover {
     padding: 0;
     font-weight: 500;
 }
+
+.form-row-horizontal {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+.form-row-horizontal label {
+    min-width: 120px;
+    margin-bottom: 0;
+    font-weight: 600;
+    color: #232a7c;
+    flex-shrink: 0;
+}
+.form-row-horizontal input,
+.form-row-horizontal small {
+    flex: 1 1 0%;
+}
+.form-row-horizontal .input-group {
+    flex: 1 1 0%;
+}
+.form-row-horizontal .form-control {
+    margin-bottom: 0;
+}

@@ -748,22 +748,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             const minimo = document.getElementById('stockMinimo').value;
             const unidad = document.getElementById('productoOrigen').selectedOptions[0]?.dataset.tipo === 'bobina' ? 'metros' : 'piezas';
             const ubicacion = '';
-
+            
             if (!producto || !cantidad || !minimo) {
                 Swal.fire({ icon: 'warning', title: 'Campos incompletos', text: 'Por favor completa todos los campos.' });
                 return;
             }
-
+            
             const select = document.getElementById('productoOrigen');
             const option = select.options[select.selectedIndex];
             const stockDisponible = parseFloat(option.dataset.stock);
             const cantidadExtraer = parseFloat(cantidad);
-
+            
             if (cantidadExtraer > stockDisponible) {
                 Swal.fire({ icon: 'error', title: 'Stock insuficiente', text: 'No hay suficiente stock disponible. Stock actual: ' + stockDisponible });
                 return;
             }
-
+            
             // Enviar datos al backend vía AJAX
             fetch('', {
                 method: 'POST',
@@ -781,8 +781,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             .then(data => {
                 if (data.success) {
                     Swal.fire({ icon: 'success', title: '¡Insumo registrado!', text: data.message, timer: 1800, showConfirmButton: false });
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('modalAgregarInsumo'));
-                    modal.hide();
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalAgregarInsumo'));
+            modal.hide();
                     setTimeout(() => { window.location.reload(); }, 1200);
                 } else {
                     Swal.fire({ icon: 'error', title: 'Error', text: data.message });

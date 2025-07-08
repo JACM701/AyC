@@ -80,7 +80,7 @@ $top_products = $mysqli->query($top_products_query);
 $quotes_stats_query = "
     SELECT 
         COUNT(*) as total_quotes,
-        COUNT(DISTINCT cliente_nombre) as unique_clients,
+        COUNT(DISTINCT cliente_id) as unique_clients,
         SUM(total) as total_sales,
         AVG(total) as avg_quote_value
     FROM cotizaciones

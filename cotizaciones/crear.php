@@ -25,20 +25,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $observaciones = trim($_POST['observaciones']);
     $descuento_porcentaje = floatval($_POST['descuento_porcentaje']);
     
+    // --- INICIO NORMALIZACIÓN CLIENTES ---
+    $cliente_id = null;
+    if ($cliente_nombre) {
+        // Buscar cliente existente por nombre y teléfono
+        $stmt = $mysqli->prepare("SELECT cliente_id FROM clientes WHERE nombre = ? AND (telefono = ? OR telefono IS NULL)");
+        $stmt->bind_param('ss', $cliente_nombre, $cliente_telefono);
+        $stmt->execute();
+        $stmt->bind_result($cliente_id_encontrado);
+        if ($stmt->fetch()) {
+            $cliente_id = $cliente_id_encontrado;
+        }
+        $stmt->close();
+        if (!$cliente_id) {
+            // Crear nuevo cliente
+            $stmt = $mysqli->prepare("INSERT INTO clientes (nombre, telefono, ubicacion) VALUES (?, ?, ?)");
+            $stmt->bind_param('sss', $cliente_nombre, $cliente_telefono, $cliente_ubicacion);
+            $stmt->execute();
+            $cliente_id = $stmt->insert_id;
+            $stmt->close();
+        }
+    }
+    // --- FIN NORMALIZACIÓN CLIENTES ---
+    
     if ($cliente_nombre && $fecha_cotizacion) {
         // Insertar cotización
         $stmt = $mysqli->prepare("
             INSERT INTO cotizaciones (
                 cliente_nombre, cliente_telefono, cliente_ubicacion, 
                 fecha_cotizacion, validez_dias, descuento_porcentaje,
-                condiciones_pago, observaciones, usuario_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                condiciones_pago, observaciones, user_id, cliente_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
         $usuario_id = $_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? null;
-        $stmt->bind_param('ssssidssi', 
+        $stmt->bind_param('ssssidssii', 
             $cliente_nombre, $cliente_telefono, $cliente_ubicacion,
             $fecha_cotizacion, $validez_dias, $descuento_porcentaje,
-            $condiciones_pago, $observaciones, $usuario_id
+            $condiciones_pago, $observaciones, $usuario_id, $cliente_id
         );
         
         if ($stmt->execute()) {

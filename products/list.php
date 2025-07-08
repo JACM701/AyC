@@ -211,12 +211,12 @@
                                 </td>
                                 <td>
                                     <div class="img-nombre-wrap">
-                                        <div>
+                                    <div>
                                             <div class="nombre-producto"><?= htmlspecialchars($row['product_name']) ?></div>
                                             <div class="sku-badge">SKU: <?= htmlspecialchars($row['sku']) ?></div>
-                                            <?php if ($row['description']): ?>
+                                        <?php if ($row['description']): ?>
                                                 <div class="desc-producto"><?= htmlspecialchars($row['description']) ?></div>
-                                            <?php endif; ?>
+                                        <?php endif; ?>
                                         </div>
                                     </div>
                                 </td>
@@ -244,7 +244,7 @@
                                         <?php if ($row['tipo_gestion'] === 'bobina'): ?>
                                             <a href="../bobinas/gestionar.php?product_id=<?= $row['product_id'] ?>" class="btn btn-outline-info btn-sm" title="Gestionar bobinas">
                                                 <i class="bi bi-receipt"></i>
-                                            </a>
+                                        </a>
                                         <?php endif; ?>
                                         <a href="delete.php?id=<?= $row['product_id'] ?>" class="btn btn-outline-danger btn-sm btn-delete" title="Eliminar" 
                                            onclick="return confirm('¿Estás seguro de que quieres eliminar este producto?')">

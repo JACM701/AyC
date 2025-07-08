@@ -11,9 +11,10 @@ $cotizacion_id = intval($_GET['id']);
 
 // Obtener cotización
 $stmt = $mysqli->prepare("
-    SELECT c.*, u.username as usuario_nombre
+    SELECT c.*, u.username as usuario_nombre, cl.nombre as cliente_nombre_real, cl.telefono as cliente_telefono_real, cl.ubicacion as cliente_direccion_real
     FROM cotizaciones c
-    LEFT JOIN users u ON c.usuario_id = u.user_id
+    LEFT JOIN users u ON c.user_id = u.user_id
+    LEFT JOIN clientes cl ON c.cliente_id = cl.cliente_id
     WHERE c.cotizacion_id = ?
 ");
 $stmt->bind_param('i', $cotizacion_id);
@@ -192,12 +193,12 @@ $productos = $stmt->get_result();
         </div>
 
         <div class="datos-cliente">
-            <div class="campo"><strong>Cliente:</strong> <?= htmlspecialchars($cotizacion['cliente_nombre']) ?></div>
-            <?php if ($cotizacion['cliente_telefono']): ?>
-                <div class="campo"><strong>Teléfono:</strong> <?= htmlspecialchars($cotizacion['cliente_telefono']) ?></div>
+            <div class="campo"><strong>Cliente:</strong> <?= htmlspecialchars($cotizacion['cliente_nombre_real'] ?? $cotizacion['cliente_nombre']) ?></div>
+            <?php if (($cotizacion['cliente_telefono_real'] ?? $cotizacion['cliente_telefono'])): ?>
+                <div class="campo"><strong>Teléfono:</strong> <?= htmlspecialchars($cotizacion['cliente_telefono_real'] ?? $cotizacion['cliente_telefono']) ?></div>
             <?php endif; ?>
-            <?php if ($cotizacion['cliente_ubicacion']): ?>
-                <div class="campo"><strong>Ubicación:</strong> <?= htmlspecialchars($cotizacion['cliente_ubicacion']) ?></div>
+            <?php if (($cotizacion['cliente_direccion_real'] ?? $cotizacion['cliente_ubicacion'])): ?>
+                <div class="campo"><strong>Ubicación:</strong> <?= htmlspecialchars($cotizacion['cliente_direccion_real'] ?? $cotizacion['cliente_ubicacion']) ?></div>
             <?php endif; ?>
             <div class="campo"><strong>Fecha:</strong> <?= date('d/m/Y', strtotime($cotizacion['fecha_cotizacion'])) ?></div>
         </div>
