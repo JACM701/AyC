@@ -8,7 +8,7 @@
     $host = 'localhost';
     $db_user = 'root';
     $db_pass = '';
-    $db_name = 'inventory_management_system';
+    $db_name = 'inventory_management_system2';
 
     // Create MySQLi connection
     $mysqli = new mysqli($host, $db_user, $db_pass, $db_name);

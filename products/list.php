@@ -2,11 +2,12 @@
     require_once '../auth/middleware.php';
     require_once '../connection.php';
 
-    // Obtener todos los productos con información de categoría
+    // Obtener todos los productos con información de categoría y proveedor
     $result = $mysqli->query("
-        SELECT p.*, c.name as category_name 
+        SELECT p.*, c.name as category_name, s.name as supplier_name
         FROM products p 
         LEFT JOIN categories c ON p.category_id = c.category_id 
+        LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id
         ORDER BY p.created_at DESC
     ");
 
@@ -14,7 +15,7 @@
     $categorias = $mysqli->query("SELECT category_id, name FROM categories ORDER BY name");
     
     // Obtener proveedores únicos para el filtro
-    $proveedores = $mysqli->query("SELECT DISTINCT supplier FROM products WHERE supplier IS NOT NULL AND supplier != '' ORDER BY supplier");
+    $proveedores = $mysqli->query("SELECT supplier_id, name FROM suppliers ORDER BY name");
 ?>
 
 <!DOCTYPE html>
@@ -156,7 +157,7 @@
                 <select id="filtroProveedor" class="form-select">
                     <option value="">Todos los proveedores</option>
                     <?php $proveedores->data_seek(0); while ($prov = $proveedores->fetch_assoc()): ?>
-                        <option value="<?= htmlspecialchars($prov['supplier']) ?>"><?= htmlspecialchars($prov['supplier']) ?></option>
+                        <option value="<?= htmlspecialchars($prov['supplier_id']) ?>"><?= htmlspecialchars($prov['name']) ?></option>
                     <?php endwhile; ?>
                 </select>
             </div>
@@ -196,73 +197,58 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <?php while ($row = $result->fetch_assoc()): ?>
-                            <tr>
-                                <td><?= htmlspecialchars($row['product_id']) ?></td>
+                        <?php $i = 1; while ($row = $result->fetch_assoc()): ?>
+                            <tr data-product-id="<?= $row['product_id'] ?>" 
+                                data-category="<?= htmlspecialchars($row['category_name'] ?? '') ?>"
+                                data-supplier="<?= htmlspecialchars($row['supplier_name'] ?? '') ?>">
+                                <td><?= $i++ ?></td>
                                 <td class="img-col">
-                                    <?php 
-                                    $img_path = isset($row['image']) && $row['image'] ? $row['image'] : '';
-                                    $img_src = $img_path && file_exists(__DIR__ . '/../' . $img_path) ? '../' . $img_path : '';
-                                    ?>
-                                    <?php if ($img_src): ?>
-                                        <img src="<?= htmlspecialchars($img_src) ?>" alt="Imagen" class="img-col-img">
+                                    <?php if ($row['image']): ?>
+                                        <img src="../<?= htmlspecialchars($row['image']) ?>" alt="Imagen del producto" style="width: 60px; height: 60px; object-fit: cover; border-radius: 10px;">
                                     <?php else: ?>
-                                        <span class="img-placeholder"><i class="bi bi-box"></i></span>
+                                        <span class="text-muted"><i class="bi bi-image" style="font-size: 2rem;"></i></span>
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <div>
-                                        <span class="nombre-producto"><?= htmlspecialchars($row['product_name']) ?></span>
-                                        <?php if ($row['sku']): ?>
-                                            <br><span class="sku-badge" title="Código interno SKU">SKU: <?= htmlspecialchars($row['sku']) ?></span>
-                                        <?php endif; ?>
-                                        <?php if ($row['description']): ?>
-                                            <br><span class="desc-producto"><?= htmlspecialchars(substr($row['description'], 0, 50)) ?><?= strlen($row['description']) > 50 ? '...' : '' ?></span>
-                                        <?php endif; ?>
+                                    <div class="img-nombre-wrap">
+                                        <div>
+                                            <div class="nombre-producto"><?= htmlspecialchars($row['product_name']) ?></div>
+                                            <div class="sku-badge">SKU: <?= htmlspecialchars($row['sku']) ?></div>
+                                            <?php if ($row['description']): ?>
+                                                <div class="desc-producto"><?= htmlspecialchars($row['description']) ?></div>
+                                            <?php endif; ?>
+                                        </div>
                                     </div>
                                 </td>
                                 <td class="barcode-col">
-                                    <?php if (isset($row['barcode']) && $row['barcode']): ?>
-                                        <?= htmlspecialchars($row['barcode']) ?>
+                                    <?php if ($row['barcode']): ?>
+                                        <span><?= htmlspecialchars($row['barcode']) ?></span>
                                     <?php else: ?>
-                                        <span>-</span>
+                                        <span class="text-muted">Sin código</span>
                                     <?php endif; ?>
                                 </td>
+                                <td><?= htmlspecialchars($row['category_name'] ?? 'Sin categoría') ?></td>
+                                <td><?= htmlspecialchars($row['supplier_name'] ?? 'Sin proveedor') ?></td>
+                                <td>$<?= number_format($row['price'], 2) ?></td>
                                 <td>
-                                    <?php if ($row['category_name']): ?>
-                                        <span class="badge bg-info text-dark"><?= htmlspecialchars($row['category_name']) ?></span>
-                                    <?php else: ?>
-                                        <span class="text-muted">Sin categoría</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <?php if ($row['supplier']): ?>
-                                        <small><?= htmlspecialchars($row['supplier']) ?></small>
-                                    <?php else: ?>
-                                        <span class="text-muted">Sin proveedor</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td><strong>$<?= number_format($row['price'], 2, ',', '.') ?></strong></td>
-                                <td>
-                                    <?php if ($row['quantity'] <= 5): ?>
-                                        <span class="badge bg-danger"><?= htmlspecialchars($row['quantity']) ?></span>
-                                    <?php elseif ($row['quantity'] <= 15): ?>
-                                        <span class="badge bg-warning text-dark"><?= htmlspecialchars($row['quantity']) ?></span>
-                                    <?php else: ?>
-                                        <span class="badge bg-success"><?= htmlspecialchars($row['quantity']) ?></span>
-                                    <?php endif; ?>
+                                    <span class="badge <?= $row['quantity'] > 10 ? 'bg-success' : ($row['quantity'] > 0 ? 'bg-warning' : 'bg-danger') ?>">
+                                        <?= $row['quantity'] ?>
+                                    </span>
                                 </td>
                                 <td><?= date('d/m/Y', strtotime($row['created_at'])) ?></td>
                                 <td>
                                     <div class="acciones">
-                                        <a href="../proveedores/buscar_producto.php?id=<?= $row['product_id'] ?>" class="btn btn-outline-info btn-sm" title="Buscar precios">
-                                            <i class="bi bi-search"></i>
-                                        </a>
                                         <a href="edit.php?id=<?= $row['product_id'] ?>" class="btn btn-outline-primary btn-sm" title="Editar">
-                                            <i class="bi bi-pencil-square"></i>
+                                            <i class="bi bi-pencil"></i>
                                         </a>
-                                        <a href="delete.php?id=<?= $row['product_id'] ?>" class="btn btn-outline-danger btn-sm btn-delete" title="Eliminar">
-                                            <i class="bi bi-trash3"></i>
+                                        <?php if ($row['tipo_gestion'] === 'bobina'): ?>
+                                            <a href="../bobinas/gestionar.php?product_id=<?= $row['product_id'] ?>" class="btn btn-outline-info btn-sm" title="Gestionar bobinas">
+                                                <i class="bi bi-receipt"></i>
+                                            </a>
+                                        <?php endif; ?>
+                                        <a href="delete.php?id=<?= $row['product_id'] ?>" class="btn btn-outline-danger btn-sm btn-delete" title="Eliminar" 
+                                           onclick="return confirm('¿Estás seguro de que quieres eliminar este producto?')">
+                                            <i class="bi bi-trash"></i>
                                         </a>
                                     </div>
                                 </td>
@@ -272,85 +258,74 @@
                 </table>
             </div>
         <?php else: ?>
-            <p>No hay productos registrados.</p>
+            <div class="text-center py-5">
+                <i class="bi bi-box-seam" style="font-size: 4rem; color: #ccc;"></i>
+                <h4 class="mt-3">No hay productos</h4>
+                <p class="text-muted">Agrega tu primer producto para comenzar</p>
+                <a href="add.php" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Agregar Producto
+                </a>
+            </div>
         <?php endif; ?>
     </main>
+
     <script src="../assets/js/script.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Resalta el menú activo
         document.querySelector('.sidebar-productos').classList.add('active');
         
-        // Función para filtrar productos
+        // Filtro de búsqueda en tiempo real
+        const busquedaInput = document.getElementById('busquedaProducto');
+        const filtroCategoria = document.getElementById('filtroCategoria');
+        const filtroProveedor = document.getElementById('filtroProveedor');
+        const limpiarFiltros = document.getElementById('limpiarFiltros');
+        const contadorProductos = document.getElementById('contadorProductos');
+        const filas = document.querySelectorAll('tbody tr');
+        
         function filtrarProductos() {
-            const busqueda = document.getElementById('busquedaProducto').value.toLowerCase();
-            const categoriaId = document.getElementById('filtroCategoria').value;
-            const proveedor = document.getElementById('filtroProveedor').value.toLowerCase();
-            let productosVisibles = 0;
-            document.querySelectorAll('table tbody tr').forEach(row => {
-                const nombreCell = row.cells[2]; // Ahora la columna 2 es Producto
-                const nombreDiv = nombreCell.querySelector('.nombre-producto');
-                const nombre = nombreDiv ? nombreDiv.textContent.toLowerCase() : '';
-                const skuBadge = nombreCell.querySelector('.sku-badge');
-                const sku = skuBadge ? skuBadge.textContent.toLowerCase() : '';
-                // Extraer texto de categoría (puede estar en badge o texto normal)
-                let categoriaFila = '';
-                const categoriaCell = row.cells[4]; // Ahora la columna 4 es Categoría
-                const categoriaBadge = categoriaCell.querySelector('.badge');
-                if (categoriaBadge) {
-                    categoriaFila = categoriaBadge.textContent.toLowerCase().trim();
+            const busqueda = busquedaInput.value.toLowerCase();
+            const categoria = filtroCategoria.value;
+            const proveedor = filtroProveedor.value;
+            let visibleCount = 0;
+            
+            filas.forEach(fila => {
+                const nombre = fila.querySelector('.nombre-producto').textContent.toLowerCase();
+                const sku = fila.querySelector('.sku-badge').textContent.toLowerCase();
+                const categoriaFila = fila.getAttribute('data-category').toLowerCase();
+                const proveedorFila = fila.getAttribute('data-supplier').toLowerCase();
+                
+                const coincideBusqueda = nombre.includes(busqueda) || sku.includes(busqueda);
+                const coincideCategoria = !categoria || categoriaFila.includes(categoria);
+                const coincideProveedor = !proveedor || proveedorFila.includes(proveedor);
+                
+                if (coincideBusqueda && coincideCategoria && coincideProveedor) {
+                    fila.style.display = '';
+                    visibleCount++;
                 } else {
-                    categoriaFila = categoriaCell.textContent.toLowerCase().trim();
+                    fila.style.display = 'none';
                 }
-                // Extraer texto de proveedor
-                let proveedorFila = '';
-                const proveedorCell = row.cells[5]; // Ahora la columna 5 es Proveedor
-                const proveedorSmall = proveedorCell.querySelector('small');
-                if (proveedorSmall) {
-                    proveedorFila = proveedorSmall.textContent.toLowerCase().trim();
-                } else {
-                    proveedorFila = proveedorCell.textContent.toLowerCase().trim();
-                }
-                const coincideBusqueda = nombre.includes(busqueda) || 
-                                       sku.includes(busqueda) || 
-                                       categoriaFila.includes(busqueda) || 
-                                       proveedorFila.includes(busqueda);
-                // Para categorías, comparamos el texto del badge con el texto del option seleccionado
-                const categoriaSelect = document.getElementById('filtroCategoria');
-                const categoriaSeleccionada = categoriaSelect.options[categoriaSelect.selectedIndex].text.toLowerCase();
-                const coincideCategoria = categoriaId === '' || categoriaFila === categoriaSeleccionada;
-                const coincideProveedor = proveedor === '' || proveedorFila === proveedor;
-                const coincide = coincideBusqueda && coincideCategoria && coincideProveedor;
-                row.style.display = coincide ? '' : 'none';
-                if (coincide) productosVisibles++;
             });
-            // Actualizar contador
-            document.getElementById('contadorProductos').textContent = productosVisibles;
+            
+            contadorProductos.textContent = visibleCount;
+            
             // Mostrar/ocultar botón de limpiar filtros
-            const hayFiltros = busqueda !== '' || categoriaId !== '' || proveedor !== '';
-            document.getElementById('limpiarFiltros').style.display = hayFiltros ? 'block' : 'none';
-            // Debug: mostrar en consola para verificar
-            console.log('Filtros aplicados:', {
-                busqueda: busqueda,
-                categoriaId: categoriaId,
-                proveedor: proveedor,
-                productosVisibles: productosVisibles
-            });
+            if (busqueda || categoria || proveedor) {
+                limpiarFiltros.style.display = 'inline-block';
+            } else {
+                limpiarFiltros.style.display = 'none';
+            }
         }
         
-        // Función para limpiar filtros
-        function limpiarFiltros() {
-            document.getElementById('busquedaProducto').value = '';
-            document.getElementById('filtroCategoria').value = '';
-            document.getElementById('filtroProveedor').value = '';
+        busquedaInput.addEventListener('input', filtrarProductos);
+        filtroCategoria.addEventListener('change', filtrarProductos);
+        filtroProveedor.addEventListener('change', filtrarProductos);
+        
+        limpiarFiltros.addEventListener('click', function() {
+            busquedaInput.value = '';
+            filtroCategoria.value = '';
+            filtroProveedor.value = '';
             filtrarProductos();
-        }
-        
-        // Event listeners para filtros
-        document.getElementById('busquedaProducto').addEventListener('input', filtrarProductos);
-        document.getElementById('filtroCategoria').addEventListener('change', filtrarProductos);
-        document.getElementById('filtroProveedor').addEventListener('change', filtrarProductos);
-        document.getElementById('limpiarFiltros').addEventListener('click', limpiarFiltros);
+        });
     </script>
 </body>
 </html>

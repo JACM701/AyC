@@ -5,7 +5,7 @@
 define('DB_HOST', 'localhost');
 define('DB_USER', 'root');
 define('DB_PASS', '');
-define('DB_NAME', 'inventory_management_system');
+define('DB_NAME', 'inventory_management_system2');
 
 // Configuración de la aplicación
 define('APP_NAME', 'Gestor de Inventarios');

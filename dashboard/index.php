@@ -1,53 +1,139 @@
 <?php
     require_once '../auth/middleware.php';
     require_once '../connection.php';
-    require_once '../config/sample_data.php';
 
     // Obtener nombre de usuario
-    $username = '';
-    if (isset($_SESSION['admin_id'])) {
-        $admin_id = $_SESSION['admin_id'];
-        $stmt = $mysqli->prepare("SELECT username FROM admins WHERE admin_id = ?");
-        $stmt->bind_param('i', $admin_id);
-        $stmt->execute();
-        $stmt->bind_result($username);
-        $stmt->fetch();
-        $stmt->close();
-    } elseif (isset($_SESSION['user_id'])) {
-        $user_id = $_SESSION['user_id'];
-        $stmt = $mysqli->prepare("SELECT username FROM users WHERE user_id = ?");
-        $stmt->bind_param('i', $user_id);
-        $stmt->execute();
-        $stmt->bind_result($username);
-        $stmt->fetch();
-        $stmt->close();
+    $username = $_SESSION['username'] ?? 'Usuario';
+    $user_role = $_SESSION['user_role'] ?? 'Usuario';
+
+    // Obtener estadísticas reales de la base de datos
+    $stats_query = "
+        SELECT 
+            COUNT(*) as total_products,
+            SUM(CASE WHEN quantity > 10 THEN 1 ELSE 0 END) as disponibles,
+            SUM(CASE WHEN quantity > 0 AND quantity <= 10 THEN 1 ELSE 0 END) as bajo_stock,
+            SUM(CASE WHEN quantity = 0 THEN 1 ELSE 0 END) as agotados,
+            SUM(quantity * price) as valor_total
+        FROM products
+    ";
+    $stats_result = $mysqli->query($stats_query);
+    $stats = $stats_result->fetch_assoc();
+
+    // Obtener producto con menor stock
+    $min_stock_query = "
+        SELECT product_name, quantity, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.category_id
+        WHERE quantity > 0
+        ORDER BY quantity ASC
+        LIMIT 1
+    ";
+    $min_stock_result = $mysqli->query($min_stock_query);
+    $min_stock = $min_stock_result->fetch_assoc();
+
+    // Obtener producto con mayor stock
+    $max_stock_query = "
+        SELECT product_name, quantity, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.category_id
+        ORDER BY quantity DESC
+        LIMIT 1
+    ";
+    $max_stock_result = $mysqli->query($max_stock_query);
+    $max_stock = $max_stock_result->fetch_assoc();
+
+    // Obtener último producto agregado
+    $last_product_query = "
+        SELECT product_name, created_at
+        FROM products
+        ORDER BY created_at DESC
+        LIMIT 1
+    ";
+    $last_product_result = $mysqli->query($last_product_query);
+    $last_product = $last_product_result->fetch_assoc();
+
+    // Obtener movimientos de hoy
+    $movimientos_hoy_query = "
+        SELECT COUNT(*) as total
+        FROM movements
+        WHERE DATE(movement_date) = CURDATE()
+    ";
+    $movimientos_hoy_result = $mysqli->query($movimientos_hoy_query);
+    $movimientos_hoy = $movimientos_hoy_result->fetch_assoc()['total'];
+
+    // Obtener producto más movido
+    $most_moved_query = "
+        SELECT p.product_name, COUNT(*) as total_movs
+        FROM movements m
+        JOIN products p ON m.product_id = p.product_id
+        GROUP BY m.product_id
+        ORDER BY total_movs DESC
+        LIMIT 1
+    ";
+    $most_moved_result = $mysqli->query($most_moved_query);
+    $most_moved = $most_moved_result->fetch_assoc();
+
+    // Obtener categoría más popular
+    $top_category_query = "
+        SELECT c.name as category_name, COUNT(*) as total
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.category_id
+        GROUP BY p.category_id
+        ORDER BY total DESC
+        LIMIT 1
+    ";
+    $top_category_result = $mysqli->query($top_category_query);
+    $top_category = $top_category_result->fetch_assoc();
+
+    // Obtener proveedor más popular
+    $top_supplier_query = "
+        SELECT s.name as supplier_name, COUNT(*) as total
+        FROM products p
+        LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id
+        GROUP BY p.supplier_id
+        ORDER BY total DESC
+        LIMIT 1
+    ";
+    $top_supplier_result = $mysqli->query($top_supplier_query);
+    $top_supplier = $top_supplier_result->fetch_assoc();
+
+    // Obtener datos para gráficas
+    $stock_data_query = "
+        SELECT p.product_name, p.quantity
+        FROM products p
+        ORDER BY p.quantity DESC
+        LIMIT 6
+    ";
+    $stock_data_result = $mysqli->query($stock_data_query);
+    $labels_stock = [];
+    $data_stock = [];
+    while ($row = $stock_data_result->fetch_assoc()) {
+        $labels_stock[] = $row['product_name'];
+        $data_stock[] = $row['quantity'];
     }
 
-    // Obtener datos del inventario unificado
-    $productos_inventario = getProductosInventario();
-    $estadisticas = getEstadisticasInventario();
+    // Obtener movimientos de la semana
+    $movements_week_query = "
+        SELECT 
+            DATE(movement_date) as fecha,
+            SUM(CASE WHEN quantity > 0 THEN 1 ELSE 0 END) as entradas,
+            SUM(CASE WHEN quantity < 0 THEN 1 ELSE 0 END) as salidas
+        FROM movements
+        WHERE movement_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+        GROUP BY DATE(movement_date)
+        ORDER BY fecha
+    ";
+    $movements_week_result = $mysqli->query($movements_week_query);
+    $labels_movs = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+    $data_entradas = array_fill(0, 7, 0);
+    $data_salidas = array_fill(0, 7, 0);
     
-    // Extraer estadísticas
-    $total_products = $estadisticas['total_productos'];
-    $disponibles = $estadisticas['disponibles'];
-    $bajo_stock = $estadisticas['bajo_stock'];
-    $agotados = $estadisticas['agotados'];
-    
-    // Datos para el dashboard
-    $min_stock = $datos_dashboard['min_stock'];
-    $max_stock = $datos_dashboard['max_stock'];
-    $last_product = $datos_dashboard['last_product'];
-    $movimientos_hoy = $datos_dashboard['movimientos_hoy'];
-    $most_moved = $datos_dashboard['most_moved'];
-    $top_category = $datos_dashboard['top_category'];
-    $top_supplier = $datos_dashboard['top_supplier'];
-    
-    // --- DATOS PARA GRÁFICAS ---
-    $labels_stock = $datos_graficas['labels_stock'];
-    $data_stock = $datos_graficas['data_stock'];
-    $labels_movs = $datos_graficas['labels_movimientos'];
-    $data_entradas = $datos_graficas['data_entradas'];
-    $data_salidas = $datos_graficas['data_salidas'];
+    $day_index = 0;
+    while ($row = $movements_week_result->fetch_assoc()) {
+        $data_entradas[$day_index] = $row['entradas'];
+        $data_salidas[$day_index] = $row['salidas'];
+        $day_index++;
+    }
 ?>
 
 <!DOCTYPE html>
@@ -198,12 +284,13 @@
             max-width: 480px;
             background: #fff;
             padding: 28px 18px 18px 18px;
-            border-radius: 14px;
-            box-shadow: 0 2px 16px rgba(18,24,102,0.10);
+            border-radius: 18px;
+            box-shadow: 0 4px 24px rgba(18,24,102,0.10);
             margin-bottom: 18px;
             display: flex;
             flex-direction: column;
             align-items: center;
+            border: 1.5px solid #e3e6f0;
         }
         .grafica-card h3 {
             color: #121866;
@@ -215,12 +302,15 @@
         }
         .grafica-card canvas {
             display: block;
-            width: 320px !important;
-            height: 320px !important;
+            width: 340px !important;
+            height: 340px !important;
             max-width: 100vw;
             max-height: 60vw;
             aspect-ratio: 1/1;
             margin: 0 auto;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(18,24,102,0.07);
         }
         .grafica-card.barras {
             align-items: stretch;
@@ -229,7 +319,7 @@
         }
         .grafica-card.barras canvas {
             width: 100% !important;
-            height: 320px !important;
+            height: 340px !important;
             max-width: 520px;
             min-width: 240px;
             max-height: 400px;
@@ -237,167 +327,186 @@
             margin: 0 auto;
         }
         @media (max-width: 900px) {
-            .dashboard-graficas { flex-direction: column; gap: 18px; }
+            .dashboard-graficas { flex-direction: column; gap: 18px; margin-top: 24px; }
             .grafica-card { max-width: 98vw; }
             .grafica-card canvas { width: 90vw !important; height: 90vw !important; max-width: 350px; max-height: 350px; }
             .grafica-card.barras canvas { width: 100% !important; height: 240px !important; max-width: 98vw; max-height: 300px; }
-            .dashboard-cards { flex-direction: column; gap: 18px; }
-            .dashboard-header h2 { font-size: 1.3rem; }
-            .dashboard-extra { flex-direction: column; gap: 12px; }
-            .header-hora { flex-direction: column; gap: 8px; padding: 12px 10px; }
         }
     </style>
 </head>
 <body>
     <?php include '../includes/sidebar.php'; ?>
-    <main class="main-content">
-        <div class="dashboard-container">
-            <div class="header-empresa">
-                <div class="header-logo-nombre">
-                    <img src="../assets/img/LogoWeb.png" alt="Logo empresa" class="logo-empresa">
-                    <span class="nombre-empresa">Alarmas y Cámaras de seguridad del sureste</span>
-                </div>
+    
+    <div class="dashboard-container">
+        <div class="header-empresa">
+            <div class="header-logo-nombre">
+                <img src="../assets/img/LogoWeb.png" alt="Logo empresa" class="logo-empresa">
+                <div class="nombre-empresa">ALARMAS & CAMARAS DEL SURESTE</div>
             </div>
-            <div class="header-hora">
-                <span class="saludo" id="saludo"></span>
-                <span class="hora" id="hora"></span>
-                <span class="usuario">👤 <?= htmlspecialchars($username) ?></span>
+        </div>
+        
+        <div class="header-hora">
+            <div class="saludo">
+                ¡Bienvenido, <?= htmlspecialchars($username) ?>!
             </div>
-            <section class="dashboard-header">
-                <h2><i class="bi bi-boxes"></i> Gestor de Inventarios</h2>
-                <p class="dashboard-subtitle">Visualiza el estado de tu almacén, movimientos y productos de forma clara y profesional.</p>
-            </section>
-            <section class="dashboard-cards">
+            <div class="hora" id="horaActual"></div>
+            <div class="usuario">
+                <i class="bi bi-person-circle"></i> <?= htmlspecialchars($user_role) ?>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="dashboard-header">
+                <h2><i class="bi bi-speedometer2"></i> Dashboard</h2>
+                <p>Panel de control del sistema de gestión de inventarios</p>
+            </div>
+
+            <div class="dashboard-cards">
                 <div class="card">
-                    <span class="icon"><i class="bi bi-boxes"></i></span>
-                    <h3>Productos en inventario</h3>
-                    <p><?= $total_products ?></p>
+                    <div class="icon"><i class="bi bi-box"></i></div>
+                    <h3>Total Productos</h3>
+                    <p><?= $stats['total_products'] ?? 0 ?></p>
                 </div>
                 <div class="card">
-                    <span class="icon"><i class="bi bi-check-circle"></i></span>
+                    <div class="icon"><i class="bi bi-check-circle"></i></div>
                     <h3>Disponibles</h3>
-                    <p><?= $disponibles ?></p>
+                    <p><?= $stats['disponibles'] ?? 0 ?></p>
                 </div>
                 <div class="card">
-                    <span class="icon"><i class="bi bi-exclamation-triangle"></i></span>
-                    <h3>Bajo stock</h3>
-                    <p><?= $bajo_stock ?></p>
+                    <div class="icon"><i class="bi bi-exclamation-triangle"></i></div>
+                    <h3>Bajo Stock</h3>
+                    <p><?= $stats['bajo_stock'] ?? 0 ?></p>
                 </div>
                 <div class="card">
-                    <span class="icon"><i class="bi bi-x-circle"></i></span>
+                    <div class="icon"><i class="bi bi-x-circle"></i></div>
                     <h3>Agotados</h3>
-                    <p><?= $agotados ?></p>
+                    <p><?= $stats['agotados'] ?? 0 ?></p>
                 </div>
-            </section>
-            <section class="dashboard-extra">
+            </div>
+
+            <div class="dashboard-extra">
                 <div class="extra-card alert-stock">
-                    <h4><i class="bi bi-exclamation-triangle"></i> Producto con menor stock</h4>
-                    <p><?= htmlspecialchars($min_stock['nombre']) ?> (<?= $min_stock['stock'] ?> unidades)</p>
-                </div>
-                <div class="extra-card alert-categoria">
-                    <h4><i class="bi bi-tags"></i> Categoría más popular</h4>
-                    <p><?= htmlspecialchars($top_category['category_name']) ?> (<?= $top_category['total'] ?> productos)</p>
-                </div>
-                <div class="extra-card alert-proveedor">
-                    <h4><i class="bi bi-truck"></i> Proveedor principal</h4>
-                    <p><?= htmlspecialchars($top_supplier['supplier']) ?> (<?= $top_supplier['total'] ?> productos)</p>
-                </div>
-                <div class="extra-card alert-ultimo">
-                    <h4><i class="bi bi-plus-circle"></i> Último agregado</h4>
-                    <p><?= htmlspecialchars($last_product['product_name']) ?> (<?= date('d/m/Y', strtotime($last_product['created_at'])) ?>)</p>
+                    <h4><i class="bi bi-exclamation-triangle"></i> Menor Stock</h4>
+                    <p><?= $min_stock ? htmlspecialchars($min_stock['product_name']) : 'N/A' ?> (<?= $min_stock ? $min_stock['quantity'] : 0 ?>)</p>
                 </div>
                 <div class="extra-card alert-movido">
-                    <h4><i class="bi bi-arrow-repeat"></i> Más movimientos</h4>
-                    <p><?= htmlspecialchars($most_moved['product_name']) ?> (<?= $most_moved['total_movs'] ?> movs)</p>
-                </div>
-                <div class="extra-card alert-hoy">
-                    <h4><i class="bi bi-calendar-event"></i> Movimientos hoy</h4>
+                    <h4><i class="bi bi-arrow-left-right"></i> Movimientos Hoy</h4>
                     <p><?= $movimientos_hoy ?> movimientos</p>
                 </div>
-            </section>
-            <section class="dashboard-graficas">
+                <div class="extra-card alert-ultimo">
+                    <h4><i class="bi bi-clock"></i> Último Producto</h4>
+                    <p><?= $last_product ? htmlspecialchars($last_product['product_name']) : 'N/A' ?></p>
+                </div>
+                <div class="extra-card alert-categoria">
+                    <h4><i class="bi bi-tags"></i> Categoría Top</h4>
+                    <p><?= $top_category ? htmlspecialchars($top_category['category_name']) : 'N/A' ?> (<?= $top_category ? $top_category['total'] : 0 ?>)</p>
+                </div>
+                <div class="extra-card alert-proveedor">
+                    <h4><i class="bi bi-truck"></i> Proveedor Top</h4>
+                    <p><?= $top_supplier ? htmlspecialchars($top_supplier['supplier_name']) : 'N/A' ?> (<?= $top_supplier ? $top_supplier['total'] : 0 ?>)</p>
+                </div>
+                <div class="extra-card alert-mayor">
+                    <h4><i class="bi bi-graph-up"></i> Mayor Stock</h4>
+                    <p><?= $max_stock ? htmlspecialchars($max_stock['product_name']) : 'N/A' ?> (<?= $max_stock ? $max_stock['quantity'] : 0 ?>)</p>
+                </div>
+            </div>
+
+            <div class="dashboard-graficas">
                 <div class="grafica-card">
-                    <h3><i class="bi bi-pie-chart"></i> Stock por producto</h3>
-                    <canvas id="graficaStock" width="340" height="340"></canvas>
+                    <h3><i class="bi bi-pie-chart"></i> Stock por Producto</h3>
+                    <canvas id="stockChart"></canvas>
                 </div>
                 <div class="grafica-card barras">
-                    <h3><i class="bi bi-bar-chart"></i> Movimientos últimos 7 días</h3>
-                    <canvas id="graficaMovimientos" width="480" height="340"></canvas>
+                    <h3><i class="bi bi-bar-chart"></i> Movimientos Semanales</h3>
+                    <canvas id="movementsChart"></canvas>
                 </div>
-            </section>
+            </div>
         </div>
-    </main>
-    <!-- Chart.js CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    </div>
+
     <script src="../assets/js/script.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        function actualizarHoraYSaludo() {
-            const ahora = new Date();
-            const hora = ahora.getHours();
-            let saludo = '';
-            if (hora >= 6 && hora < 12) saludo = '¡Buenos días!';
-            else if (hora >= 12 && hora < 19) saludo = '¡Buenas tardes!';
-            else saludo = '¡Buenas noches!';
-            document.getElementById('saludo').textContent = saludo;
-            document.getElementById('hora').textContent = ahora.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        // Actualizar hora en tiempo real
+        function updateTime() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('es-ES', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            document.getElementById('horaActual').textContent = timeString;
         }
-        actualizarHoraYSaludo();
-        setInterval(actualizarHoraYSaludo, 1000);
-        document.querySelector('.sidebar-dashboard').classList.add('active');
+        
+        updateTime();
+        setInterval(updateTime, 1000);
 
-        // --- GRÁFICA DE PASTEL: STOCK POR PRODUCTO ---
-        const ctxStock = document.getElementById('graficaStock').getContext('2d');
-        new Chart(ctxStock, {
-            type: 'pie',
+        // Gráfica de stock
+        const stockCtx = document.getElementById('stockChart').getContext('2d');
+        new Chart(stockCtx, {
+            type: 'doughnut',
             data: {
                 labels: <?= json_encode($labels_stock) ?>,
                 datasets: [{
                     data: <?= json_encode($data_stock) ?>,
                     backgroundColor: [
-                        '#121866', '#232a7c', '#388e3c', '#e53935', '#ffc107', '#00bcd4', '#8e24aa', '#fbc02d'
+                        '#121866', '#232a7c', '#388e3c', '#1976d2', '#e53935', '#ffc107'
                     ],
+                    borderWidth: 2,
+                    borderColor: '#fff'
                 }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                aspectRatio: 1,
-                plugins: {
-                    legend: { position: 'bottom' },
-                    title: { display: false }
-                }
-            }
-        });
-
-        // --- GRÁFICA DE BARRAS: MOVIMIENTOS ÚLTIMOS 7 DÍAS ---
-        const ctxMovs = document.getElementById('graficaMovimientos').getContext('2d');
-        new Chart(ctxMovs, {
-            type: 'bar',
-            data: {
-                labels: <?= json_encode($labels_movs) ?>,
-                datasets: [
-                    {
-                        label: 'Entradas',
-                        data: <?= json_encode($data_entradas) ?>,
-                        backgroundColor: '#388e3c',
-                    },
-                    {
-                        label: 'Salidas',
-                        data: <?= json_encode($data_salidas) ?>,
-                        backgroundColor: '#e53935',
-                    }
-                ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { position: 'top' },
-                    title: { display: false }
-                },
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 20,
+                            usePointStyle: true
+                        }
+                    }
+                }
+            }
+        });
+
+        // Gráfica de movimientos
+        const movementsCtx = document.getElementById('movementsChart').getContext('2d');
+        new Chart(movementsCtx, {
+            type: 'bar',
+            data: {
+                labels: <?= json_encode($labels_movs) ?>,
+                datasets: [{
+                    label: 'Entradas',
+                    data: <?= json_encode($data_entradas) ?>,
+                    backgroundColor: '#43a047',
+                    borderColor: '#2e7d32',
+                    borderWidth: 1
+                }, {
+                    label: 'Salidas',
+                    data: <?= json_encode($data_salidas) ?>,
+                    backgroundColor: '#e53935',
+                    borderColor: '#b71c1c',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
                 scales: {
-                    y: { beginAtZero: true }
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'top'
+                    }
                 }
             }
         });
