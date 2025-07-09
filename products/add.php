@@ -636,6 +636,51 @@
             </div>
         </div>
     </main>
+    <!-- Botón flotante para volver -->
+    <a href="list.php" class="btn btn-secondary btn-fab-volver" id="btnVolverFlotante" title="Volver">
+        <i class="bi bi-arrow-left"></i> Volver
+    </a>
+    <style>
+    .btn-fab-volver {
+        position: fixed;
+        bottom: 32px;
+        right: 32px;
+        z-index: 9999;
+        border-radius: 50px;
+        padding: 14px 24px;
+        font-size: 1.1rem;
+        box-shadow: 0 4px 16px rgba(18,24,102,0.13);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        opacity: 0.93;
+        transition: opacity 0.18s, box-shadow 0.18s;
+    }
+    .btn-fab-volver:hover {
+        opacity: 1;
+        box-shadow: 0 8px 32px rgba(18,24,102,0.18);
+    }
+    @media (max-width: 700px) {
+        .btn-fab-volver {
+            right: 12px;
+            bottom: 12px;
+            padding: 10px 16px;
+            font-size: 1rem;
+        }
+    }
+    </style>
+    <script>
+    // Cambia el href del botón flotante según la página anterior
+    document.addEventListener('DOMContentLoaded', function() {
+        var btn = document.getElementById('btnVolverFlotante');
+        var ref = document.referrer;
+        if (btn && ref && ref.includes(window.location.host)) {
+            btn.href = ref;
+        } else {
+            btn.href = 'list.php';
+        }
+    });
+    </script>
     <script src="../assets/js/script.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
