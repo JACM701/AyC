@@ -48,14 +48,13 @@ if (isset($_POST['eliminar_bobina']) && isset($_POST['bobina_id'])) {
 }
 
 // Obtener bobinas del producto
-$bobinas = $mysqli->query("SELECT * FROM bobinas WHERE product_id = $product_id ORDER BY fecha_ingreso DESC");
+$bobinas = $mysqli->query("SELECT * FROM bobinas WHERE product_id = $product_id ORDER BY created_at DESC");
 
 // Calcular estadísticas
 $stats = $mysqli->query("SELECT 
     COUNT(*) as total_bobinas,
-    SUM(metros_iniciales) as metros_iniciales_totales,
     SUM(metros_actuales) as metros_actuales_totales,
-    AVG(metros_iniciales) as promedio_metros
+    AVG(metros_actuales) as promedio_metros
 FROM bobinas WHERE product_id = $product_id")->fetch_assoc();
 ?>
 <!DOCTYPE html>
@@ -143,10 +142,6 @@ FROM bobinas WHERE product_id = $product_id")->fetch_assoc();
             <div class="stat-label">Bobinas totales</div>
         </div>
         <div class="stat-card">
-            <div class="stat-number"><?= number_format($stats['metros_iniciales_totales'] ?: 0, 2) ?>m</div>
-            <div class="stat-label">Metros iniciales</div>
-        </div>
-        <div class="stat-card">
             <div class="stat-number"><?= number_format($stats['metros_actuales_totales'] ?: 0, 2) ?>m</div>
             <div class="stat-label">Metros disponibles</div>
         </div>
@@ -163,20 +158,13 @@ FROM bobinas WHERE product_id = $product_id")->fetch_assoc();
                     <tr>
                         <th>#</th>
                         <th>Identificador</th>
-                        <th>Metros iniciales</th>
-                        <th>Metros actuales</th>
-                        <th>Consumido</th>
-                        <th>% Utilizado</th>
+                        <th>Metros disponibles</th>
                         <th>Fecha ingreso</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php $i=1; while ($bobina = $bobinas->fetch_assoc()): ?>
-                        <?php 
-                        $consumido = $bobina['metros_iniciales'] - $bobina['metros_actuales'];
-                        $porcentaje = $bobina['metros_iniciales'] > 0 ? ($consumido / $bobina['metros_iniciales']) * 100 : 0;
-                        ?>
                         <tr class="bobina-row">
                             <td><?= $i++ ?></td>
                             <td>
@@ -186,18 +174,8 @@ FROM bobinas WHERE product_id = $product_id")->fetch_assoc();
                                     <span class="text-muted">Bobina #<?= $bobina['bobina_id'] ?></span>
                                 <?php endif; ?>
                             </td>
-                            <td><?= number_format($bobina['metros_iniciales'], 2) ?>m</td>
                             <td class="metros-disponibles"><?= number_format($bobina['metros_actuales'], 2) ?>m</td>
-                            <td class="metros-consumidos"><?= number_format($consumido, 2) ?>m</td>
-                            <td>
-                                <div class="progress" style="height: 20px;">
-                                    <div class="progress-bar <?= $porcentaje > 80 ? 'bg-danger' : ($porcentaje > 50 ? 'bg-warning' : 'bg-success') ?>" 
-                                         style="width: <?= $porcentaje ?>%">
-                                        <?= number_format($porcentaje, 1) ?>%
-                                    </div>
-                                </div>
-                            </td>
-                            <td><?= date('d/m/Y', strtotime($bobina['fecha_ingreso'])) ?></td>
+                            <td><?= date('d/m/Y', strtotime($bobina['created_at'])) ?></td>
                             <td>
                                 <form method="POST" style="display: inline;" onsubmit="return confirm('¿Estás seguro de eliminar esta bobina?')">
                                     <input type="hidden" name="bobina_id" value="<?= $bobina['bobina_id'] ?>">

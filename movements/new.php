@@ -38,22 +38,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $bobina = $result->fetch_assoc();
                 $stmt->close();
 
-                if (!$bobina) {
-                    $error = "Bobina no encontrada.";
-                } elseif ($bobina['metros_actuales'] < $quantity) {
+                // Obtener el nombre del tipo de movimiento
+                $stmt = $mysqli->prepare("SELECT name FROM movement_types WHERE movement_type_id = ?");
+                $stmt->bind_param("i", $movement_type_id);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                $movement_type = $result->fetch_assoc();
+                $stmt->close();
+
+                // Determinar si es entrada o salida basándose en el nombre del tipo
+                $is_entrada = false;
+                $tipo_nombre = strtolower($movement_type['name']);
+                if (in_array($tipo_nombre, ['entrada', 'compra', 'recepcion', 'ajuste positivo'])) {
+                    $is_entrada = true;
+                } elseif (in_array($tipo_nombre, ['salida', 'venta', 'consumo', 'ajuste negativo'])) {
+                    $is_entrada = false;
+                } else {
+                    // Por defecto, preguntar al usuario
+                    $is_entrada = isset($_POST['is_entrada']) ? $_POST['is_entrada'] === '1' : false;
+                }
+
+                if (!$is_entrada && $bobina['metros_actuales'] < $quantity) {
                     $error = "No hay suficientes metros disponibles en la bobina. Disponible: " . $bobina['metros_actuales'] . "m";
                 } else {
                     // Registrar movimiento y actualizar bobina
                     $mysqli->begin_transaction();
                     try {
+                        // Para bobinas: suma si es entrada, resta si es salida
+                        $movement_quantity = $is_entrada ? $quantity : -$quantity;
                         // Insertar movimiento
                         $stmt = $mysqli->prepare("INSERT INTO movements (product_id, movement_type_id, quantity, movement_date, bobina_id) VALUES (?, ?, ?, NOW(), ?)");
-                        $stmt->bind_param("iiid", $product_id, $movement_type_id, $quantity, $bobina_id);
+                        $stmt->bind_param("iiid", $product_id, $movement_type_id, $movement_quantity, $bobina_id);
                         $stmt->execute();
                         $stmt->close();
 
                         // Actualizar metros en la bobina
-                        $stmt = $mysqli->prepare("UPDATE bobinas SET metros_actuales = metros_actuales - ? WHERE bobina_id = ?");
+                        if ($is_entrada) {
+                            $stmt = $mysqli->prepare("UPDATE bobinas SET metros_actuales = metros_actuales + ? WHERE bobina_id = ?");
+                        } else {
+                            $stmt = $mysqli->prepare("UPDATE bobinas SET metros_actuales = metros_actuales - ? WHERE bobina_id = ?");
+                        }
                         $stmt->bind_param("di", $quantity, $bobina_id);
                         $stmt->execute();
                         $stmt->close();
@@ -65,7 +89,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $stmt->close();
 
                         $mysqli->commit();
-                        $success = "Movimiento de bobina registrado correctamente.";
+                        $accion = $is_entrada ? 'entrada' : 'consumo';
+                        $success = "Movimiento de $accion de bobina registrado correctamente. Stock actualizado.";
                     } catch (Exception $e) {
                         $mysqli->rollback();
                         $error = "Error al registrar movimiento: " . $e->getMessage();
@@ -73,16 +98,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         } else {
-            // Para productos normales, registrar movimiento normal
-            $stmt = $mysqli->prepare("INSERT INTO movements (product_id, movement_type_id, quantity, movement_date) VALUES (?, ?, ?, NOW())");
-            $stmt->bind_param("iid", $product_id, $movement_type_id, $quantity);
+            // Para productos normales, determinar si es entrada o salida
+            $stmt = $mysqli->prepare("SELECT name FROM movement_types WHERE movement_type_id = ?");
+            $stmt->bind_param("i", $movement_type_id);
             $stmt->execute();
-            if ($stmt->error) {
-                $error = "Error al registrar movimiento: " . $stmt->error;
-            } else {
-                $success = "Movimiento registrado correctamente.";
-            }
+            $result = $stmt->get_result();
+            $movement_type = $result->fetch_assoc();
             $stmt->close();
+
+            // Determinar si es entrada o salida basándose en el nombre del tipo
+            $is_entrada = false;
+            $tipo_nombre = strtolower($movement_type['name']);
+            if (in_array($tipo_nombre, ['entrada', 'compra', 'recepcion', 'ajuste positivo'])) {
+                $is_entrada = true;
+            } elseif (in_array($tipo_nombre, ['salida', 'venta', 'consumo', 'ajuste negativo'])) {
+                $is_entrada = false;
+            } else {
+                // Por defecto, preguntar al usuario
+                $is_entrada = isset($_POST['is_entrada']) ? $_POST['is_entrada'] === '1' : true;
+            }
+
+            $mysqli->begin_transaction();
+            try {
+                // Insertar movimiento (cantidad positiva para entradas, negativa para salidas)
+                $movement_quantity = $is_entrada ? $quantity : -$quantity;
+                $stmt = $mysqli->prepare("INSERT INTO movements (product_id, movement_type_id, quantity, movement_date) VALUES (?, ?, ?, NOW())");
+                $stmt->bind_param("iid", $product_id, $movement_type_id, $movement_quantity);
+                $stmt->execute();
+                $stmt->close();
+
+                // Actualizar stock del producto
+                $stock_change = $is_entrada ? $quantity : -$quantity;
+                $stmt = $mysqli->prepare("UPDATE products SET quantity = quantity + ? WHERE product_id = ?");
+                $stmt->bind_param("di", $stock_change, $product_id);
+                $stmt->execute();
+                $stmt->close();
+
+                $mysqli->commit();
+                $tipo_texto = $is_entrada ? "entrada" : "salida";
+                $success = "Movimiento de {$tipo_texto} registrado correctamente. Stock actualizado.";
+            } catch (Exception $e) {
+                $mysqli->rollback();
+                $error = "Error al registrar movimiento: " . $e->getMessage();
+            }
         }
     } else {
         $error = "Por favor, completa todos los campos correctamente.";
@@ -166,24 +224,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <div class="mb-3">
             <label for="movement_type_id" class="form-label">Tipo de movimiento:</label>
-            <select name="movement_type_id" id="movement_type_id" class="form-select" required>
-                <option value="">-- Selecciona un tipo --</option>
-                <?php while ($mt = $movement_types->fetch_assoc()): ?>
-                    <option value="<?= $mt['movement_type_id'] ?>" <?= (isset($_POST['movement_type_id']) && $_POST['movement_type_id'] == $mt['movement_type_id']) ? 'selected' : '' ?>><?= htmlspecialchars($mt['name']) ?></option>
-                <?php endwhile; ?>
-            </select>
+            <div class="input-group">
+                <select name="movement_type_id" id="movement_type_id" class="form-select" required>
+                    <option value="">-- Selecciona un tipo --</option>
+                    <?php while ($mt = $movement_types->fetch_assoc()): ?>
+                        <option value="<?= $mt['movement_type_id'] ?>" <?= (isset($_POST['movement_type_id']) && $_POST['movement_type_id'] == $mt['movement_type_id']) ? 'selected' : '' ?>><?= htmlspecialchars($mt['name']) ?></option>
+                    <?php endwhile; ?>
+                </select>
+                <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoTipoMovimiento" title="Agregar nuevo tipo de movimiento">
+                    <i class="bi bi-plus"></i>
+                </button>
+            </div>
         </div>
         <div class="mb-3">
             <label for="quantity" class="form-label">Cantidad:</label>
             <input type="number" name="quantity" id="quantity" class="form-control" min="0.01" step="0.01" required value="<?= isset($_POST['quantity']) ? htmlspecialchars($_POST['quantity']) : '' ?>">
             <small class="text-muted" id="quantityHelp">Ingresa la cantidad</small>
         </div>
+        
+        <!-- Campo para especificar tipo de movimiento (solo para productos normales) -->
+        <div class="mb-3" id="tipoMovimientoSection" style="display:none;">
+            <label class="form-label">Tipo de movimiento:</label>
+            <div class="d-flex gap-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="is_entrada" id="is_entrada_1" value="1" checked>
+                    <label class="form-check-label" for="is_entrada_1">
+                        <i class="bi bi-arrow-down-circle text-success"></i> Entrada (aumenta stock)
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="is_entrada" id="is_entrada_0" value="0">
+                    <label class="form-check-label" for="is_entrada_0">
+                        <i class="bi bi-arrow-up-circle text-danger"></i> Salida (disminuye stock)
+                    </label>
+                </div>
+            </div>
+            <small class="text-muted">Selecciona si este movimiento aumenta o disminuye el inventario</small>
+        </div>
         <div class="d-flex gap-2">
             <button type="submit" class="btn btn-primary flex-fill">
                 <i class="bi bi-plus-circle"></i> Registrar movimiento
             </button>
-            <a href="index.php" class="btn btn-secondary flex-fill">
-                <i class="bi bi-arrow-left"></i> Volver al listado
+            <a href="index.php" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Volver
+            </a>
+            <a href="manage_types.php" class="btn btn-outline-info">
+                <i class="bi bi-gear"></i> Gestionar Tipos
             </a>
         </div>
     </form>
@@ -197,11 +283,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const selectedOption = this.options[this.selectedIndex];
         const tipoGestion = selectedOption.dataset.tipo;
         const bobinaSection = document.getElementById('bobinaSection');
+        const tipoMovimientoSection = document.getElementById('tipoMovimientoSection');
         const quantityInput = document.getElementById('quantity');
         const quantityHelp = document.getElementById('quantityHelp');
         
         if (tipoGestion === 'bobina') {
             bobinaSection.style.display = 'block';
+            tipoMovimientoSection.style.display = 'none';
             quantityInput.step = '0.01';
             quantityInput.min = '0.01';
             quantityHelp.textContent = 'Ingresa los metros a consumir';
@@ -223,6 +311,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 });
         } else {
             bobinaSection.style.display = 'none';
+            tipoMovimientoSection.style.display = 'block';
             quantityInput.step = '1';
             quantityInput.min = '1';
             quantityHelp.textContent = 'Ingresa la cantidad';
@@ -256,6 +345,85 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             alert('Para productos tipo bobina, debes seleccionar una bobina específica.');
         }
     });
+
+    // Función para agregar nuevo tipo de movimiento
+    function agregarNuevoTipoMovimiento() {
+        const nombre = document.getElementById('nuevoTipoMovimiento').value.trim();
+        if (!nombre) {
+            alert('Por favor, ingresa un nombre para el tipo de movimiento.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('name', nombre);
+
+        fetch('../movements/add_type.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Agregar la nueva opción al select
+                const select = document.getElementById('movement_type_id');
+                const option = document.createElement('option');
+                option.value = data.id;
+                option.textContent = data.name;
+                select.appendChild(option);
+                select.value = data.id; // Seleccionar el nuevo tipo
+                
+                // Cerrar modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('modalNuevoTipoMovimiento'));
+                modal.hide();
+                
+                // Limpiar campo
+                document.getElementById('nuevoTipoMovimiento').value = '';
+                
+                // Mostrar mensaje de éxito
+                alert('Tipo de movimiento agregado correctamente.');
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error al agregar el tipo de movimiento.');
+        });
+    }
+
+    // Enfocar el campo cuando se abra el modal
+    document.getElementById('modalNuevoTipoMovimiento').addEventListener('shown.bs.modal', function() {
+        document.getElementById('nuevoTipoMovimiento').focus();
+    });
 </script>
+
+<!-- Modal para agregar nuevo tipo de movimiento -->
+<div class="modal fade" id="modalNuevoTipoMovimiento" tabindex="-1" aria-labelledby="modalNuevoTipoMovimientoLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalNuevoTipoMovimientoLabel">
+                    <i class="bi bi-plus-circle"></i> Agregar Nuevo Tipo de Movimiento
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="nuevoTipoMovimiento" class="form-label">Nombre del tipo de movimiento:</label>
+                    <input type="text" class="form-control" id="nuevoTipoMovimiento" placeholder="Ej: Transferencia, Devolución, etc." onkeypress="if(event.key === 'Enter') { event.preventDefault(); agregarNuevoTipoMovimiento(); }">
+                    <div class="form-text">Ingresa un nombre descriptivo para el nuevo tipo de movimiento.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-primary" onclick="agregarNuevoTipoMovimiento()">
+                    <i class="bi bi-check-circle"></i> Agregar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>

@@ -496,8 +496,8 @@
                                 <tr>
                                     <th>#</th>
                                     <th>Identificador</th>
-                                    <th>Metros iniciales</th>
-                                    <th>Metros actuales</th>
+                                    <th>Metros disponibles</th>
+                                    <th>Fecha registro</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -505,8 +505,8 @@
                                     <tr>
                                         <td><?= $i++ ?></td>
                                         <td><?= htmlspecialchars($b['identificador']) ?: '<span class="text-muted">-</span>' ?></td>
-                                        <td><?= number_format($b['metros_iniciales'], 2) ?></td>
-                                        <td><?= number_format($b['metros_actuales'], 2) ?></td>
+                                        <td><?= number_format($b['metros_actuales'], 2) ?>m</td>
+                                        <td><?= date('d/m/Y', strtotime($b['created_at'])) ?></td>
                                     </tr>
                                 <?php endwhile; ?>
                             </tbody>
@@ -539,7 +539,6 @@
                     advertenciaBobinas.style.display = 'none';
                 } else {
                     bobinaSection.style.display = 'none';
-                    document.getElementById('metros_iniciales').value = '';
                     document.getElementById('identificador').value = '';
                     // Si el producto era bobina y hay bobinas asociadas, advertir
                     if (tipoGestionOriginal === 'bobina' && bobinasAsociadas) {

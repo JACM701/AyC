@@ -96,8 +96,17 @@
 <body>
     <?php include '../includes/sidebar.php'; ?>
     <main class="main-content">
-        <h2>Movimientos de inventario</h2>
-        <a href="new.php"><button class="btn btn-primary"><i class="bi bi-plus-circle"></i> Registrar movimiento</button></a>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Movimientos de inventario</h2>
+            <div class="d-flex gap-2">
+                <a href="new.php" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Registrar movimiento
+                </a>
+                <a href="manage_types.php" class="btn btn-outline-info">
+                    <i class="bi bi-gear"></i> Gestionar Tipos
+                </a>
+            </div>
+        </div>
         <?php if ($result && $result->num_rows > 0): ?>
             <table class="table table-striped table-hover">
                 <thead>

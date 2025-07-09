@@ -22,14 +22,14 @@ if ($tipo_gestion !== 'bobina') {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $metros_iniciales = floatval($_POST['metros_iniciales']);
+    $metros_actuales = floatval($_POST['metros_actuales']);
     $identificador = trim($_POST['identificador']);
-    if ($metros_iniciales > 0) {
+    if ($metros_actuales > 0) {
         $mysqli->begin_transaction();
         try {
             // Insertar bobina
-            $stmt = $mysqli->prepare('INSERT INTO bobinas (product_id, metros_iniciales, metros_actuales, identificador) VALUES (?, ?, ?, ?)');
-            $stmt->bind_param('idds', $product_id, $metros_iniciales, $metros_iniciales, $identificador);
+            $stmt = $mysqli->prepare('INSERT INTO bobinas (product_id, metros_actuales, identificador) VALUES (?, ?, ?)');
+            $stmt->bind_param('ids', $product_id, $metros_actuales, $identificador);
             $stmt->execute();
             $stmt->close();
 
@@ -46,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Error al registrar la bobina: ' . $e->getMessage();
         }
     } else {
-        $error = 'Los metros iniciales deben ser mayores a 0.';
+        $error = 'Los metros deben ser mayores a 0.';
     }
 }
 
@@ -113,8 +113,8 @@ $resumen = $bobinas_existentes->fetch_assoc();
     
     <form action="" method="POST" class="mb-3">
         <div class="mb-3">
-            <label for="metros_iniciales" class="form-label">Metros iniciales de la bobina</label>
-            <input type="number" step="0.01" min="0.01" class="form-control" name="metros_iniciales" id="metros_iniciales" required>
+            <label for="metros_actuales" class="form-label">Metros actuales de la bobina</label>
+            <input type="number" step="0.01" min="0.01" class="form-control" name="metros_actuales" id="metros_actuales" required>
             <small class="text-muted">Ingresa los metros totales de la bobina</small>
         </div>
         <div class="mb-3">

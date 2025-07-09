@@ -6,7 +6,7 @@ if ($product_id <= 0) {
     echo json_encode([]);
     exit;
 }
-$res = $mysqli->query("SELECT bobina_id, identificador, metros_actuales FROM bobinas WHERE product_id = $product_id AND metros_actuales > 0 ORDER BY fecha_ingreso ASC");
+$res = $mysqli->query("SELECT bobina_id, identificador, metros_actuales FROM bobinas WHERE product_id = $product_id AND metros_actuales > 0 ORDER BY created_at ASC");
 $bobinas = [];
 while ($b = $res->fetch_assoc()) {
     $bobinas[] = $b;
