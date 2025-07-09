@@ -38,25 +38,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $bobina = $result->fetch_assoc();
                 $stmt->close();
 
-                // Obtener el nombre del tipo de movimiento
-                $stmt = $mysqli->prepare("SELECT name FROM movement_types WHERE movement_type_id = ?");
+                // Obtener el tipo de movimiento con el campo is_entry
+                $stmt = $mysqli->prepare("SELECT name, is_entry FROM movement_types WHERE movement_type_id = ?");
                 $stmt->bind_param("i", $movement_type_id);
                 $stmt->execute();
                 $result = $stmt->get_result();
                 $movement_type = $result->fetch_assoc();
                 $stmt->close();
 
-                // Determinar si es entrada o salida basándose en el nombre del tipo
-                $is_entrada = false;
-                $tipo_nombre = strtolower($movement_type['name']);
-                if (in_array($tipo_nombre, ['entrada', 'compra', 'recepcion', 'ajuste positivo'])) {
-                    $is_entrada = true;
-                } elseif (in_array($tipo_nombre, ['salida', 'venta', 'consumo', 'ajuste negativo'])) {
-                    $is_entrada = false;
-                } else {
-                    // Por defecto, preguntar al usuario
-                    $is_entrada = isset($_POST['is_entrada']) ? $_POST['is_entrada'] === '1' : false;
-                }
+                // Determinar si es entrada o salida usando el campo is_entry
+                $is_entrada = $movement_type['is_entry'] == 1;
 
                 if (!$is_entrada && $bobina['metros_actuales'] < $quantity) {
                     $error = "No hay suficientes metros disponibles en la bobina. Disponible: " . $bobina['metros_actuales'] . "m";
@@ -98,25 +89,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         } else {
-            // Para productos normales, determinar si es entrada o salida
-            $stmt = $mysqli->prepare("SELECT name FROM movement_types WHERE movement_type_id = ?");
+            // Para productos normales, determinar si es entrada o salida usando is_entry
+            $stmt = $mysqli->prepare("SELECT name, is_entry FROM movement_types WHERE movement_type_id = ?");
             $stmt->bind_param("i", $movement_type_id);
             $stmt->execute();
             $result = $stmt->get_result();
             $movement_type = $result->fetch_assoc();
             $stmt->close();
 
-            // Determinar si es entrada o salida basándose en el nombre del tipo
-            $is_entrada = false;
-            $tipo_nombre = strtolower($movement_type['name']);
-            if (in_array($tipo_nombre, ['entrada', 'compra', 'recepcion', 'ajuste positivo'])) {
-                $is_entrada = true;
-            } elseif (in_array($tipo_nombre, ['salida', 'venta', 'consumo', 'ajuste negativo'])) {
-                $is_entrada = false;
-            } else {
-                // Por defecto, preguntar al usuario
-                $is_entrada = isset($_POST['is_entrada']) ? $_POST['is_entrada'] === '1' : true;
-            }
+            // Determinar si es entrada o salida usando el campo is_entry
+            $is_entrada = $movement_type['is_entry'] == 1;
 
             $mysqli->begin_transaction();
             try {

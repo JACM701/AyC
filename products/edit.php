@@ -68,7 +68,7 @@
         }
         
         // Manejar proveedor (existente o nuevo)
-        $supplier_id = isset($_POST['supplier_id']) ? intval($_POST['supplier_id']) : null;
+        $supplier_id = isset($_POST['supplier_id']) && $_POST['supplier_id'] !== '' ? intval($_POST['supplier_id']) : null;
         $new_supplier = trim($_POST['new_supplier'] ?? '');
         if (!empty($new_supplier)) {
             $stmt = $mysqli->prepare("INSERT INTO suppliers (name) VALUES (?)");
@@ -76,6 +76,32 @@
             if ($stmt->execute()) {
                 $supplier_id = $stmt->insert_id;
                 error_log('DEBUG: Nuevo proveedor creado con ID: ' . $supplier_id);
+            }
+            $stmt->close();
+        }
+        
+        // Validar que supplier_id sea válido si se proporcionó
+        if ($supplier_id !== null) {
+            $stmt = $mysqli->prepare("SELECT supplier_id FROM suppliers WHERE supplier_id = ?");
+            $stmt->bind_param("i", $supplier_id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result->num_rows === 0) {
+                $error = "El proveedor seleccionado no existe.";
+                $supplier_id = null;
+            }
+            $stmt->close();
+        }
+        
+        // Validar que category_id sea válido si se proporcionó
+        if ($category_id !== null) {
+            $stmt = $mysqli->prepare("SELECT category_id FROM categories WHERE category_id = ?");
+            $stmt->bind_param("i", $category_id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result->num_rows === 0) {
+                $error = "La categoría seleccionada no existe.";
+                $category_id = null;
             }
             $stmt->close();
         }
@@ -128,16 +154,110 @@
         $max_stock = isset($_POST['max_stock']) && $_POST['max_stock'] !== '' ? intval($_POST['max_stock']) : null;
         $unit_measure = isset($_POST['unit_measure']) ? trim($_POST['unit_measure']) : null;
 
+        // Validación específica para bobinas (solo si se está editando la cantidad)
+        if ($tipo_gestion === 'bobina' && isset($_POST['quantity']) && $_POST['quantity'] !== $product['quantity']) {
+            $metros_bobina = $quantity;
+            if ($metros_bobina <= 0) {
+                $error = 'Los metros de la bobina deben ser mayores a 0.';
+            }
+        }
+
         error_log('DEBUG: Antes de validación - product_name: ' . $product_name . ', price: ' . $price . ', quantity: ' . $quantity);
 
-        if ($product_name && $price >= 0 && $quantity >= 0) {
+        if ($product_name && $price >= 0 && $quantity >= 0 && empty($error)) {
             error_log('DEBUG: Validación pasada, ejecutando UPDATE');
+            error_log('DEBUG: category_id: ' . ($category_id ?? 'NULL') . ', supplier_id: ' . ($supplier_id ?? 'NULL'));
             
-            $stmt = $mysqli->prepare("UPDATE products SET product_name = ?, sku = ?, price = ?, quantity = ?, category_id = ?, supplier_id = ?, description = ?, barcode = ?, image = ?, tipo_gestion = ?, cost_price = ?, min_stock = ?, max_stock = ?, unit_measure = ? WHERE product_id = ?");
-            $stmt->bind_param("ssdiissssssdiis", $product_name, $sku, $price, $quantity, $category_id, $supplier_id, $description, $barcode, $image_path, $tipo_gestion, $cost_price, $min_stock, $max_stock, $unit_measure, $product_id);
+            // Construir la consulta dinámicamente para manejar NULLs
+            $update_fields = [];
+            $params = [];
+            $types = '';
+            
+            $update_fields[] = "product_name = ?";
+            $params[] = $product_name;
+            $types .= 's';
+            
+            $update_fields[] = "sku = ?";
+            $params[] = $sku;
+            $types .= 's';
+            
+            $update_fields[] = "price = ?";
+            $params[] = $price;
+            $types .= 'd';
+            
+            $update_fields[] = "quantity = ?";
+            $params[] = $quantity;
+            $types .= 'i';
+            
+            $update_fields[] = "category_id = ?";
+            $params[] = $category_id;
+            $types .= 'i';
+            
+            $update_fields[] = "supplier_id = ?";
+            $params[] = $supplier_id;
+            $types .= 'i';
+            
+            $update_fields[] = "description = ?";
+            $params[] = $description;
+            $types .= 's';
+            
+            $update_fields[] = "barcode = ?";
+            $params[] = $barcode;
+            $types .= 's';
+            
+            $update_fields[] = "image = ?";
+            $params[] = $image_path;
+            $types .= 's';
+            
+            $update_fields[] = "tipo_gestion = ?";
+            $params[] = $tipo_gestion;
+            $types .= 's';
+            
+            $update_fields[] = "cost_price = ?";
+            $params[] = $cost_price;
+            $types .= 'd';
+            
+            $update_fields[] = "min_stock = ?";
+            $params[] = $min_stock;
+            $types .= 'i';
+            
+            $update_fields[] = "max_stock = ?";
+            $params[] = $max_stock;
+            $types .= 'i';
+            
+            $update_fields[] = "unit_measure = ?";
+            $params[] = $unit_measure;
+            $types .= 's';
+            
+            $params[] = $product_id;
+            $types .= 'i';
+            
+            $query = "UPDATE products SET " . implode(", ", $update_fields) . " WHERE product_id = ?";
+            $stmt = $mysqli->prepare($query);
+            $stmt->bind_param($types, ...$params);
 
             if ($stmt->execute()) {
                 error_log('DEBUG: UPDATE ejecutado correctamente. Filas afectadas: ' . $stmt->affected_rows);
+                
+                // Manejo de bobinas si el tipo de gestión es bobina (solo si se cambió la cantidad)
+                if ($tipo_gestion === 'bobina' && $quantity > 0 && $quantity !== $product['quantity']) {
+                    $stmt_check = $mysqli->prepare("SELECT COUNT(*) as total FROM bobinas WHERE product_id = ?");
+                    $stmt_check->bind_param("i", $product_id);
+                    $stmt_check->execute();
+                    $result = $stmt_check->get_result();
+                    $bobinas_existentes = $result->fetch_assoc()['total'];
+                    $stmt_check->close();
+                    
+                    if ($bobinas_existentes == 0) {
+                        $stmt_bobina = $mysqli->prepare("INSERT INTO bobinas (product_id, metros_actuales, identificador) VALUES (?, ?, ?)");
+                        $identificador = "Bobina #1";
+                        $stmt_bobina->bind_param("ids", $product_id, $quantity, $identificador);
+                        $stmt_bobina->execute();
+                        $stmt_bobina->close();
+                        error_log('DEBUG: Bobina creada automáticamente');
+                    }
+                }
+                
                 if ($stmt->affected_rows > 0) {
                     $success = "Producto actualizado correctamente.";
                     error_log('DEBUG: Éxito - Producto actualizado');
@@ -327,8 +447,9 @@
                             </div>
                         </div>
                         <div class="form-row-horizontal" id="rowCantidadInicial">
-                            <label for="quantity">Cantidad *</label>
-                            <input type="number" class="form-control" name="quantity" id="quantity" value="<?= $product['quantity'] ?>" required>
+                            <label for="quantity">Cantidad actual del stock</label>
+                            <input type="number" class="form-control" name="quantity" id="quantity" value="<?= $product['quantity'] ?>" readonly tabindex="-1">
+                            <small class="text-muted">El stock solo se puede modificar mediante movimientos de inventario</small>
                         </div>
                         <div class="form-row-horizontal">
                             <label for="min_stock">Stock mínimo</label>
@@ -340,7 +461,38 @@
                         </div>
                     </div>
 
-                    <!-- SECCIÓN 3: PRECIOS -->
+                    <!-- SECCIÓN 3: CATEGORÍA Y PROVEEDOR -->
+                    <div class="form-section">
+                        <h6><i class="bi bi-tags"></i> Categoría y proveedor</h6>
+                        <div class="form-row-horizontal">
+                            <label for="category">Categoría</label>
+                            <select class="form-select" name="category" id="category">
+                                <option value="">Selecciona una categoría</option>
+                                <?php if ($categorias) { $categorias->data_seek(0); while ($cat = $categorias->fetch_assoc()): ?>
+                                    <option value="<?= $cat['category_id'] ?>" <?= (isset($product['category_id']) && $product['category_id'] == $cat['category_id']) ? 'selected' : '' ?>><?= htmlspecialchars($cat['name']) ?></option>
+                                <?php endwhile; } ?>
+                            </select>
+                        </div>
+                        <div class="form-row-horizontal">
+                            <label for="new_category">Nueva categoría (opcional)</label>
+                            <input type="text" class="form-control" name="new_category" id="new_category" placeholder="Escribe para crear una nueva categoría">
+                        </div>
+                        <div class="form-row-horizontal">
+                            <label for="supplier_id">Proveedor</label>
+                            <select class="form-select" name="supplier_id" id="supplier_id">
+                                <option value="">Selecciona un proveedor</option>
+                                <?php if ($proveedores) { $proveedores->data_seek(0); while ($prov = $proveedores->fetch_assoc()): ?>
+                                    <option value="<?= $prov['supplier_id'] ?>" <?= (isset($product['supplier_id']) && $product['supplier_id'] == $prov['supplier_id']) ? 'selected' : '' ?>><?= htmlspecialchars($prov['name']) ?></option>
+                                <?php endwhile; } ?>
+                            </select>
+                        </div>
+                        <div class="form-row-horizontal">
+                            <label for="new_supplier">Nuevo proveedor (opcional)</label>
+                            <input type="text" class="form-control" name="new_supplier" id="new_supplier" placeholder="Escribe para crear un nuevo proveedor">
+                        </div>
+                    </div>
+
+                    <!-- SECCIÓN 4: PRECIOS -->
                     <div class="form-section">
                         <h6><i class="bi bi-cash-coin"></i> Precios</h6>
                         <div class="form-row-horizontal">
@@ -359,7 +511,7 @@
                         </div>
                     </div>
 
-                    <!-- SECCIÓN 4: IMAGEN Y DESCRIPCIÓN -->
+                    <!-- SECCIÓN 5: IMAGEN Y DESCRIPCIÓN -->
                     <div class="form-section">
                         <h6><i class="bi bi-image"></i> Imagen y descripción</h6>
                         <div class="form-row-horizontal">
@@ -388,6 +540,53 @@
                     </div>
                 </form>
             </div>
+            
+            <!-- SECCIÓN DE BOBINAS ASOCIADAS -->
+            <?php if ($bobinas && $bobinas->num_rows > 0): ?>
+                <div class="card-form">
+                    <h6><i class="bi bi-receipt"></i> Bobinas asociadas</h6>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Identificador</th>
+                                    <th>Metros disponibles</th>
+                                    <th>Fecha ingreso</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php $i=1; while ($b = $bobinas->fetch_assoc()): ?>
+                                    <tr>
+                                        <td><?= $i++ ?></td>
+                                        <td><?= htmlspecialchars($b['identificador']) ?: '<span class="text-muted">-</span>' ?></td>
+                                        <td><?= number_format($b['metros_actuales'], 2) ?></td>
+                                        <td><?= date('d/m/Y', strtotime($b['created_at'])) ?></td>
+                                    </tr>
+                                <?php endwhile; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex gap-2 mt-3">
+                        <a href="../bobinas/gestionar.php?product_id=<?= $product_id ?>" class="btn btn-info btn-sm">
+                            <i class="bi bi-gear"></i> Gestionar bobinas
+                        </a>
+                        <a href="../bobinas/add.php?product_id=<?= $product_id ?>" class="btn btn-primary btn-sm">
+                            <i class="bi bi-plus-circle"></i> Agregar bobina
+                        </a>
+                    </div>
+                </div>
+            <?php elseif ($tipo_gestion_actual === 'bobina'): ?>
+                <div class="card-form">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Producto tipo bobina:</strong> Este producto está configurado para gestionarse por metros en bobinas, pero aún no tiene bobinas registradas.
+                    </div>
+                    <a href="../bobinas/add.php?product_id=<?= $product_id ?>" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Registrar primera bobina
+                    </a>
+                </div>
+            <?php endif; ?>
         </div>
     </main>
     <!-- Botón flotante para volver al listado -->
@@ -451,6 +650,32 @@
                     }
                 });
             });
+            
+            // Lógica para manejar cambios en tipo de gestión
+            const tipoGestionRadios = document.querySelectorAll('input[name="tipo_gestion"]');
+            const cantidadInput = document.getElementById('quantity');
+            const cantidadLabel = document.querySelector('label[for="quantity"]');
+            const smallText = cantidadInput.nextElementSibling;
+            
+            function actualizarComportamientoBobina() {
+                const checked = document.querySelector('input[name="tipo_gestion"]:checked');
+                if (checked && checked.value === 'bobina') {
+                    if (cantidadLabel) cantidadLabel.textContent = 'Metros totales en bobinas';
+                    if (smallText) smallText.textContent = 'El stock solo se puede modificar mediante movimientos de inventario';
+                    cantidadInput.placeholder = 'Ej: 305, 610, etc.';
+                } else {
+                    if (cantidadLabel) cantidadLabel.textContent = 'Cantidad actual del stock';
+                    if (smallText) smallText.textContent = 'El stock solo se puede modificar mediante movimientos de inventario';
+                    cantidadInput.placeholder = 'Ej: 10, 50, etc.';
+                }
+            }
+            
+            tipoGestionRadios.forEach(radio => {
+                radio.addEventListener('change', actualizarComportamientoBobina);
+            });
+            
+            // Ejecutar al cargar
+            actualizarComportamientoBobina();
         });
     </script>
 </body>

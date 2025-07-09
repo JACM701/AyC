@@ -60,12 +60,13 @@ $query = "
     SELECT 
         mt.movement_type_id,
         mt.name,
+        mt.is_entry,
         COUNT(m.movement_id) as total_movements,
         SUM(CASE WHEN m.quantity > 0 THEN m.quantity ELSE 0 END) as total_entradas,
         SUM(CASE WHEN m.quantity < 0 THEN ABS(m.quantity) ELSE 0 END) as total_salidas
     FROM movement_types mt
     LEFT JOIN movements m ON mt.movement_type_id = m.movement_type_id
-    GROUP BY mt.movement_type_id, mt.name
+    GROUP BY mt.movement_type_id, mt.name, mt.is_entry
     ORDER BY mt.name
 ";
 $movement_types = $mysqli->query($query);
@@ -190,6 +191,11 @@ $movement_types = $mysqli->query($query);
                                     <span class="stat-number"><?= $type['total_salidas'] ?: 0 ?></span>
                                     <span class="stat-label">Salidas</span>
                                 </div>
+                            </div>
+                            <div class="mt-2">
+                                <span class="badge <?= $type['is_entry'] ? 'bg-success' : 'bg-danger' ?>">
+                                    <?= $type['is_entry'] ? 'Entrada' : 'Salida' ?>
+                                </span>
                             </div>
                         </div>
                         <div class="col-md-4 text-end">

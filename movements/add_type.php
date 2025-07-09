@@ -21,8 +21,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
     
-    // Insertar nuevo tipo de movimiento
-    $stmt = $mysqli->prepare("INSERT INTO movement_types (name) VALUES (?)");
+    // Insertar nuevo tipo de movimiento con is_entry por defecto
+    $stmt = $mysqli->prepare("INSERT INTO movement_types (name, is_entry) VALUES (?, 1)");
     $stmt->bind_param('s', $name);
     
     if ($stmt->execute()) {

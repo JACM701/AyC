@@ -73,16 +73,16 @@ try {
     // 5. Insertar tipos de movimiento
     echo "📊 Insertando tipos de movimiento...\n";
     $movement_types = [
-        ['name' => 'Entrada', 'description' => 'Entrada de productos al inventario', 'type' => 'entrada'],
-        ['name' => 'Salida', 'description' => 'Salida de productos del inventario', 'type' => 'salida'],
-        ['name' => 'Ajuste', 'description' => 'Ajuste de inventario', 'type' => 'ajuste'],
-        ['name' => 'Venta', 'description' => 'Venta de productos', 'type' => 'salida'],
-        ['name' => 'Compra', 'description' => 'Compra de productos', 'type' => 'entrada']
+        ['name' => 'Entrada', 'description' => 'Entrada de productos al inventario', 'is_entry' => 1],
+        ['name' => 'Salida', 'description' => 'Salida de productos del inventario', 'is_entry' => 0],
+        ['name' => 'Ajuste', 'description' => 'Ajuste de inventario', 'is_entry' => 1],
+        ['name' => 'Venta', 'description' => 'Venta de productos', 'is_entry' => 0],
+        ['name' => 'Compra', 'description' => 'Compra de productos', 'is_entry' => 1]
     ];
     
-    $stmt = $mysqli->prepare("INSERT INTO movement_types (name, description, type) VALUES (?, ?, ?)");
+    $stmt = $mysqli->prepare("INSERT INTO movement_types (name, description, is_entry) VALUES (?, ?, ?)");
     foreach ($movement_types as $movement_type) {
-        $stmt->bind_param('sss', $movement_type['name'], $movement_type['description'], $movement_type['type']);
+        $stmt->bind_param('ssi', $movement_type['name'], $movement_type['description'], $movement_type['is_entry']);
         $stmt->execute();
     }
     echo "✅ Tipos de movimiento insertados correctamente\n\n";
@@ -164,6 +164,35 @@ try {
     }
     echo "✅ Productos insertados correctamente\n\n";
 
+    // 7. Crear procedimiento almacenado para actualizar stock
+    echo "🔧 Creando procedimiento almacenado para actualización de stock...\n";
+    
+    $sp_query = "
+    DELIMITER //
+    CREATE PROCEDURE IF NOT EXISTS sp_update_product_stock(IN p_product_id INT)
+    BEGIN
+        DECLARE total_stock DECIMAL(10,2) DEFAULT 0;
+        
+        -- Calcular stock total basado en movimientos
+        SELECT COALESCE(SUM(quantity), 0) INTO total_stock
+        FROM movements 
+        WHERE product_id = p_product_id;
+        
+        -- Actualizar el stock del producto
+        UPDATE products 
+        SET quantity = total_stock 
+        WHERE product_id = p_product_id;
+        
+    END //
+    DELIMITER ;
+    ";
+    
+    if ($mysqli->multi_query($sp_query)) {
+        echo "✅ Procedimiento almacenado creado correctamente\n\n";
+    } else {
+        echo "❌ Error al crear procedimiento almacenado: " . $mysqli->error . "\n\n";
+    }
+
     // 7. Insertar bobinas para productos tipo bobina
     echo "🔄 Insertando bobinas...\n";
     $bobinas = [
@@ -196,22 +225,11 @@ try {
     }
     echo "✅ Configuración insertada correctamente\n\n";
 
-    echo "🎉 ¡Configuración completada exitosamente!\n\n";
-    echo "📋 Resumen de datos insertados:\n";
-    echo "- 3 roles (admin, user, viewer)\n";
-    echo "- 2 usuarios (admin/admin123, user/user123)\n";
-    echo "- 6 categorías\n";
-    echo "- 4 proveedores\n";
-    echo "- 5 tipos de movimiento\n";
-    echo "- 5 productos de ejemplo\n";
-    echo "- 3 bobinas para productos tipo bobina\n";
-    echo "- 5 configuraciones del sistema\n\n";
-    
-    echo "🔑 Credenciales de acceso:\n";
-    echo "Usuario: admin | Contraseña: admin123\n";
-    echo "Usuario: user | Contraseña: user123\n\n";
-    
-    echo "✅ El sistema está listo para usar.\n";
+    echo "🎉 ¡Configuración inicial completada exitosamente!\n";
+    echo "📝 El sistema está listo para usar.\n";
+    echo "🔗 Accede a: http://localhost/inventory-management-system-main\n";
+    echo "👤 Usuario admin: admin\n";
+    echo "🔑 Contraseña: admin123\n";
 
 } catch (Exception $e) {
     echo "❌ Error durante la configuración: " . $e->getMessage() . "\n";

@@ -110,9 +110,37 @@
                 $cantidad_inicial = 0; // Para gestión de bobina, la cantidad inicial es 0
             }
 
-            $stmt = $mysqli->prepare("INSERT INTO products (product_name, sku, price, quantity, category_id, supplier_id, description, barcode, image, tipo_gestion, cost_price, min_stock, max_stock, unit_measure) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("ssdiissssssddi", $product_name, $sku, $price, $cantidad_inicial, $category_id, $supplier_id, $description, $barcode, $image_path, $tipo_gestion, $cost_price, $min_stock, $max_stock, $unit_measure);
-            if ($stmt->execute()) {
+            // Verificar si el SKU ya existe
+            if (!empty($sku)) {
+                $stmt_check = $mysqli->prepare("SELECT product_id, product_name FROM products WHERE sku = ?");
+                $stmt_check->bind_param("s", $sku);
+                $stmt_check->execute();
+                $result_check = $stmt_check->get_result();
+                if ($result_check->num_rows > 0) {
+                    $existing_product = $result_check->fetch_assoc();
+                    $error = "El SKU '$sku' ya está en uso por el producto: '" . htmlspecialchars($existing_product['product_name']) . "'. Por favor, usa un SKU diferente o deja el campo vacío para generar uno automáticamente.";
+                }
+                $stmt_check->close();
+            }
+
+            // Verificar si el código de barras ya existe
+            if (!empty($barcode)) {
+                $stmt_check = $mysqli->prepare("SELECT product_id, product_name FROM products WHERE barcode = ?");
+                $stmt_check->bind_param("s", $barcode);
+                $stmt_check->execute();
+                $result_check = $stmt_check->get_result();
+                if ($result_check->num_rows > 0) {
+                    $existing_product = $result_check->fetch_assoc();
+                    $error = "El código de barras '$barcode' ya está en uso por el producto: '" . htmlspecialchars($existing_product['product_name']) . "'. Por favor, usa un código diferente o deja el campo vacío.";
+                }
+                $stmt_check->close();
+            }
+
+            // Si no hay errores, proceder con la inserción
+            if (empty($error)) {
+                $stmt = $mysqli->prepare("INSERT INTO products (product_name, sku, price, quantity, category_id, supplier_id, description, barcode, image, tipo_gestion, cost_price, min_stock, max_stock, unit_measure) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->bind_param("ssdiissssssddi", $product_name, $sku, $price, $cantidad_inicial, $category_id, $supplier_id, $description, $barcode, $image_path, $tipo_gestion, $cost_price, $min_stock, $max_stock, $unit_measure);
+                if ($stmt->execute()) {
                 $new_product_id = $stmt->insert_id;
                 
                 // Si es bobina, crear automáticamente el registro en bobinas
@@ -124,16 +152,29 @@
                     $stmt_bobina->close();
                 }
                 
+                // Registrar movimiento de entrada inicial
+                $stmt_mov = $mysqli->prepare("INSERT INTO movements (product_id, movement_type_id, quantity, movement_date) VALUES (?, 1, ?, NOW())");
+                $stmt_mov->bind_param("id", $new_product_id, $cantidad_inicial);
+                $stmt_mov->execute();
+                $stmt_mov->close();
+                
+                // Actualizar stock basado en movimientos
+                $stmt_update = $mysqli->prepare("UPDATE products SET quantity = (SELECT COALESCE(SUM(quantity), 0) FROM movements WHERE product_id = ?) WHERE product_id = ?");
+                $stmt_update->bind_param("ii", $new_product_id, $new_product_id);
+                $stmt_update->execute();
+                $stmt_update->close();
+                
                 // Si el tipo de gestión es bobina, mostrar opción de registrar bobinas
                 if ($tipo_gestion === 'bobina') {
                     $success = "Producto tipo bobina agregado correctamente. Ahora puedes registrar las bobinas individuales.";
                 } else {
                     $success = "Producto agregado correctamente.";
                 }
-            } else {
-                $error = "Error en la base de datos: " . $stmt->error;
+                            } else {
+                    $error = "Error en la base de datos: " . $stmt->error;
+                }
+                $stmt->close();
             }
-            $stmt->close();
         } else {
             if (!$product_name) {
                 $error = "El nombre del producto es obligatorio.";
@@ -495,6 +536,7 @@
                                     <label for="sku">SKU</label>
                                     <small class="text-muted">Se genera automáticamente si está vacío</small>
                                 </div>
+                                <div id="skuFeedback" style="display:none;"></div>
                             </div>
                         </div>
                         <div class="row mb-3">
@@ -700,6 +742,42 @@
             skuInput.addEventListener('input', checkSkuAlert);
             checkSkuAlert(); // Mostrar alerta al cargar si está vacío
         }
+
+        // Validación en tiempo real para SKU duplicado
+        let skuTimeout;
+        skuInput.addEventListener('input', function() {
+            clearTimeout(skuTimeout);
+            const sku = this.value.trim();
+            
+            if (sku.length > 0) {
+                skuTimeout = setTimeout(() => {
+                    fetch('../products/check_sku.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: 'sku=' + encodeURIComponent(sku)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        const feedback = document.getElementById('skuFeedback');
+                        if (data.exists) {
+                            feedback.innerHTML = '<div class="alert alert-warning mt-2"><i class="bi bi-exclamation-triangle"></i> Este SKU ya está en uso por: ' + data.product_name + '</div>';
+                            feedback.style.display = 'block';
+                        } else {
+                            feedback.innerHTML = '<div class="alert alert-success mt-2"><i class="bi bi-check-circle"></i> SKU disponible</div>';
+                            feedback.style.display = 'block';
+                        }
+                    })
+                    .catch(() => {
+                        // Silenciar errores de red
+                    });
+                }, 500);
+            } else {
+                const feedback = document.getElementById('skuFeedback');
+                if (feedback) feedback.style.display = 'none';
+            }
+        });
 
         // Mostrar/ocultar campo de código de barras
         function toggleBarcodeInput() {
