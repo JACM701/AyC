@@ -29,18 +29,22 @@ if (!$supplier) {
 // Procesar formulario de actualización
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name']);
-    $website = trim($_POST['website']);
-    $notes = trim($_POST['notes']);
+    $contact_name = trim($_POST['contact_name']);
+    $phone = trim($_POST['phone']);
+    $email = trim($_POST['email']);
+    $address = trim($_POST['address']);
     
     if (!empty($name)) {
-        $stmt = $mysqli->prepare("UPDATE suppliers SET name = ?, website = ?, notes = ? WHERE supplier_id = ?");
-        $stmt->bind_param("sssi", $name, $website, $notes, $supplier_id);
+        $stmt = $mysqli->prepare("UPDATE suppliers SET name = ?, contact_name = ?, phone = ?, email = ?, address = ? WHERE supplier_id = ?");
+        $stmt->bind_param("sssssi", $name, $contact_name, $phone, $email, $address, $supplier_id);
         if ($stmt->execute()) {
             $success = "Proveedor actualizado correctamente.";
             // Actualizar datos en la variable
             $supplier['name'] = $name;
-            $supplier['website'] = $website;
-            $supplier['notes'] = $notes;
+            $supplier['contact_name'] = $contact_name;
+            $supplier['phone'] = $phone;
+            $supplier['email'] = $email;
+            $supplier['address'] = $address;
         } else {
             $error = "Error al actualizar proveedor: " . $stmt->error;
         }
@@ -107,23 +111,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="mb-3">
                         <label for="name" class="form-label">Nombre del proveedor</label>
                         <input type="text" class="form-control" name="name" id="name" required 
-                               value="<?= htmlspecialchars($supplier['name']) ?>"
+                               value="<?= htmlspecialchars($supplier['name'] ?? '') ?>"
                                placeholder="Ej: Syscom, PCH, Amazon, etc.">
                     </div>
-                    
                     <div class="mb-3">
-                        <label for="website" class="form-label">Sitio web</label>
-                        <input type="url" class="form-control" name="website" id="website" 
-                               value="<?= htmlspecialchars($supplier['website']) ?>"
-                               placeholder="https://www.proveedor.com">
+                        <label for="contact_name" class="form-label">Nombre de contacto</label>
+                        <input type="text" class="form-control" name="contact_name" id="contact_name"
+                               value="<?= htmlspecialchars($supplier['contact_name'] ?? '') ?>"
+                               placeholder="Ej: Juan Pérez">
                     </div>
-                    
                     <div class="mb-3">
-                        <label for="notes" class="form-label">Notas</label>
-                        <textarea class="form-control" name="notes" id="notes" rows="3" 
-                                  placeholder="Información adicional, contacto, horarios, etc."><?= htmlspecialchars($supplier['notes']) ?></textarea>
+                        <label for="phone" class="form-label">Teléfono</label>
+                        <input type="text" class="form-control" name="phone" id="phone"
+                               value="<?= htmlspecialchars($supplier['phone'] ?? '') ?>"
+                               placeholder="Ej: 9991234567">
                     </div>
-                    
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" class="form-control" name="email" id="email"
+                               value="<?= htmlspecialchars($supplier['email'] ?? '') ?>"
+                               placeholder="Ej: contacto@proveedor.com">
+                    </div>
+                    <div class="mb-3">
+                        <label for="address" class="form-label">Dirección</label>
+                        <textarea class="form-control" name="address" id="address" rows="2"
+                                  placeholder="Dirección del proveedor"><?= htmlspecialchars($supplier['address'] ?? '') ?></textarea>
+                    </div>
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-primary flex-fill">
                             <i class="bi bi-check-circle"></i> Actualizar Proveedor

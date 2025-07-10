@@ -140,7 +140,7 @@
             if (empty($error)) {
                 $stmt = $mysqli->prepare("INSERT INTO products (product_name, sku, price, quantity, category_id, supplier_id, description, barcode, image, tipo_gestion, cost_price, min_stock, max_stock, unit_measure) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->bind_param("ssdiissssssddi", $product_name, $sku, $price, $cantidad_inicial, $category_id, $supplier_id, $description, $barcode, $image_path, $tipo_gestion, $cost_price, $min_stock, $max_stock, $unit_measure);
-                if ($stmt->execute()) {
+            if ($stmt->execute()) {
                 $new_product_id = $stmt->insert_id;
                 
                 // Si es bobina, crear automáticamente el registro en bobinas
@@ -170,10 +170,10 @@
                 } else {
                     $success = "Producto agregado correctamente.";
                 }
-                            } else {
-                    $error = "Error en la base de datos: " . $stmt->error;
-                }
-                $stmt->close();
+            } else {
+                $error = "Error en la base de datos: " . $stmt->error;
+            }
+            $stmt->close();
             }
         } else {
             if (!$product_name) {
@@ -552,8 +552,8 @@
                                     <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNuevaCategoria" title="Nueva categoría">
                                         <i class="bi bi-plus"></i>
                                     </button>
+                                    </div>
                                 </div>
-                            </div>
                             <!-- Selector de proveedor con botón + alineado -->
                             <div class="col-md-6">
                                 <label for="supplier_id" class="form-label">Proveedor</label>
@@ -567,9 +567,9 @@
                                     <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoProveedor" data-bs-toggle="tooltip" title="Nuevo proveedor">
                                         <i class="bi bi-plus"></i>
                                     </button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
                         <div class="mb-3">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="toggleBarcode" onclick="toggleBarcodeInput()">
@@ -593,25 +593,25 @@
                             </div>
                             <div class="col-md-6">
                                 <label for="tipo_gestion" class="form-label">Tipo de gestión</label>
-                                <div class="d-flex flex-wrap gap-3">
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="tipo_gestion" id="tipo_normal" value="normal" checked>
-                                        <label class="form-check-label" for="tipo_normal"><i class="bi bi-box"></i> Normal (por unidades)</label>
-                                    </div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="tipo_gestion" id="tipo_bobina" value="bobina">
-                                        <label class="form-check-label" for="tipo_bobina"><i class="bi bi-receipt"></i> Bobina (por metros)</label>
-                                    </div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="tipo_gestion" id="tipo_bolsa" value="bolsa">
-                                        <label class="form-check-label" for="tipo_bolsa"><i class="bi bi-bag"></i> Bolsa</label>
-                                    </div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="tipo_gestion" id="tipo_par" value="par">
-                                        <label class="form-check-label" for="tipo_par"><i class="bi bi-2-circle"></i> Par</label>
-                                    </div>
-                                </div>
+                        <div class="d-flex flex-wrap gap-3">
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="tipo_gestion" id="tipo_normal" value="normal" checked>
+                                <label class="form-check-label" for="tipo_normal"><i class="bi bi-box"></i> Normal (por unidades)</label>
                             </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="tipo_gestion" id="tipo_bobina" value="bobina">
+                                <label class="form-check-label" for="tipo_bobina"><i class="bi bi-receipt"></i> Bobina (por metros)</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="tipo_gestion" id="tipo_bolsa" value="bolsa">
+                                <label class="form-check-label" for="tipo_bolsa"><i class="bi bi-bag"></i> Bolsa</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="tipo_gestion" id="tipo_par" value="par">
+                                <label class="form-check-label" for="tipo_par"><i class="bi bi-2-circle"></i> Par</label>
+                            </div>
+                        </div>
+                    </div>
                         </div>
                         <div class="row mb-3" id="rowCantidadInicial" style="display:none;">
                             <div class="col-md-4">
@@ -656,8 +656,8 @@
                         <div class="row mb-3">
                             <div class="col-md-6">
                                 <label for="image" class="form-label">Imagen del producto</label>
-                                <input type="file" class="form-control" name="image" id="image" accept="image/*">
-                                <small class="text-muted">Opcional - Formatos: JPG, PNG, GIF</small>
+                            <input type="file" class="form-control" name="image" id="image" accept="image/*">
+                            <small class="text-muted">Opcional - Formatos: JPG, PNG, GIF</small>
                             </div>
                             <div class="col-md-6">
                                 <label for="description" class="form-label">Descripción</label>
@@ -665,7 +665,7 @@
                             </div>
                         </div>
                     </div>
-
+                    
                     <div class="form-actions">
                         <button type="submit" class="btn btn-primary">
                             <i class="bi bi-plus-circle"></i> Agregar producto
@@ -731,16 +731,16 @@
         const alertSku = document.getElementById('alertSkuRealtime');
         function checkSkuAlert() {
             if (skuInput) { // Proteger la variable
-                if (skuInput.value.trim() === '') {
+            if (skuInput.value.trim() === '') {
                     if (alertSku) alertSku.style.display = 'block';
-                } else {
+            } else {
                     if (alertSku) alertSku.style.display = 'none';
-                }
             }
         }
+        }
         if (skuInput) { // Proteger la variable
-            skuInput.addEventListener('input', checkSkuAlert);
-            checkSkuAlert(); // Mostrar alerta al cargar si está vacío
+        skuInput.addEventListener('input', checkSkuAlert);
+        checkSkuAlert(); // Mostrar alerta al cargar si está vacío
         }
 
         // Validación en tiempo real para SKU duplicado
@@ -796,9 +796,9 @@
         window.addEventListener('DOMContentLoaded', function() {
             const barcode = document.getElementById('barcode');
             if (barcode && barcode.value) {
-                const toggleBarcode = document.getElementById('toggleBarcode');
+        const toggleBarcode = document.getElementById('toggleBarcode');
                 if (toggleBarcode) toggleBarcode.checked = true;
-                const barcodeField = document.getElementById('barcodeField');
+        const barcodeField = document.getElementById('barcodeField');
                 if (barcodeField) barcodeField.style.display = 'block';
             }
         });
@@ -807,19 +807,19 @@
         const categorySelect = document.getElementById('category');
         const newCategoryInput = document.getElementById('new_category');
         if (categorySelect && newCategoryInput) { // Proteger las variables
-            // Cuando se selecciona una categoría existente, limpiar el campo de nueva categoría
-            categorySelect.addEventListener('change', function() {
-                if (this.value !== '') {
+        // Cuando se selecciona una categoría existente, limpiar el campo de nueva categoría
+        categorySelect.addEventListener('change', function() {
+            if (this.value !== '') {
                     if (newCategoryInput) newCategoryInput.value = '';
                     if (newCategoryInput) newCategoryInput.disabled = true;
-                } else {
+            } else {
                     if (newCategoryInput) newCategoryInput.disabled = false;
-                }
-            });
+            }
+        });
 
-            // Cuando se escribe en nueva categoría, limpiar el select
-            newCategoryInput.addEventListener('input', function() {
-                if (this.value.trim() !== '') {
+        // Cuando se escribe en nueva categoría, limpiar el select
+        newCategoryInput.addEventListener('input', function() {
+            if (this.value.trim() !== '') {
                     if (categorySelect) categorySelect.value = '';
                 }
             });
@@ -981,14 +981,14 @@ formNuevoProveedor.addEventListener('submit', function(e) {
         msg.innerHTML = '';
         formNuevoProveedor.reset();
       }, 900);
-    } else {
+                } else {
       msg.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> ' + (data.error || 'Error inesperado') + '</div>';
-    }
+                }
   })
   .catch(() => {
     document.getElementById('nuevoProveedorMsg').innerHTML = '<div class="alert alert-danger">Error de red</div>';
-  });
-});
+            });
+        });
 </script>
 
 <!-- Modal Alta Rápida Categoría (compacto) -->
@@ -1051,6 +1051,6 @@ formNuevaCategoria.addEventListener('submit', function(e) {
     document.getElementById('nuevaCategoriaMsg').innerHTML = '<div class="alert alert-danger">Error de red</div>';
   });
 });
-</script>
+    </script>
 </body>
 </html>

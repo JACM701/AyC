@@ -37,12 +37,12 @@
                 $log_stmt->execute();
                 
                 header("Location: ../dashboard/index.php");
-                exit;
+                    exit;
+                } else {
+                    $_SESSION['login_error'] = 'Usuario o contraseña incorrectos.';
+                }
             } else {
                 $_SESSION['login_error'] = 'Usuario o contraseña incorrectos.';
-            }
-        } else {
-            $_SESSION['login_error'] = 'Usuario o contraseña incorrectos.';
         }
         $stmt->close();
         $mysqli->close();

@@ -1260,3 +1260,16 @@ tbody tr:hover {
 .form-row-horizontal .form-control {
     margin-bottom: 0;
 }
+
+/* --- Mejora: Logout compacto en sidebar colapsado --- */
+.sidebar.collapsed .mid-compact-logout .logout-text {
+    display: none !important;
+}
+.sidebar.collapsed .mid-compact-logout {
+    padding: 5px 8px !important;
+    border-radius: 50% !important;
+    min-width: 0 !important;
+    width: 36px !important;
+    justify-content: center !important;
+    font-size: 1.2rem !important;
+}

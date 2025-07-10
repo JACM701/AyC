@@ -2,23 +2,46 @@
 require_once '../auth/middleware.php';
 require_once '../connection.php';
 
+// Función para obtener productos del inventario
+function getProductosInventario() {
+    global $mysqli;
+    $productos = [];
+    
+    $query = "SELECT p.product_id as id, p.product_name as nombre, p.quantity as stock, 
+                     p.price as precio, p.tipo_gestion, c.name as categoria, s.name as proveedor
+              FROM products p 
+              LEFT JOIN categories c ON p.category_id = c.category_id 
+              LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id 
+              WHERE p.quantity > 0 
+              ORDER BY p.product_name";
+    
+    $result = $mysqli->query($query);
+    while ($row = $result->fetch_assoc()) {
+        $productos[] = $row;
+    }
+    
+    return $productos;
+}
+
 // Filtros
 $categoria_filtro = isset($_GET['categoria']) ? $_GET['categoria'] : '';
 $proveedor_filtro = isset($_GET['proveedor']) ? $_GET['proveedor'] : '';
 $estado_filtro = isset($_GET['estado']) ? $_GET['estado'] : '';
 $busqueda = isset($_GET['busqueda']) ? $_GET['busqueda'] : '';
 
-// Construir consulta base
-$query = "SELECT i.*, i.categoria as categoria, s.name as proveedor FROM insumos i
+// Construir consulta base para insumos
+$query = "SELECT i.*, p.product_name as producto_origen, s.name as proveedor 
+          FROM insumos i
           LEFT JOIN products p ON i.product_id = p.product_id
-          LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id WHERE 1=1";
+          LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id 
+          WHERE i.is_active = 1";
 $params = [];
 $types = '';
 
 if ($categoria_filtro) {
-    $query .= " AND i.categoria = ?";
+    $query .= " AND p.category_id = ?";
     $params[] = $categoria_filtro;
-    $types .= 's';
+    $types .= 'i';
 }
 if ($proveedor_filtro) {
     $query .= " AND s.supplier_id = ?";
@@ -31,7 +54,7 @@ if ($estado_filtro) {
     $types .= 's';
 }
 if ($busqueda) {
-    $query .= " AND (i.nombre LIKE ? OR i.categoria LIKE ? OR s.name LIKE ?)";
+    $query .= " AND (i.nombre LIKE ? OR p.product_name LIKE ? OR s.name LIKE ?)";
     $like = "%$busqueda%";
     $params[] = $like; $params[] = $like; $params[] = $like;
     $types .= 'sss';
@@ -57,14 +80,14 @@ $stats_query = "SELECT COUNT(*) as total_insumos,
     SUM(CASE WHEN estado = 'agotado' THEN 1 ELSE 0 END) as agotados,
     SUM(cantidad * precio_unitario) as valor_total,
     SUM(consumo_semanal) as consumo_semanal_total
-    FROM insumos";
+    FROM insumos WHERE is_active = 1";
 $stats = $mysqli->query($stats_query)->fetch_assoc();
-$total_insumos = $stats['total_insumos'];
-$disponibles = $stats['disponibles'];
-$bajo_stock = $stats['bajo_stock'];
-$agotados = $stats['agotados'];
-$valor_total = $stats['valor_total'];
-$consumo_semanal_total = $stats['consumo_semanal_total'];
+$total_insumos = $stats['total_insumos'] ?? 0;
+$disponibles = $stats['disponibles'] ?? 0;
+$bajo_stock = $stats['bajo_stock'] ?? 0;
+$agotados = $stats['agotados'] ?? 0;
+$valor_total = $stats['valor_total'] ?? 0;
+$consumo_semanal_total = $stats['consumo_semanal_total'] ?? 0;
 
 // --- Endpoint para alta real de insumos (AJAX) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'agregar_insumo') {
@@ -75,46 +98,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $unidad = trim($_POST['unidad'] ?? 'pieza');
     $ubicacion = trim($_POST['ubicacion'] ?? '');
     $user_id = $_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? null;
+    
     if (!$product_id || $cantidad <= 0 || $minimo < 0) {
         echo json_encode(['success'=>false,'message'=>'Datos incompletos o inválidos.']);
         exit;
     }
+    
     // Obtener producto de origen
-    $stmt = $mysqli->prepare("SELECT product_id, product_name, quantity, price, category_id, supplier_id FROM products WHERE product_id = ?");
+    $stmt = $mysqli->prepare("SELECT p.product_id, p.product_name, p.quantity, p.price, p.category_id, p.supplier_id, p.tipo_gestion, c.name as categoria_nombre FROM products p LEFT JOIN categories c ON p.category_id = c.category_id WHERE p.product_id = ?");
     $stmt->bind_param('i', $product_id);
     $stmt->execute();
     $producto = $stmt->get_result()->fetch_assoc();
     $stmt->close();
+    
     if (!$producto) {
         echo json_encode(['success'=>false,'message'=>'Producto de origen no encontrado.']);
         exit;
     }
+    
     if ($producto['quantity'] < $cantidad) {
-        echo json_encode(['success'=>false,'message'=>'No hay suficiente stock disponible en el producto de origen.']);
+        echo json_encode(['success'=>false,'message'=>'No hay suficiente stock disponible en el producto de origen. Stock actual: ' . $producto['quantity']]);
         exit;
     }
-    // Calcular precio unitario
-    $precio_unitario = floatval($producto['price']);
+    
+    // Calcular precio unitario basado en el tipo de gestión
+    $precio_unitario = 0;
+    if ($producto['tipo_gestion'] === 'bobina') {
+        $precio_unitario = floatval($producto['price']) / 305; // 305 metros por bobina
+    } else {
+        $precio_unitario = floatval($producto['price']);
+    }
+    
+    // Determinar estado inicial
+    $estado = 'disponible';
+    if ($cantidad <= $minimo) {
+        $estado = 'bajo_stock';
+    }
+    if ($cantidad == 0) {
+        $estado = 'agotado';
+    }
+    
     // Insertar insumo
-    $stmt = $mysqli->prepare("INSERT INTO insumos (product_id, nombre, categoria, unidad, cantidad, minimo, precio_unitario, ubicacion, estado, consumo_semanal, ultima_actualizacion, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'disponible', 0, NOW(), 1)");
+    $stmt = $mysqli->prepare("INSERT INTO insumos (product_id, nombre, categoria, unidad, cantidad, minimo, precio_unitario, ubicacion, estado, consumo_semanal, ultima_actualizacion, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW(), 1)");
     $nombre_insumo = $producto['product_name'];
-    // Obtener nombre de categoría
-    $cat_stmt = $mysqli->prepare("SELECT name FROM categories WHERE category_id = ?");
-    $cat_stmt->bind_param('i', $producto['category_id']);
-    $cat_stmt->execute();
-    $cat = $cat_stmt->get_result()->fetch_assoc();
-    $cat_stmt->close();
-    $categoria = $cat['name'] ?? '';
-    $stmt->bind_param('isssddss', $product_id, $nombre_insumo, $categoria, $unidad, $cantidad, $minimo, $precio_unitario, $ubicacion);
+    $categoria = $producto['categoria_nombre'] ?? '';
+    
+    $stmt->bind_param('isssddsss', $product_id, $nombre_insumo, $categoria, $unidad, $cantidad, $minimo, $precio_unitario, $ubicacion, $estado);
+    
     if ($stmt->execute()) {
         // Descontar stock del producto de origen
         $stmt2 = $mysqli->prepare("UPDATE products SET quantity = quantity - ? WHERE product_id = ?");
         $stmt2->bind_param('di', $cantidad, $product_id);
         $stmt2->execute();
         $stmt2->close();
+        
+        // Registrar movimiento en la tabla movements
+        $movement_type_id = 2; // Salida
+        $stmt3 = $mysqli->prepare("INSERT INTO movements (product_id, movement_type_id, quantity, notes, user_id, movement_date) VALUES (?, ?, ?, ?, ?, NOW())");
+        $notes = "Creación de insumo: " . $nombre_insumo;
+        $stmt3->bind_param('iissi', $product_id, $movement_type_id, $cantidad, $notes, $user_id);
+        $stmt3->execute();
+        $stmt3->close();
+        
         echo json_encode(['success'=>true,'message'=>'Insumo registrado correctamente y stock actualizado.']);
     } else {
-        echo json_encode(['success'=>false,'message'=>'Error al registrar el insumo.']);
+        echo json_encode(['success'=>false,'message'=>'Error al registrar el insumo: ' . $stmt->error]);
     }
     $stmt->close();
     exit;
@@ -124,33 +172,294 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'editar_insumo') {
     header('Content-Type: application/json');
     $insumo_id = intval($_POST['insumo_id'] ?? 0);
-    $cantidad = floatval($_POST['cantidad'] ?? 0);
     $minimo = floatval($_POST['minimo'] ?? 0);
     $unidad = trim($_POST['unidad'] ?? 'pieza');
-    $ubicacion = trim($_POST['ubicacion'] ?? '');
-    if (!$insumo_id || $cantidad < 0 || $minimo < 0) {
+    
+    if (!$insumo_id || $minimo < 0) {
         echo json_encode(['success'=>false,'message'=>'Datos incompletos o inválidos.']);
         exit;
     }
+    
     // Obtener insumo actual
     $stmt = $mysqli->prepare("SELECT * FROM insumos WHERE insumo_id = ?");
     $stmt->bind_param('i', $insumo_id);
     $stmt->execute();
     $insumo = $stmt->get_result()->fetch_assoc();
     $stmt->close();
+    
     if (!$insumo) {
         echo json_encode(['success'=>false,'message'=>'Insumo no encontrado.']);
         exit;
     }
-    // Actualizar insumo
-    $stmt = $mysqli->prepare("UPDATE insumos SET cantidad = ?, minimo = ?, unidad = ?, ubicacion = ?, ultima_actualizacion = NOW() WHERE insumo_id = ?");
-    $stmt->bind_param('ddssi', $cantidad, $minimo, $unidad, $ubicacion, $insumo_id);
+    
+    // Determinar estado basado en la cantidad actual
+    $estado = 'disponible';
+    if ($insumo['cantidad'] <= $minimo) {
+        $estado = 'bajo_stock';
+    }
+    if ($insumo['cantidad'] == 0) {
+        $estado = 'agotado';
+    }
+    
+    // Actualizar insumo (solo minimo, unidad y estado)
+    $stmt = $mysqli->prepare("UPDATE insumos SET minimo = ?, unidad = ?, estado = ?, ultima_actualizacion = NOW() WHERE insumo_id = ?");
+    $stmt->bind_param('dssi', $minimo, $unidad, $estado, $insumo_id);
+    
     if ($stmt->execute()) {
         echo json_encode(['success'=>true,'message'=>'Insumo actualizado correctamente.']);
     } else {
-        echo json_encode(['success'=>false,'message'=>'Error al actualizar el insumo.']);
+        echo json_encode(['success'=>false,'message'=>'Error al actualizar el insumo: ' . $stmt->error]);
     }
     $stmt->close();
+    exit;
+}
+
+// --- Endpoint para registrar movimiento de insumo (AJAX) ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'registrar_movimiento') {
+    header('Content-Type: application/json');
+    $insumo_id = intval($_POST['insumo_id'] ?? 0);
+    $tipo_movimiento = $_POST['tipo_movimiento'] ?? '';
+    $cantidad = floatval($_POST['cantidad'] ?? 0);
+    $motivo = trim($_POST['motivo'] ?? '');
+    $user_id = $_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? 1; // Default a 1 si no hay usuario
+    
+    if (!$insumo_id || !in_array($tipo_movimiento, ['entrada', 'salida']) || $cantidad <= 0) {
+        echo json_encode(['success'=>false,'message'=>'Datos incompletos o inválidos.']);
+        exit;
+    }
+    
+    // Obtener insumo actual y producto origen
+    $stmt = $mysqli->prepare("SELECT i.*, p.product_id as product_id, p.quantity as product_stock, p.tipo_gestion 
+                              FROM insumos i 
+                              LEFT JOIN products p ON i.product_id = p.product_id 
+                              WHERE i.insumo_id = ?");
+    $stmt->bind_param('i', $insumo_id);
+    $stmt->execute();
+    $insumo = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    
+    if (!$insumo) {
+        echo json_encode(['success'=>false,'message'=>'Insumo no encontrado.']);
+        exit;
+    }
+    
+    // Debug: Mostrar información del insumo
+    error_log("Insumo ID: " . $insumo_id);
+    error_log("Tipo movimiento: " . $tipo_movimiento);
+    error_log("Cantidad: " . $cantidad);
+    error_log("Stock actual insumo: " . $insumo['cantidad']);
+    error_log("Stock producto origen: " . $insumo['product_stock']);
+    
+    // Verificar stock según el tipo de movimiento
+    if ($tipo_movimiento === 'entrada') {
+        // Para entradas, verificar que hay stock disponible en el producto origen
+        if (!$insumo['product_id']) {
+            echo json_encode(['success'=>false,'message'=>'Este insumo no tiene un producto origen válido.']);
+            exit;
+        }
+        
+        if ($insumo['tipo_gestion'] === 'bobina') {
+            // --- Lógica especial para bobinas ---
+            // Obtener bobinas con stock, ordenadas por fecha (FIFO)
+            $stmt_bobinas = $mysqli->prepare("SELECT bobina_id, metros_actuales FROM bobinas WHERE product_id = ? AND is_active = 1 AND metros_actuales > 0 ORDER BY created_at ASC, bobina_id ASC");
+            $stmt_bobinas->bind_param('i', $insumo['product_id']);
+            $stmt_bobinas->execute();
+            $bobinas = $stmt_bobinas->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt_bobinas->close();
+            
+            $metros_restantes = $cantidad;
+            $bobinas_a_descontar = [];
+            foreach ($bobinas as $bobina) {
+                if ($metros_restantes <= 0) break;
+                $descontar = min($bobina['metros_actuales'], $metros_restantes);
+                $bobinas_a_descontar[] = [
+                    'bobina_id' => $bobina['bobina_id'],
+                    'descontar' => $descontar
+                ];
+                $metros_restantes -= $descontar;
+            }
+            if ($metros_restantes > 0) {
+                echo json_encode(['success'=>false,'message'=>'No hay suficientes metros disponibles en las bobinas para realizar la entrada.']);
+                exit;
+            }
+        }
+        else {
+            // Producto normal: verificar stock en products
+            if ($insumo['product_stock'] < $cantidad) {
+                echo json_encode(['success'=>false,'message'=>'No hay suficiente stock en el inventario. Stock disponible: ' . $insumo['product_stock'] . ' ' . $insumo['unidad']]);
+                exit;
+            }
+        }
+    } else {
+        // Para salidas, verificar stock del insumo
+        if ($insumo['cantidad'] < $cantidad) {
+            echo json_encode(['success'=>false,'message'=>'No hay suficiente stock en el insumo. Stock actual: ' . $insumo['cantidad'] . ' ' . $insumo['unidad']]);
+            exit;
+        }
+    }
+    
+    // Calcular nueva cantidad del insumo
+    $nueva_cantidad = $insumo['cantidad'];
+    if ($tipo_movimiento === 'entrada') {
+        $nueva_cantidad += $cantidad;
+    } else {
+        $nueva_cantidad -= $cantidad;
+    }
+    
+    // Determinar nuevo estado del insumo
+    $estado = 'disponible';
+    if ($nueva_cantidad <= $insumo['minimo']) {
+        $estado = 'bajo_stock';
+    }
+    if ($nueva_cantidad == 0) {
+        $estado = 'agotado';
+    }
+    
+    // Usar transacción para asegurar consistencia
+    $mysqli->begin_transaction();
+    
+    try {
+        // Registrar movimiento (insert y bind_param en orden correcto)
+        $stmt = $mysqli->prepare("INSERT INTO insumos_movements (insumo_id, user_id, tipo_movimiento, motivo, cantidad, fecha_movimiento) VALUES (?, ?, ?, ?, ?, NOW())");
+        $stmt->bind_param('iissd', $insumo_id, $user_id, $tipo_movimiento, $motivo, $cantidad);
+        
+        if (!$stmt->execute()) {
+            throw new Exception('Error al registrar el movimiento: ' . $stmt->error);
+        }
+        $stmt->close();
+        
+        // Actualizar stock del insumo
+        $stmt2 = $mysqli->prepare("UPDATE insumos SET cantidad = ?, estado = ?, ultima_actualizacion = NOW() WHERE insumo_id = ?");
+        $stmt2->bind_param('dsi', $nueva_cantidad, $estado, $insumo_id);
+        
+        if (!$stmt2->execute()) {
+            throw new Exception('Error al actualizar el insumo: ' . $stmt2->error);
+        }
+        $stmt2->close();
+        
+        // Si es entrada, descontar del producto origen solo si la cantidad es mayor a 0
+        if ($tipo_movimiento === 'entrada' && $cantidad > 0) {
+            if ($insumo['tipo_gestion'] === 'bobina') {
+                // Descontar metros de las bobinas seleccionadas
+                foreach ($bobinas_a_descontar as $b) {
+                    $stmt3 = $mysqli->prepare("UPDATE bobinas SET metros_actuales = metros_actuales - ? WHERE bobina_id = ?");
+                    $stmt3->bind_param('di', $b['descontar'], $b['bobina_id']);
+                    if (!$stmt3->execute()) {
+                        throw new Exception('Error al descontar metros de la bobina: ' . $stmt3->error);
+                    }
+                    $stmt3->close();
+
+                    // Registrar movimiento en tabla movements (Salida de bobina)
+                    $movement_type_id = 2; // Salida
+                    $cantidad_negativa = -1 * $b['descontar'];
+                    $notes = "Descuento por creación de insumo ID $insumo_id: $motivo";
+                    $stmt_mov = $mysqli->prepare("INSERT INTO movements (product_id, bobina_id, movement_type_id, quantity, notes, user_id, movement_date) VALUES (?, ?, ?, ?, ?, ?, NOW())");
+                    $stmt_mov->bind_param('iiidsi', $insumo['product_id'], $b['bobina_id'], $movement_type_id, $cantidad_negativa, $notes, $user_id);
+                    if (!$stmt_mov->execute()) {
+                        throw new Exception('Error al registrar movimiento de bobina: ' . $stmt_mov->error);
+                    }
+                    $stmt_mov->close();
+                }
+                // Actualizar el stock total del producto (suma de todas las bobinas)
+                $stmt4 = $mysqli->prepare("UPDATE products SET quantity = (SELECT COALESCE(SUM(metros_actuales),0) FROM bobinas WHERE product_id = ?) WHERE product_id = ?");
+                $stmt4->bind_param('ii', $insumo['product_id'], $insumo['product_id']);
+                if (!$stmt4->execute()) {
+                    throw new Exception('Error al actualizar el stock total del producto bobina: ' . $stmt4->error);
+                }
+                $stmt4->close();
+            } else {
+                // Producto normal: descontar del campo quantity
+                $stmt3 = $mysqli->prepare("UPDATE products SET quantity = quantity - ? WHERE product_id = ?");
+                $stmt3->bind_param('di', $cantidad, $insumo['product_id']);
+                if (!$stmt3->execute()) {
+                    throw new Exception('Error al actualizar el producto origen: ' . $stmt3->error);
+                }
+                $stmt3->close();
+            }
+        }
+        
+        $mysqli->commit();
+        echo json_encode(['success'=>true,'message'=>'Movimiento registrado correctamente. Nuevo stock del insumo: ' . $nueva_cantidad . ' ' . $insumo['unidad']]);
+        
+    } catch (Exception $e) {
+        $mysqli->rollback();
+        error_log("Error en movimiento de insumo: " . $e->getMessage());
+        echo json_encode(['success'=>false,'message'=>$e->getMessage()]);
+    }
+    
+    exit;
+}
+
+// --- Endpoint para obtener reporte de insumo (AJAX) ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'obtener_reporte') {
+    header('Content-Type: application/json');
+    $insumo_id = intval($_POST['insumo_id'] ?? 0);
+    
+    if (!$insumo_id) {
+        echo json_encode(['success'=>false,'message'=>'ID de insumo requerido.']);
+        exit;
+    }
+    
+    // Obtener datos del insumo
+    $stmt = $mysqli->prepare("SELECT i.*, p.product_name as producto_origen FROM insumos i 
+                              LEFT JOIN products p ON i.product_id = p.product_id 
+                              WHERE i.insumo_id = ?");
+    $stmt->bind_param('i', $insumo_id);
+    $stmt->execute();
+    $insumo = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    
+    if (!$insumo) {
+        echo json_encode(['success'=>false,'message'=>'Insumo no encontrado.']);
+        exit;
+    }
+    
+    // Obtener todos los movimientos (sin filtro de fecha para debug)
+    $stmt = $mysqli->prepare("SELECT m.insumo_movement_id, m.tipo_movimiento, m.cantidad, m.motivo, m.fecha_movimiento, u.username as usuario 
+                              FROM insumos_movements m 
+                              LEFT JOIN users u ON m.user_id = u.user_id 
+                              WHERE m.insumo_id = ? 
+                              ORDER BY m.fecha_movimiento DESC");
+    $stmt->bind_param('i', $insumo_id);
+    $stmt->execute();
+    $movimientos = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    
+    // Debug: Mostrar información de movimientos
+    error_log("Insumo ID para reporte: " . $insumo_id);
+    error_log("Número de movimientos encontrados: " . count($movimientos));
+    
+    // Calcular estadísticas
+    $total_entradas = 0;
+    $total_salidas = 0;
+    $consumo_semanal = 0;
+    
+    foreach ($movimientos as $mov) {
+        if ($mov['tipo_movimiento'] === 'entrada') {
+            $total_entradas += $mov['cantidad'];
+        } else {
+            $total_salidas += $mov['cantidad'];
+        }
+    }
+    
+    // Calcular consumo semanal promedio
+    if (count($movimientos) > 0) {
+        $consumo_semanal = $total_salidas / 4; // Promedio de 4 semanas
+    }
+    
+    $reporte = [
+        'insumo' => $insumo,
+        'movimientos' => $movimientos,
+        'estadisticas' => [
+            'total_entradas' => $total_entradas,
+            'total_salidas' => $total_salidas,
+            'consumo_semanal' => $consumo_semanal,
+            'stock_actual' => $insumo['cantidad'],
+            'stock_minimo' => $insumo['minimo']
+        ]
+    ];
+    
+    echo json_encode(['success'=>true,'data'=>$reporte]);
     exit;
 }
 ?>
@@ -471,10 +780,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <?php 
             $agotados_insumos = $mysqli->query("SELECT i.*, i.categoria as categoria, s.name as proveedor FROM insumos i
                 LEFT JOIN products p ON i.product_id = p.product_id
-                LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id WHERE i.estado = 'agotado' ORDER BY i.nombre ASC");
+                LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id WHERE i.estado = 'agotado' AND i.is_active = 1 ORDER BY i.nombre ASC");
             $bajo_stock_insumos = $mysqli->query("SELECT i.*, i.categoria as categoria, s.name as proveedor FROM insumos i
                 LEFT JOIN products p ON i.product_id = p.product_id
-                LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id WHERE i.estado = 'bajo_stock' ORDER BY i.nombre ASC");
+                LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id WHERE i.estado = 'bajo_stock' AND i.is_active = 1 ORDER BY i.nombre ASC");
             ?>
             
             <?php if ($agotados_insumos->num_rows > 0): ?>
@@ -570,15 +879,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 </button>
             </div>
         <?php else: ?>
+            <?php 
+            // Guardar los datos de insumos para JavaScript antes del bucle
+            $insumos_data = $insumos->fetch_all(MYSQLI_ASSOC);
+            ?>
             <div class="insumos-grid">
-                <?php while ($insumo = $insumos->fetch_assoc()): ?>
+                <?php foreach ($insumos_data as $insumo): ?>
                     <div class="insumo-card">
                         <div class="insumo-header">
                             <div>
                                 <h5 class="insumo-title"><?= htmlspecialchars($insumo['nombre']) ?></h5>
                                 <div class="insumo-category"><?= htmlspecialchars($insumo['categoria']) ?></div>
                                 <div class="producto-origen">
-                                    <i class="bi bi-arrow-right"></i> Derivado de: <?= htmlspecialchars($insumo['producto_origen']) ?>
+                                    <i class="bi bi-arrow-right"></i> Derivado de: <?= htmlspecialchars($insumo['producto_origen'] ?? 'Producto no encontrado') ?>
                                 </div>
                             </div>
                         </div>
@@ -637,13 +950,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             </button>
                         </div>
                     </div>
-                <?php endwhile; ?>
+                <?php endforeach; ?>
             </div>
         <?php endif; ?>
     </main>
 
     <script>
-        window.insumosData = <?= json_encode($insumos->fetch_all(MYSQLI_ASSOC)) ?>;
+        window.insumosData = <?= json_encode($insumos_data ?? []) ?>;
     </script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="../assets/js/script.js"></script>
@@ -659,7 +972,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             productos.forEach(producto => {
                 const precioUnitario = producto.tipo_gestion === 'bobina' ? 
                     (producto.precio / 305).toFixed(2) : 
-                    (producto.precio / 100).toFixed(2);
+                    producto.precio;
                 const unidad = producto.tipo_gestion === 'bobina' ? 'metros' : 'piezas';
                 opcionesProductos += `<option value="${producto.id}" data-stock="${producto.stock}" data-tipo="${producto.tipo_gestion}" data-precio="${precioUnitario}">${producto.nombre} - $${precioUnitario}/${unidad} (Stock: ${producto.stock})</option>`;
             });
@@ -816,8 +1129,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     <input type="text" class="form-control" value="${insumo.nombre}" readonly>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Cantidad</label>
-                                    <input type="number" class="form-control" id="editCantidad" value="${insumo.cantidad}" min="0">
+                                    <label class="form-label">Cantidad (Solo visual)</label>
+                                    <input type="number" class="form-control" value="${insumo.cantidad}" readonly style="background-color: #f8f9fa;">
+                                    <small class="text-muted">La cantidad solo se modifica a través de movimientos</small>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Stock mínimo</label>
@@ -826,10 +1140,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 <div class="mb-3">
                                     <label class="form-label">Unidad</label>
                                     <input type="text" class="form-control" id="editUnidad" value="${insumo.unidad}">
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Ubicación</label>
-                                    <input type="text" class="form-control" id="editUbicacion" value="${insumo.ubicacion ?? ''}">
                                 </div>
                             </div>
                             <div class="modal-footer">
@@ -852,11 +1162,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
         
         function guardarEdicionInsumo(id) {
-            const cantidad = document.getElementById('editCantidad').value;
             const minimo = document.getElementById('editMinimo').value;
             const unidad = document.getElementById('editUnidad').value;
-            const ubicacion = document.getElementById('editUbicacion').value;
-            if (cantidad === '' || minimo === '' || unidad === '') {
+            if (minimo === '' || unidad === '') {
                 Swal.fire({ icon: 'warning', title: 'Campos incompletos', text: 'Por favor completa todos los campos obligatorios.' });
                 return;
             }
@@ -866,10 +1174,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 body: new URLSearchParams({
                     action: 'editar_insumo',
                     insumo_id: id,
-                    cantidad: cantidad,
                     minimo: minimo,
-                    unidad: unidad,
-                    ubicacion: ubicacion
+                    unidad: unidad
                 })
             })
             .then(res => res.json())
@@ -889,122 +1195,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
         
         function registrarMovimiento(id) {
-            alert('Función para registrar movimiento del insumo ' + id + ' (maquetado)');
-        }
-        
-        function verReporteSemanal(id) {
-            // Obtener datos del insumo desde PHP
-            const insumos = <?= json_encode($insumos->fetch_all(MYSQLI_ASSOC)) ?>;
+            // Buscar insumo en la lista global
+            const insumos = window.insumosData || [];
             const insumo = insumos.find(i => i.insumo_id == id);
-            
             if (!insumo) {
-                alert('Insumo no encontrado');
+                Swal.fire({ icon: 'error', title: 'Insumo no encontrado', text: 'No se pudo cargar la información del insumo.' });
                 return;
             }
             
-            // Generar reporte dinámico
-            const reporte = `
-                <div class="modal fade" id="modalReporteSemanal" tabindex="-1">
-                    <div class="modal-dialog modal-lg">
+            // Modal para registrar movimiento
+            const modal = `
+                <div class="modal fade" id="modalRegistrarMovimiento" tabindex="-1">
+                    <div class="modal-dialog">
                         <div class="modal-content">
                             <div class="modal-header">
-                                <h5 class="modal-title"><i class="bi bi-graph-up"></i> Reporte Semanal - ${insumo.nombre}</h5>
+                                <h5 class="modal-title"><i class="bi bi-arrow-left-right"></i> Registrar Movimiento - ${insumo.nombre}</h5>
                                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                             </div>
                             <div class="modal-body">
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <h6>Consumo Semanal</h6>
-                                        <div class="card">
-                                            <div class="card-body text-center">
-                                                <h3 class="text-primary">${insumo.consumo_semanal} ${insumo.unidad}</h3>
-                                                <p class="text-muted">Promedio semanal</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <h6>Estado Actual</h6>
-                                        <div class="card">
-                                            <div class="card-body text-center">
-                                                <h3 class="text-${insumo.estado === 'disponible' ? 'success' : insumo.estado === 'bajo_stock' ? 'warning' : 'danger'}">${insumo.cantidad} ${insumo.unidad}</h3>
-                                                <p class="text-muted">Stock disponible</p>
-                                            </div>
-                                        </div>
-                                    </div>
+                                <div class="alert alert-info">
+                                    <i class="bi bi-info-circle"></i>
+                                    <strong>Stock actual del insumo:</strong> ${insumo.cantidad} ${insumo.unidad}
                                 </div>
-                                <div class="mt-3">
-                                    <h6>Proyectos que usaron este insumo</h6>
-                                    <ul class="list-group">
-                                        <li class="list-group-item d-flex justify-content-between">
-                                            <span>Instalación Cámara Casa #123</span>
-                                            <span class="badge bg-primary">15 ${insumo.unidad}</span>
-                                        </li>
-                                        <li class="list-group-item d-flex justify-content-between">
-                                            <span>Mantenimiento Sistema #456</span>
-                                            <span class="badge bg-primary">20 ${insumo.unidad}</span>
-                                        </li>
-                                        <li class="list-group-item d-flex justify-content-between">
-                                            <span>Reparación Cable #789</span>
-                                            <span class="badge bg-primary">10 ${insumo.unidad}</span>
-                                        </li>
-                                    </ul>
+                                <div class="mb-3">
+                                    <label class="form-label">Tipo de movimiento</label>
+                                    <select class="form-select" id="tipoMovimiento" onchange="actualizarInfoMovimiento()">
+                                        <option value="entrada">Entrada (Desde inventario)</option>
+                                        <option value="salida">Salida (Uso/Consumo)</option>
+                                    </select>
                                 </div>
-                                <div class="mt-3">
-                                    <h6>Historial de Consumo (Últimas 4 semanas)</h6>
-                                    <div class="table-responsive">
-                                        <table class="table table-sm">
-                                            <thead>
-                                                <tr>
-                                                    <th>Semana</th>
-                                                    <th>Consumo</th>
-                                                    <th>Proyectos</th>
-                                                    <th>Costo</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr>
-                                                    <td>Semana 1</td>
-                                                    <td>${insumo.consumo_semanal + 5} ${insumo.unidad}</td>
-                                                    <td>3 proyectos</td>
-                                                    <td>$${(insumo.consumo_semanal + 5) * insumo.precio_unitario}</td>
-                                                </tr>
-                                                <tr>
-                                                    <td>Semana 2</td>
-                                                    <td>${insumo.consumo_semanal} ${insumo.unidad}</td>
-                                                    <td>2 proyectos</td>
-                                                    <td>$${insumo.consumo_semanal * insumo.precio_unitario}</td>
-                                                </tr>
-                                                <tr>
-                                                    <td>Semana 3</td>
-                                                    <td>${insumo.consumo_semanal + 3} ${insumo.unidad}</td>
-                                                    <td>4 proyectos</td>
-                                                    <td>$${(insumo.consumo_semanal + 3) * insumo.precio_unitario}</td>
-                                                </tr>
-                                                <tr>
-                                                    <td>Semana 4</td>
-                                                    <td>${insumo.consumo_semanal - 5} ${insumo.unidad}</td>
-                                                    <td>2 proyectos</td>
-                                                    <td>$${(insumo.consumo_semanal - 5) * insumo.precio_unitario}</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
+                                <div id="infoStock" class="alert alert-warning" style="display:none;">
+                                    <i class="bi bi-exclamation-triangle"></i>
+                                    <span id="infoStockText"></span>
                                 </div>
-                                <div class="mt-3">
-                                    <div class="alert alert-info">
-                                        <i class="bi bi-info-circle"></i>
-                                        <strong>Información del insumo:</strong><br>
-                                        <strong>Producto origen:</strong> ${insumo.producto_origen}<br>
-                                        <strong>Proveedor:</strong> ${insumo.proveedor}<br>
-                                        <strong>Precio unitario:</strong> $${insumo.precio_unitario}/${insumo.unidad}<br>
-                                        <strong>Stock mínimo:</strong> ${insumo.minimo} ${insumo.unidad}
-                                    </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Cantidad</label>
+                                    <input type="number" class="form-control" id="cantidadMovimiento" min="0.01" step="0.01" placeholder="Ej: 10">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Motivo</label>
+                                    <textarea class="form-control" id="motivoMovimiento" rows="3" placeholder="Ej: Uso en proyecto, Reabastecimiento, etc."></textarea>
                                 </div>
                             </div>
                             <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                                <button type="button" class="btn btn-primary">
-                                    <i class="bi bi-download"></i> Exportar PDF
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="button" class="btn btn-primary" onclick="confirmarMovimiento(${id})">
+                                    <i class="bi bi-check-circle"></i> Registrar Movimiento
                                 </button>
                             </div>
                         </div>
@@ -1012,17 +1248,229 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 </div>
             `;
             
-            // Agregar modal al DOM
-            document.body.insertAdjacentHTML('beforeend', reporte);
-            
-            // Mostrar modal
-            const modalElement = document.getElementById('modalReporteSemanal');
+            document.body.insertAdjacentHTML('beforeend', modal);
+            const modalElement = document.getElementById('modalRegistrarMovimiento');
             const bootstrapModal = new bootstrap.Modal(modalElement);
             bootstrapModal.show();
-            
-            // Limpiar modal al cerrar
             modalElement.addEventListener('hidden.bs.modal', function() {
                 modalElement.remove();
+            });
+        }
+        
+        function actualizarInfoMovimiento() {
+            const tipo = document.getElementById('tipoMovimiento').value;
+            const infoDiv = document.getElementById('infoStock');
+            const infoText = document.getElementById('infoStockText');
+            
+            if (tipo === 'entrada') {
+                infoText.innerHTML = '<strong>Nota:</strong> Las entradas se toman del stock del producto origen en el inventario principal.';
+                infoDiv.style.display = 'block';
+            } else {
+                infoDiv.style.display = 'none';
+            }
+        }
+        
+        function confirmarMovimiento(id) {
+            const tipo = document.getElementById('tipoMovimiento').value;
+            const cantidad = parseFloat(document.getElementById('cantidadMovimiento').value);
+            const motivo = document.getElementById('motivoMovimiento').value;
+            
+            if (!cantidad || cantidad <= 0) {
+                Swal.fire({ icon: 'warning', title: 'Cantidad inválida', text: 'Por favor ingresa una cantidad válida.' });
+                return;
+            }
+            
+            if (!motivo.trim()) {
+                Swal.fire({ icon: 'warning', title: 'Motivo requerido', text: 'Por favor ingresa un motivo para el movimiento.' });
+                return;
+            }
+            
+            // Enviar datos al backend
+            fetch('', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    action: 'registrar_movimiento',
+                    insumo_id: id,
+                    tipo_movimiento: tipo,
+                    cantidad: cantidad,
+                    motivo: motivo
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({ icon: 'success', title: '¡Movimiento registrado!', text: data.message, timer: 1800, showConfirmButton: false });
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('modalRegistrarMovimiento'));
+                    modal.hide();
+                    setTimeout(() => { window.location.reload(); }, 1200);
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+                }
+            })
+            .catch(() => {
+                Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo registrar el movimiento. Intenta de nuevo.' });
+            });
+        }
+        
+        function verReporteSemanal(id) {
+            // Mostrar loading
+            Swal.fire({
+                title: 'Cargando reporte...',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+            
+            // Obtener datos del reporte desde el backend
+            fetch('', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    action: 'obtener_reporte',
+                    insumo_id: id
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                Swal.close();
+                
+                if (!data.success) {
+                    Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+                    return;
+                }
+                
+                const reporte = data.data;
+                const insumo = reporte.insumo;
+                const estadisticas = reporte.estadisticas;
+                const movimientos = reporte.movimientos;
+                
+                // Generar tabla de movimientos
+                let tablaMovimientos = '';
+                if (movimientos.length > 0) {
+                    movimientos.forEach(mov => {
+                        const fecha = new Date(mov.fecha_movimiento).toLocaleDateString('es-ES');
+                        const tipo = mov.tipo_movimiento === 'entrada' ? 'Entrada' : 'Salida';
+                        const clase = mov.tipo_movimiento === 'entrada' ? 'success' : 'danger';
+                        const motivo = mov.motivo || 'Sin motivo especificado';
+                        tablaMovimientos += `
+                            <tr>
+                                <td>${fecha}</td>
+                                <td><span class="badge bg-${clase}">${tipo}</span></td>
+                                <td>${mov.cantidad} ${insumo.unidad}</td>
+                                <td>${motivo}</td>
+                                <td>${mov.usuario || 'Sistema'}</td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    tablaMovimientos = '<tr><td colspan="5" class="text-center">No hay movimientos registrados</td></tr>';
+                }
+                
+                // Generar reporte dinámico
+                const modal = `
+                    <div class="modal fade" id="modalReporteSemanal" tabindex="-1">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title"><i class="bi bi-graph-up"></i> Reporte de Movimientos - ${insumo.nombre}</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="row">
+                                        <div class="col-md-3">
+                                            <div class="card text-center">
+                                                <div class="card-body">
+                                                    <h3 class="text-primary">${estadisticas.stock_actual}</h3>
+                                                    <p class="text-muted">Stock Actual</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="card text-center">
+                                                <div class="card-body">
+                                                    <h3 class="text-success">${estadisticas.total_entradas}</h3>
+                                                    <p class="text-muted">Total Entradas</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="card text-center">
+                                                <div class="card-body">
+                                                    <h3 class="text-danger">${estadisticas.total_salidas}</h3>
+                                                    <p class="text-muted">Total Salidas</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="card text-center">
+                                                <div class="card-body">
+                                                    <h3 class="text-warning">${estadisticas.consumo_semanal.toFixed(1)}</h3>
+                                                    <p class="text-muted">Consumo Sem.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mt-4">
+                                        <h6>Historial de Movimientos (Últimas 4 semanas)</h6>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Fecha</th>
+                                                        <th>Tipo</th>
+                                                        <th>Cantidad</th>
+                                                        <th>Motivo</th>
+                                                        <th>Usuario</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    ${tablaMovimientos}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mt-3">
+                                        <div class="alert alert-info">
+                                            <i class="bi bi-info-circle"></i>
+                                            <strong>Información del insumo:</strong><br>
+                                            <strong>Producto origen:</strong> ${insumo.producto_origen || 'N/A'}<br>
+                                            <strong>Stock mínimo:</strong> ${insumo.minimo} ${insumo.unidad}<br>
+                                            <strong>Precio unitario:</strong> $${insumo.precio_unitario}/${insumo.unidad}<br>
+                                            <strong>Estado:</strong> <span class="badge bg-${insumo.estado === 'disponible' ? 'success' : insumo.estado === 'bajo_stock' ? 'warning' : 'danger'}">${insumo.estado}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                                    <button type="button" class="btn btn-primary">
+                                        <i class="bi bi-download"></i> Exportar PDF
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Agregar modal al DOM
+                document.body.insertAdjacentHTML('beforeend', modal);
+                
+                // Mostrar modal
+                const modalElement = document.getElementById('modalReporteSemanal');
+                const bootstrapModal = new bootstrap.Modal(modalElement);
+                bootstrapModal.show();
+                
+                // Limpiar modal al cerrar
+                modalElement.addEventListener('hidden.bs.modal', function() {
+                    modalElement.remove();
+                });
+            })
+            .catch(() => {
+                Swal.close();
+                Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar el reporte. Intenta de nuevo.' });
             });
         }
     </script>

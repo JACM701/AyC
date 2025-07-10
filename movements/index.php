@@ -97,7 +97,7 @@
     <?php include '../includes/sidebar.php'; ?>
     <main class="main-content">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2>Movimientos de inventario</h2>
+        <h2>Movimientos de inventario</h2>
             <div class="d-flex gap-2">
                 <a href="new.php" class="btn btn-primary">
                     <i class="bi bi-plus-circle"></i> Registrar movimiento

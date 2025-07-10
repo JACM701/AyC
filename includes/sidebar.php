@@ -166,7 +166,19 @@ document.addEventListener('DOMContentLoaded', function() {
     // Restaurar al cargar
     const scrollGuardado = localStorage.getItem('sidebar-scroll');
     if (scrollGuardado !== null) {
-        sidebar.scrollTop = parseInt(scrollGuardado);
+        let intentos = 0;
+        const maxIntentos = 20;
+        const scrollObjetivo = parseInt(scrollGuardado);
+        const intervalo = setInterval(() => {
+            // Solo restaurar si el sidebar tiene suficiente altura (evita restaurar antes de tiempo)
+            if (sidebar.scrollHeight > 200) {
+                sidebar.scrollTop = scrollObjetivo;
+            }
+            intentos++;
+            if ((sidebar.scrollTop === scrollObjetivo && sidebar.scrollHeight > 200) || intentos >= maxIntentos) {
+                clearInterval(intervalo);
+            }
+        }, 100);
     }
     // Guardar al hacer scroll
     sidebar.addEventListener('scroll', guardarScrollSidebar);

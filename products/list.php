@@ -238,9 +238,9 @@
                                     <?php if ($row['tipo_gestion'] === 'bobina'): ?>
                                         <?php if ($row['total_bobinas'] > 0): ?>
                                             <?= $row['total_bobinas'] ?> bobina<?= $row['total_bobinas'] != 1 ? 's' : '' ?> (<?= number_format($row['metros_totales'], 0) ?>m)
-                                        <?php else: ?>
+                                    <?php else: ?>
                                             0 bobinas
-                                        <?php endif; ?>
+                                    <?php endif; ?>
                                     <?php else: ?>
                                         <span class="badge <?= $row['quantity'] > 10 ? 'bg-success' : ($row['quantity'] > 0 ? 'bg-warning' : 'bg-danger') ?>">
                                             <?= $row['quantity'] ?>
