@@ -207,8 +207,14 @@
                                 data-supplier="<?= htmlspecialchars($row['supplier_name'] ?? '') ?>">
                                 <td><?= $i++ ?></td>
                                 <td class="img-col">
-                                    <?php if ($row['image']): ?>
-                                        <img src="../<?= htmlspecialchars($row['image']) ?>" alt="Imagen del producto" style="width: 60px; height: 60px; object-fit: cover; border-radius: 10px;">
+                                    <?php
+                                    $img = $row['image'] ?? '';
+                                    if ($img && strpos($img, 'uploads/products/') === false) {
+                                        $img = 'uploads/products/' . $img;
+                                    }
+                                    ?>
+                                    <?php if ($img): ?>
+                                        <img src="../<?= htmlspecialchars($img) ?>" alt="Imagen del producto" style="width: 60px; height: 60px; object-fit: cover; border-radius: 10px;">
                                     <?php else: ?>
                                         <span class="text-muted"><i class="bi bi-image" style="font-size: 2rem;"></i></span>
                                     <?php endif; ?>

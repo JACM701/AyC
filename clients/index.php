@@ -4,23 +4,54 @@ require_once '../connection.php';
 
 $success = $error = '';
 
-// Obtener clientes y sus estadísticas
+// --- FILTROS BACKEND ---
+$filtro_nombre = isset($_GET['busqueda']) ? trim($_GET['busqueda']) : '';
+$filtro_estado = isset($_GET['estado']) ? $_GET['estado'] : '';
+$where = [];
+$having = [];
+$params = [];
+$types = '';
+if ($filtro_nombre) {
+    $where[] = '(cl.nombre LIKE ? OR cl.telefono LIKE ? OR cl.ubicacion LIKE ? OR cl.email LIKE ?)';
+    $like = "%$filtro_nombre%";
+    $params[] = $like; $params[] = $like; $params[] = $like; $params[] = $like;
+    $types .= 'ssss';
+}
+if ($filtro_estado) {
+    if ($filtro_estado === 'reciente') {
+        $having[] = 'MAX(c.fecha_cotizacion) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)';
+    } elseif ($filtro_estado === 'activo') {
+        $having[] = 'COUNT(c.cotizacion_id) > 1';
+    } elseif ($filtro_estado === 'inactivo') {
+        $having[] = '(MAX(c.fecha_cotizacion) < DATE_SUB(CURDATE(), INTERVAL 30 DAY) OR MAX(c.fecha_cotizacion) IS NULL)';
+    }
+}
+$where_sql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+$having_sql = $having ? 'HAVING ' . implode(' AND ', $having) : '';
 $query = "
     SELECT 
         cl.cliente_id,
         cl.nombre AS cliente_nombre,
         cl.telefono AS cliente_telefono,
         cl.ubicacion AS cliente_ubicacion,
+        cl.email AS cliente_email,
         COUNT(c.cotizacion_id) as total_cotizaciones,
         SUM(c.total) as total_ventas,
         MAX(c.fecha_cotizacion) as ultima_cotizacion,
         MIN(c.fecha_cotizacion) as primera_cotizacion
     FROM clientes cl
     LEFT JOIN cotizaciones c ON cl.cliente_id = c.cliente_id
-    GROUP BY cl.cliente_id, cl.nombre, cl.telefono, cl.ubicacion
+    $where_sql
+    GROUP BY cl.cliente_id, cl.nombre, cl.telefono, cl.ubicacion, cl.email
+    $having_sql
     ORDER BY ultima_cotizacion DESC
 ";
-$clientes = $mysqli->query($query);
+$stmt = $mysqli->prepare($query);
+if (!empty($params)) {
+    $stmt->bind_param($types, ...$params);
+}
+$stmt->execute();
+$clientes = $stmt->get_result();
 
 // Estadísticas generales
 $stats_query = "
@@ -32,6 +63,178 @@ $stats_query = "
     FROM clientes
 ";
 $stats = $mysqli->query($stats_query)->fetch_assoc();
+
+// --- PROCESAMIENTO DE FORMULARIO SOLO PARA ALTA DE CLIENTES (AJAX) ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion']) && $_POST['accion'] === 'agregar') {
+    $nombre = trim($_POST['nombre']);
+    $telefono = trim($_POST['telefono']);
+    $ubicacion = trim($_POST['ubicacion']);
+    $email = trim($_POST['email']);
+    $success = $error = '';
+    if ($nombre) {
+        // Evitar duplicados inmediatos por nombre y teléfono/email
+        $stmt = $mysqli->prepare("SELECT COUNT(*) FROM clientes WHERE nombre = ? AND (telefono = ? OR email = ?)");
+        $stmt->bind_param('sss', $nombre, $telefono, $email);
+        $stmt->execute();
+        $stmt->bind_result($existe);
+        $stmt->fetch();
+        $stmt->close();
+        if ($existe > 0) {
+            $error = 'Ya existe un cliente con ese nombre y teléfono/email.';
+        } else {
+            $stmt = $mysqli->prepare("INSERT INTO clientes (nombre, telefono, ubicacion, email) VALUES (?, ?, ?, ?)");
+            $stmt->bind_param('ssss', $nombre, $telefono, $ubicacion, $email);
+            if ($stmt->execute()) {
+                $success = 'Cliente agregado correctamente.';
+            } else {
+                $error = 'Error al agregar cliente: ' . $stmt->error;
+            }
+            $stmt->close();
+        }
+    } else {
+        $error = 'El nombre es obligatorio.';
+    }
+    // Respuesta AJAX para alta
+    if (isset($_POST['ajax']) && $_POST['ajax'] == '1') {
+        // Reconsultar clientes tras la acción
+        $query = "
+            SELECT 
+                cl.cliente_id,
+                cl.nombre AS cliente_nombre,
+                cl.telefono AS cliente_telefono,
+                cl.ubicacion AS cliente_ubicacion,
+                cl.email AS cliente_email,
+                COUNT(c.cotizacion_id) as total_cotizaciones,
+                SUM(c.total) as total_ventas,
+                MAX(c.fecha_cotizacion) as ultima_cotizacion,
+                MIN(c.fecha_cotizacion) as primera_cotizacion
+            FROM clientes cl
+            LEFT JOIN cotizaciones c ON cl.cliente_id = c.cliente_id
+            GROUP BY cl.cliente_id, cl.nombre, cl.telefono, cl.ubicacion, cl.email
+            ORDER BY ultima_cotizacion DESC
+        ";
+        $clientes = $mysqli->query($query);
+        ob_start();
+        include __DIR__ . '/partials/clientes_listado.php';
+        $clientes_html = ob_get_clean();
+        echo json_encode([
+            'success' => $success,
+            'error' => $error,
+            'clientes_html' => $clientes_html
+        ]);
+        exit;
+    }
+}
+
+// --- PROCESAMIENTO DE FORMULARIOS ABC CLIENTES ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['accion'])) {
+        if ($_POST['accion'] === 'editar' && isset($_POST['cliente_id'])) {
+            $cliente_id = intval($_POST['cliente_id']);
+            $nombre = trim($_POST['nombre']);
+            $telefono = trim($_POST['telefono']);
+            $ubicacion = trim($_POST['ubicacion']);
+            $email = trim($_POST['email']);
+            if ($cliente_id && $nombre) {
+                $stmt = $mysqli->prepare("UPDATE clientes SET nombre=?, telefono=?, ubicacion=?, email=? WHERE cliente_id=?");
+                $stmt->bind_param('ssssi', $nombre, $telefono, $ubicacion, $email, $cliente_id);
+                if ($stmt->execute()) {
+                    $success = 'Cliente actualizado correctamente.';
+                } else {
+                    $error = 'Error al actualizar cliente: ' . $stmt->error;
+                }
+                $stmt->close();
+            } else {
+                $error = 'Datos incompletos para editar.';
+            }
+        } elseif ($_POST['accion'] === 'eliminar' && isset($_POST['cliente_id'])) {
+            $cliente_id = intval($_POST['cliente_id']);
+            if ($cliente_id) {
+                $stmt = $mysqli->prepare("DELETE FROM clientes WHERE cliente_id = ?");
+                $stmt->bind_param('i', $cliente_id);
+                if ($stmt->execute()) {
+                    $success = 'Cliente eliminado correctamente.';
+                } else {
+                    $error = 'Error al eliminar cliente: ' . $stmt->error;
+                }
+                $stmt->close();
+            } else {
+                $error = 'Cliente no válido.';
+            }
+        }
+    }
+    // --- RESPUESTA AJAX PARA ALTA/EDICIÓN/ELIMINACIÓN ---
+    if (isset($_POST['ajax']) && $_POST['ajax'] == '1') {
+        // Reconsultar clientes tras la acción
+        $filtro_nombre = isset($_GET['busqueda']) ? trim($_GET['busqueda']) : '';
+        $filtro_estado = isset($_GET['estado']) ? $_GET['estado'] : '';
+        $where = [];
+        $having = [];
+        $params = [];
+        $types = '';
+        if ($filtro_nombre) {
+            $where[] = '(cl.nombre LIKE ? OR cl.telefono LIKE ? OR cl.ubicacion LIKE ? OR cl.email LIKE ?)';
+            $like = "%$filtro_nombre%";
+            $params[] = $like; $params[] = $like; $params[] = $like; $params[] = $like;
+            $types .= 'ssss';
+        }
+        if ($filtro_estado) {
+            if ($filtro_estado === 'reciente') {
+                $having[] = 'MAX(c.fecha_cotizacion) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)';
+            } elseif ($filtro_estado === 'activo') {
+                $having[] = 'COUNT(c.cotizacion_id) > 1';
+            } elseif ($filtro_estado === 'inactivo') {
+                $having[] = '(MAX(c.fecha_cotizacion) < DATE_SUB(CURDATE(), INTERVAL 30 DAY) OR MAX(c.fecha_cotizacion) IS NULL)';
+            }
+        }
+        $where_sql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+        $having_sql = $having ? 'HAVING ' . implode(' AND ', $having) : '';
+        $query = "
+            SELECT 
+                cl.cliente_id,
+                cl.nombre AS cliente_nombre,
+                cl.telefono AS cliente_telefono,
+                cl.ubicacion AS cliente_ubicacion,
+                cl.email AS cliente_email,
+                COUNT(c.cotizacion_id) as total_cotizaciones,
+                SUM(c.total) as total_ventas,
+                MAX(c.fecha_cotizacion) as ultima_cotizacion,
+                MIN(c.fecha_cotizacion) as primera_cotizacion
+            FROM clientes cl
+            LEFT JOIN cotizaciones c ON cl.cliente_id = c.cliente_id
+            $where_sql
+            GROUP BY cl.cliente_id, cl.nombre, cl.telefono, cl.ubicacion, cl.email
+            $having_sql
+            ORDER BY ultima_cotizacion DESC
+        ";
+        $stmt = $mysqli->prepare($query);
+        if (!empty($params)) {
+            $stmt->bind_param($types, ...$params);
+        }
+        $stmt->execute();
+        $clientes = $stmt->get_result();
+        ob_start();
+        include __DIR__ . '/partials/clientes_listado.php';
+        $clientes_html = ob_get_clean();
+        echo json_encode([
+            'success' => $success,
+            'error' => $error,
+            'clientes_html' => $clientes_html
+        ]);
+        exit;
+    }
+}
+
+// --- RESPUESTA AJAX PARA FILTROS ---
+if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
+    ob_start();
+    include __DIR__ . '/partials/clientes_listado.php';
+    $clientes_html = ob_get_clean();
+    echo json_encode([
+        'clientes_html' => $clientes_html
+    ]);
+    exit;
+}
 ?>
 
 <!DOCTYPE html>
@@ -273,22 +476,37 @@ $stats = $mysqli->query($stats_query)->fetch_assoc();
 
         <!-- Búsqueda y filtros -->
         <div class="search-section">
-            <div class="row">
+            <form id="formFiltroClientes" class="row g-2" method="GET" autocomplete="off">
                 <div class="col-md-8">
-                    <input type="text" id="searchClient" class="form-control" placeholder="Buscar cliente por nombre, teléfono o ubicación...">
+                    <input type="text" id="searchClient" name="busqueda" class="form-control" placeholder="Buscar cliente por nombre, teléfono, ubicación o email..." value="<?= htmlspecialchars($filtro_nombre) ?>">
                 </div>
                 <div class="col-md-4">
-                    <select id="filterStatus" class="form-select">
+                    <select id="filterStatus" name="estado" class="form-select">
                         <option value="">Todos los clientes</option>
-                        <option value="reciente">Clientes recientes (últimos 30 días)</option>
-                        <option value="activo">Clientes activos (más de 1 cotización)</option>
-                        <option value="inactivo">Clientes inactivos (sin cotizaciones recientes)</option>
+                        <option value="reciente" <?= $filtro_estado === 'reciente' ? 'selected' : '' ?>>Clientes recientes (últimos 30 días)</option>
+                        <option value="activo" <?= $filtro_estado === 'activo' ? 'selected' : '' ?>>Clientes activos (más de 1 cotización)</option>
+                        <option value="inactivo" <?= $filtro_estado === 'inactivo' ? 'selected' : '' ?>>Clientes inactivos (sin cotizaciones recientes)</option>
                     </select>
                 </div>
-            </div>
+            </form>
         </div>
 
         <!-- Lista de clientes -->
+        <?php if ($success): ?>
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="bi bi-check-circle"></i> <?= $success ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        <?php elseif ($error): ?>
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle"></i> <?= $error ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        <?php endif; ?>
+        <!-- Reemplazar la barra superior para que solo muestre el botón, sin el texto 'ABC de clientes' -->
+        <div class="mb-3 d-flex justify-content-end align-items-center">
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAgregarCliente"><i class="bi bi-person-plus"></i> Agregar cliente</button>
+        </div>
         <?php if ($clientes && $clientes->num_rows > 0): ?>
             <div id="clientsContainer">
                 <?php while ($cliente = $clientes->fetch_assoc()): ?>
@@ -341,8 +559,11 @@ $stats = $mysqli->query($stats_query)->fetch_assoc();
                             <a href="../cotizaciones/index.php?cliente=<?= urlencode($cliente['cliente_nombre']) ?>" class="btn-action btn-view">
                                 <i class="bi bi-eye"></i> Ver Cotizaciones
                             </a>
-                            <a href="../cotizaciones/crear.php?cliente=<?= urlencode($cliente['cliente_nombre']) ?>&telefono=<?= urlencode($cliente['cliente_telefono']) ?>&ubicacion=<?= urlencode($cliente['cliente_ubicacion']) ?>" class="btn-action btn-cotizar">
-                                <i class="bi bi-plus-circle"></i> Nueva Cotización
+                            <a href="#" class="btn-action btn-edit" data-bs-toggle="modal" data-bs-target="#modalEditarCliente" data-id="<?= $cliente['cliente_id'] ?>" data-nombre="<?= htmlspecialchars($cliente['cliente_nombre']) ?>" data-telefono="<?= htmlspecialchars($cliente['cliente_telefono']) ?>" data-ubicacion="<?= htmlspecialchars($cliente['cliente_ubicacion']) ?>" data-email="<?= htmlspecialchars($cliente['cliente_email'] ?? '') ?>">
+                                <i class="bi bi-pencil"></i> Editar
+                            </a>
+                            <a href="#" class="btn-action btn-delete" data-bs-toggle="modal" data-bs-target="#modalEliminarCliente" data-id="<?= $cliente['cliente_id'] ?>" data-nombre="<?= htmlspecialchars($cliente['cliente_nombre']) ?>">
+                                <i class="bi bi-trash"></i> Eliminar
                             </a>
                         </div>
                     </div>
@@ -365,77 +586,226 @@ $stats = $mysqli->query($stats_query)->fetch_assoc();
     <script>
         document.querySelector('.sidebar-clientes').classList.add('active');
         
-        // Filtro de búsqueda en tiempo real
-        document.addEventListener('DOMContentLoaded', function() {
-            const searchInput = document.getElementById('searchClient');
-            const filterSelect = document.getElementById('filterStatus');
-            const clientCards = document.querySelectorAll('.client-card');
-            
-            function filterClients() {
-                const searchTerm = searchInput.value.toLowerCase().trim();
-                const filterValue = filterSelect.value;
-                let visibleCount = 0;
-                
-                clientCards.forEach(card => {
-                    const clientName = card.getAttribute('data-client-name') || '';
-                    const clientPhone = card.getAttribute('data-client-phone') || '';
-                    const clientLocation = card.getAttribute('data-client-location') || '';
-                    
-                    const matchesSearch = clientName.includes(searchTerm) || 
-                                        clientPhone.includes(searchTerm) || 
-                                        clientLocation.includes(searchTerm);
-                    
-                    let matchesFilter = true;
-                    if (filterValue === 'reciente') {
-                        // Filtrar por clientes con cotizaciones en los últimos 30 días
-                        const lastDate = card.querySelector('.stat-number:last-child').textContent;
-                        const thirtyDaysAgo = new Date();
-                        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                        const lastDateObj = new Date(lastDate.split('/').reverse().join('-'));
-                        matchesFilter = lastDateObj >= thirtyDaysAgo;
-                    } else if (filterValue === 'activo') {
-                        // Filtrar por clientes con más de 1 cotización
-                        const cotizaciones = parseInt(card.querySelector('.stat-number').textContent);
-                        matchesFilter = cotizaciones > 1;
-                    } else if (filterValue === 'inactivo') {
-                        // Filtrar por clientes sin cotizaciones recientes
-                        const lastDate = card.querySelector('.stat-number:last-child').textContent;
-                        const thirtyDaysAgo = new Date();
-                        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                        const lastDateObj = new Date(lastDate.split('/').reverse().join('-'));
-                        matchesFilter = lastDateObj < thirtyDaysAgo;
-                    }
-                    
-                    if (matchesSearch && matchesFilter) {
-                        card.style.display = 'block';
-                        visibleCount++;
-                    } else {
-                        card.style.display = 'none';
-                    }
-                });
-                
-                // Mostrar mensaje si no hay resultados
-                const noResultsMsg = document.getElementById('noResultsMessage');
-                if (visibleCount === 0 && (searchTerm !== '' || filterValue !== '')) {
-                    if (!noResultsMsg) {
-                        const msg = document.createElement('div');
-                        msg.id = 'noResultsMessage';
-                        msg.className = 'empty-state';
-                        msg.innerHTML = '<i class="bi bi-search"></i><h5>No se encontraron clientes</h5><p>Intenta ajustar los filtros de búsqueda.</p>';
-                        document.getElementById('clientsContainer').appendChild(msg);
-                    }
-                } else if (noResultsMsg) {
-                    noResultsMsg.remove();
-                }
+        // Cambiar a delegación de eventos para formularios AJAX
+        function recargarClientesLista(data) {
+            if (data.clientes_html) {
+                document.getElementById('clientsContainer').innerHTML = data.clientes_html;
             }
-            
-            // Event listeners
-            searchInput.addEventListener('input', filterClients);
-            filterSelect.addEventListener('change', filterClients);
-            
-            // Inicializar filtro
-            filterClients();
+            if (data.success) {
+                mostrarMensaje('success', data.success);
+            } else if (data.error) {
+                mostrarMensaje('danger', data.error);
+            }
+            delegarBotonesClientes(); // Reasignar eventos a los nuevos botones
+        }
+        function mostrarMensaje(tipo, mensaje) {
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${tipo} alert-dismissible fade show`;
+            alert.role = 'alert';
+            alert.innerHTML = `<i class=\"bi bi-${tipo === 'success' ? 'check-circle' : 'exclamation-triangle'}\"></i> ${mensaje}<button type=\"button\" class=\"btn-close\" data-bs-dismiss=\"alert\"></button>`;
+            document.querySelector('.main-content').insertBefore(alert, document.querySelector('.main-content').firstChild);
+            setTimeout(() => { if (alert) alert.remove(); }, 4000);
+        }
+        // Delegación de eventos para formularios AJAX
+        function onAjaxFormSubmit(e) {
+            const form = e.target;
+            if (form.classList.contains('form-ajax')) {
+                e.preventDefault();
+                const formData = new FormData(form);
+                formData.append('ajax', '1');
+                fetch('', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    // Cerrar modal
+                    const modal = bootstrap.Modal.getInstance(form.closest('.modal'));
+                    if (modal) modal.hide();
+                    recargarClientesLista(data);
+                });
+            }
+        }
+        document.addEventListener('submit', onAjaxFormSubmit);
+        // Limpiar formularios al cerrar modales
+        const modals = document.querySelectorAll('.modal');
+        modals.forEach(modalEl => {
+            modalEl.addEventListener('hidden.bs.modal', function() {
+                const forms = modalEl.querySelectorAll('form');
+                forms.forEach(f => f.reset());
+            });
         });
+        // Delegar eventos para nuevos botones de editar/eliminar tras AJAX
+        function delegarBotonesClientes() {
+            document.querySelectorAll('.btn-edit').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.getElementById('edit_cliente_id').value = this.dataset.id;
+                    document.getElementById('edit_nombre').value = this.dataset.nombre;
+                    document.getElementById('edit_telefono').value = this.dataset.telefono;
+                    document.getElementById('edit_ubicacion').value = this.dataset.ubicacion;
+                    document.getElementById('edit_email').value = this.dataset.email || '';
+                });
+            });
+            document.querySelectorAll('.btn-delete').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.getElementById('delete_cliente_id').value = this.dataset.id;
+                    document.getElementById('delete_cliente_nombre').textContent = this.dataset.nombre;
+                });
+            });
+        }
+        document.addEventListener('DOMContentLoaded', delegarBotonesClientes);
+    </script>
+    <!-- MODAL AGREGAR CLIENTE -->
+    <div class="modal fade" id="modalAgregarCliente" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST" autocomplete="off" class="form-ajax">
+                    <input type="hidden" name="accion" value="agregar">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-person-plus"></i> Agregar cliente</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="nombre" class="form-label">Nombre</label>
+                            <input type="text" class="form-control" name="nombre" id="nombre" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="telefono" class="form-label">Teléfono</label>
+                            <input type="text" class="form-control" name="telefono" id="telefono">
+                        </div>
+                        <div class="mb-3">
+                            <label for="ubicacion" class="form-label">Ubicación</label>
+                            <input type="text" class="form-control" name="ubicacion" id="ubicacion">
+                        </div>
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" class="form-control" name="email" id="email">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-check-circle"></i> Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- MODAL EDITAR CLIENTE -->
+    <div class="modal fade" id="modalEditarCliente" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST" autocomplete="off" class="form-ajax">
+                    <input type="hidden" name="accion" value="editar">
+                    <input type="hidden" name="cliente_id" id="edit_cliente_id">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-pencil"></i> Editar cliente</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="edit_nombre" class="form-label">Nombre</label>
+                            <input type="text" class="form-control" name="nombre" id="edit_nombre" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_telefono" class="form-label">Teléfono</label>
+                            <input type="text" class="form-control" name="telefono" id="edit_telefono">
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_ubicacion" class="form-label">Ubicación</label>
+                            <input type="text" class="form-control" name="ubicacion" id="edit_ubicacion">
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_email" class="form-label">Email</label>
+                            <input type="email" class="form-control" name="email" id="edit_email">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-check-circle"></i> Guardar cambios</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- MODAL ELIMINAR CLIENTE -->
+    <div class="modal fade" id="modalEliminarCliente" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST" class="form-ajax">
+                    <input type="hidden" name="accion" value="eliminar">
+                    <input type="hidden" name="cliente_id" id="delete_cliente_id">
+                    <div class="modal-header bg-danger">
+                        <h5 class="modal-title"><i class="bi bi-trash"></i> Eliminar cliente</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>¿Estás seguro de que quieres eliminar al cliente <strong id="delete_cliente_nombre"></strong>?</p>
+                        <p class="text-muted mb-0">Esta acción no se puede deshacer.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-danger"><i class="bi bi-trash"></i> Eliminar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Filtros en tiempo real con AJAX
+        const formFiltro = document.getElementById('formFiltroClientes');
+        const searchInput = document.getElementById('searchClient');
+        const filterSelect = document.getElementById('filterStatus');
+        let filtroTimeout = null;
+        function actualizarClientesPorFiltro() {
+            const params = new URLSearchParams(new FormData(formFiltro));
+            params.append('ajax', '1');
+            fetch('?' + params.toString())
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('clientsContainer').innerHTML = data.clientes_html;
+                    delegarBotonesClientes();
+                });
+        }
+        searchInput.addEventListener('input', function() {
+            clearTimeout(filtroTimeout);
+            filtroTimeout = setTimeout(actualizarClientesPorFiltro, 300);
+        });
+        filterSelect.addEventListener('change', actualizarClientesPorFiltro);
+        formFiltro.addEventListener('submit', function(e) { e.preventDefault(); actualizarClientesPorFiltro(); });
+    </script>
+    <!-- Registro de cliente por AJAX robusto -->
+    <script>
+        const formAgregar = document.querySelector('#modalAgregarCliente form.form-ajax');
+        if (formAgregar) {
+            formAgregar.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const btn = formAgregar.querySelector('button[type="submit"]');
+                btn.disabled = true;
+                const formData = new FormData(formAgregar);
+                formData.append('ajax', '1');
+                fetch('', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('clientsContainer').innerHTML = data.clientes_html;
+                        // Cerrar modal y limpiar
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('modalAgregarCliente'));
+                        if (modal) modal.hide();
+                        formAgregar.reset();
+                        mostrarMensaje('success', data.success);
+                    } else if (data.error) {
+                        mostrarMensaje('danger', data.error);
+                    }
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                });
+            });
+        }
     </script>
 </body>
 </html> 
