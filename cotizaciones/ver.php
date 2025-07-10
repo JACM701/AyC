@@ -29,7 +29,7 @@ if (!$cotizacion) {
 
 // Obtener productos de la cotización
 $stmt = $mysqli->prepare("
-    SELECT cp.*, p.product_name, p.sku, p.image as product_image
+    SELECT cp.*, p.product_name, p.sku, p.image as product_image, p.cost_price
     FROM cotizaciones_productos cp
     LEFT JOIN products p ON cp.product_id = p.product_id
     WHERE cp.cotizacion_id = ?
@@ -183,6 +183,7 @@ $productos = $stmt->get_result();
             body { background: #fff; } 
             .cotizacion-container { box-shadow: none; border-radius: 0; margin: 0; padding: 0; } 
             .acciones-cotizacion { display: none !important; } 
+            th.costo-total, td.costo-total { display: none !important; }
         }
     </style>
 </head>
@@ -209,7 +210,7 @@ $productos = $stmt->get_result();
             <a href="editar.php?id=<?= $cotizacion_id ?>" class="btn btn-success">
                 <i class="bi bi-pencil"></i> Editar
             </a>
-            <a href="imprimir.php?id=<?= $cotizacion_id ?>" class="btn" target="_blank">
+            <a href="#" class="btn" onclick="window.print(); return false;">
                 <i class="bi bi-printer"></i> Imprimir
             </a>
             
@@ -277,7 +278,7 @@ $productos = $stmt->get_result();
                     <th>CANT</th>
                     <th>PRECIO UNITARIO</th>
                     <th>PRECIO TOTAL</th>
-                    <th>COSTO TOTAL</th>
+                    <th class="costo-total">COSTO TOTAL</th>
                 </tr>
             </thead>
             <tbody>
@@ -307,7 +308,15 @@ $productos = $stmt->get_result();
                         <td><?= $producto['cantidad'] ?></td>
                         <td>$<?= number_format($producto['precio_unitario'], 2) ?></td>
                         <td class="precio-total">$<?= number_format($producto['precio_total'], 2) ?></td>
-                        <td class="costo-total">$<?= number_format($producto['precio_total'], 2) ?></td>
+                        <td class="costo-total">
+                            <?php
+                            if (!empty($producto['cost_price'])) {
+                                echo '$' . number_format($producto['cost_price'] * $producto['cantidad'], 2);
+                            } else {
+                                echo 'N/A';
+                            }
+                            ?>
+                        </td>
                     </tr>
                 <?php endwhile; ?>
             </tbody>
@@ -413,6 +422,12 @@ $productos = $stmt->get_result();
     });
   }
 })();
+// Lanzar impresión automática si la URL tiene ?imprimir=1
+if (window.location.search.includes('imprimir=1')) {
+  window.addEventListener('DOMContentLoaded', function() {
+    setTimeout(function() { window.print(); }, 300);
+  });
+}
 </script>
 <script>
 (function() {

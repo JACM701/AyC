@@ -25,7 +25,7 @@
                         <a href="editar.php?id=<?= $cot['cotizacion_id'] ?>" class="btn-accion btn btn-outline-secondary">
                             <i class="bi bi-pencil"></i> Editar
                         </a>
-                        <a href="imprimir.php?id=<?= $cot['cotizacion_id'] ?>" class="btn-accion btn btn-outline-info" target="_blank">
+                        <a href="ver.php?id=<?= $cot['cotizacion_id'] ?>&imprimir=1" class="btn-accion btn btn-outline-info" target="_blank">
                             <i class="bi bi-printer"></i> Imprimir
                         </a>
                         <?php if ($cot['estado'] === 'aprobada'): ?>
