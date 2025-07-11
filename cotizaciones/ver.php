@@ -190,27 +190,53 @@ $productos = $stmt->get_result();
         @media print { 
             body { background: #fff; } 
             .cotizacion-container { box-shadow: none; border-radius: 0; margin: 0; padding: 0; } 
-            .acciones-cotizacion { display: none !important; } 
             th.costo-total, td.costo-total { display: none !important; }
             .badge.bg-danger { display: none !important; }
             .text-muted { display: none !important; }
+        }
+        .alert.shadow.rounded-4 {
+            box-shadow: 0 4px 24px rgba(18,24,102,0.10) !important;
+            border-radius: 1.2rem !important;
+        }
+        #modalConfirmarEstado .modal-content {
+            border-radius: 1rem;
+            box-shadow: 0 6px 32px rgba(18,24,102,0.13);
+        }
+        #modalConfirmarEstado .modal-header {
+            background: #232a7c;
+            color: #fff;
+            border-top-left-radius: 1rem;
+            border-top-right-radius: 1rem;
+        }
+        #modalConfirmarEstado .modal-footer {
+            border-bottom-left-radius: 1rem;
+            border-bottom-right-radius: 1rem;
+        }
+        #modalConfirmarEstado .btn-success {
+            background: #43a047;
+            border: none;
+        }
+        #modalConfirmarEstado .btn-success:hover {
+            background: #388e3c;
         }
     </style>
 </head>
 <body>
     <div class="cotizacion-container">
         <?php if (isset($_SESSION['success'])): ?>
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <i class="bi bi-check-circle"></i> <?= $_SESSION['success'] ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            <div class="alert alert-success alert-dismissible fade show shadow rounded-4" role="alert" style="font-size:1.08rem;">
+                <i class="bi bi-check-circle-fill me-2"></i> <?= 
+                    $_SESSION['success'] ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
             </div>
             <?php unset($_SESSION['success']); ?>
         <?php endif; ?>
         
         <?php if (isset($_SESSION['error'])): ?>
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <i class="bi bi-exclamation-triangle"></i> <?= $_SESSION['error'] ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            <div class="alert alert-danger alert-dismissible fade show shadow rounded-4" role="alert" style="font-size:1.08rem;">
+                <i class="bi bi-x-octagon-fill me-2"></i> <?= 
+                    $_SESSION['error'] ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
             </div>
             <?php unset($_SESSION['error']); ?>
         <?php endif; ?>
@@ -386,48 +412,148 @@ $productos = $stmt->get_result();
                 <?php endif; ?>
             </div>
         <?php endif; ?>
+        <?php if ($cotizacion['nombre_estado'] === 'Convertida'): ?>
+    <button class="btn btn-warning mt-2" data-bs-toggle="modal" data-bs-target="#modalDevolucion">
+        <i class="bi bi-arrow-counterclockwise"></i> Devolver productos
+    </button>
+    <!-- Modal de devolución -->
+    <div class="modal fade" id="modalDevolucion" tabindex="-1" aria-labelledby="modalDevolucionLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="modalDevolucionLabel"><i class="bi bi-arrow-counterclockwise"></i> Devolución de productos</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <form id="formDevolucion">
+            <div class="modal-body">
+              <p>Selecciona los productos y las cantidades a devolver al inventario:</p>
+              <div class="table-responsive">
+                <table class="table table-bordered">
+                  <thead>
+                    <tr>
+                      <th>Producto</th>
+                      <th>SKU</th>
+                      <th>Cantidad vendida</th>
+                      <th>Cantidad a devolver</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php $productos->data_seek(0); while ($prod = $productos->fetch_assoc()): ?>
+                    <tr>
+                      <td><?= htmlspecialchars($prod['product_name']) ?></td>
+                      <td><?= htmlspecialchars($prod['sku']) ?></td>
+                      <td><?= $prod['cantidad'] ?></td>
+                      <td>
+                        <input type="number" class="form-control" name="devolver[<?= $prod['product_id'] ?>]" min="0" max="<?= $prod['cantidad'] ?>" value="0">
+                      </td>
+                    </tr>
+                    <?php endwhile; ?>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+              <button type="submit" class="btn btn-success"><i class="bi bi-check-circle"></i> Procesar devolución</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <script>
+    document.getElementById('formDevolucion').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const formData = new FormData(this);
+      formData.append('cotizacion_id', <?= $cotizacion_id ?>);
+      fetch('procesar_devolucion.php', {
+        method: 'POST',
+        body: formData
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          location.reload();
+        } else {
+          alert(data.message || 'Error al procesar la devolución');
+        }
+      })
+      .catch(() => alert('Error al procesar la devolución.'));
+    });
+    </script>
+<?php endif; ?>
     </div>
 
     <script src="../assets/js/script.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        function cambiarEstado(cotizacionId, nuevoEstadoId, estadoAnteriorId) {
-            if (confirm('¿Estás seguro de que quieres cambiar el estado de esta cotización?')) {
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = 'cambiar_estado.php';
-                
-                const cotizacionIdInput = document.createElement('input');
-                cotizacionIdInput.type = 'hidden';
-                cotizacionIdInput.name = 'cotizacion_id';
-                cotizacionIdInput.value = cotizacionId;
-                
-                const nuevoEstadoInput = document.createElement('input');
-                nuevoEstadoInput.type = 'hidden';
-                nuevoEstadoInput.name = 'nuevo_estado_id';
-                nuevoEstadoInput.value = nuevoEstadoId;
-                
-                const estadoAnteriorInput = document.createElement('input');
-                estadoAnteriorInput.type = 'hidden';
-                estadoAnteriorInput.name = 'estado_anterior_id';
-                estadoAnteriorInput.value = estadoAnteriorId;
-                
-                const redirectInput = document.createElement('input');
-                redirectInput.type = 'hidden';
-                redirectInput.name = 'redirect_url';
-                redirectInput.value = window.location.href;
-                
-                form.appendChild(cotizacionIdInput);
-                form.appendChild(nuevoEstadoInput);
-                form.appendChild(estadoAnteriorInput);
-                form.appendChild(redirectInput);
-                
-                document.body.appendChild(form);
-                form.submit();
-            }
-        }
-    </script>
-    <script>
+let estadoParams = {};
+function cambiarEstado(cotizacionId, nuevoEstadoId, estadoAnteriorId) {
+    // Guarda los parámetros para usarlos después
+    estadoParams = { cotizacionId, nuevoEstadoId, estadoAnteriorId };
+    // Muestra el modal
+    const modal = new bootstrap.Modal(document.getElementById('modalConfirmarEstado'));
+    modal.show();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('btnConfirmarCambioEstado').addEventListener('click', function() {
+        // Crea y envía el formulario como antes
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = 'cambiar_estado.php';
+
+        const cotizacionIdInput = document.createElement('input');
+        cotizacionIdInput.type = 'hidden';
+        cotizacionIdInput.name = 'cotizacion_id';
+        cotizacionIdInput.value = estadoParams.cotizacionId;
+
+        const nuevoEstadoInput = document.createElement('input');
+        nuevoEstadoInput.type = 'hidden';
+        nuevoEstadoInput.name = 'nuevo_estado_id';
+        nuevoEstadoInput.value = estadoParams.nuevoEstadoId;
+
+        const estadoAnteriorInput = document.createElement('input');
+        estadoAnteriorInput.type = 'hidden';
+        estadoAnteriorInput.name = 'estado_anterior_id';
+        estadoAnteriorInput.value = estadoParams.estadoAnteriorId;
+
+        const redirectInput = document.createElement('input');
+        redirectInput.type = 'hidden';
+        redirectInput.name = 'redirect_url';
+        redirectInput.value = window.location.href;
+
+        form.appendChild(cotizacionIdInput);
+        form.appendChild(nuevoEstadoInput);
+        form.appendChild(estadoAnteriorInput);
+        form.appendChild(redirectInput);
+
+        document.body.appendChild(form);
+        form.submit();
+    });
+});
+</script>
+<!-- Modal de confirmación para cambio de estado -->
+<div class="modal fade" id="modalConfirmarEstado" tabindex="-1" aria-labelledby="modalConfirmarEstadoLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-4">
+      <div class="modal-header" style="background: #232a7c; color: #fff; border-top-left-radius: 1rem; border-top-right-radius: 1rem;">
+        <h5 class="modal-title d-flex align-items-center gap-2" id="modalConfirmarEstadoLabel">
+          <i class="bi bi-question-circle-fill" style="font-size:2rem;color:#ffc107;"></i>
+          Confirmar cambio de estado
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body" style="font-size:1.15rem; color:#232a7c; padding: 2rem 1.5rem;">
+        ¿Estás seguro de que quieres cambiar el estado de esta cotización?
+      </div>
+      <div class="modal-footer" style="border-bottom-left-radius: 1rem; border-bottom-right-radius: 1rem;">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-success" id="btnConfirmarCambioEstado">Aceptar</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
 // Personalización de encabezado desde localStorage
 (function() {
   const cfg = JSON.parse(localStorage.getItem('cotiz_config_encabezado') || '{}');
@@ -485,6 +611,17 @@ if (window.location.search.includes('imprimir=1')) {
     });
   }
 })();
+</script>
+<script>
+  // Cierra las alertas automáticamente después de 4 segundos
+  setTimeout(function() {
+    document.querySelectorAll('.alert').forEach(function(alert) {
+      if (alert.classList.contains('show')) {
+        var bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
+        bsAlert.close();
+      }
+    });
+  }, 4000);
 </script>
 </body>
 </html> 

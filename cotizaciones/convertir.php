@@ -12,10 +12,11 @@ $success = $error = '';
 
 // Obtener cotización
 $stmt = $mysqli->prepare("
-    SELECT c.*, u.username as usuario_nombre, ec.nombre_estado
+    SELECT c.*, u.username as usuario_nombre, ec.nombre_estado, cl.nombre as cliente_nombre
     FROM cotizaciones c
     LEFT JOIN users u ON c.user_id = u.user_id
     LEFT JOIN est_cotizacion ec ON c.estado_id = ec.est_cot_id
+    LEFT JOIN clientes cl ON c.cliente_id = cl.cliente_id
     WHERE c.cotizacion_id = ? AND ec.nombre_estado = 'Aprobada'
 ");
 $stmt->bind_param('i', $cotizacion_id);
@@ -29,11 +30,11 @@ if (!$cotizacion) {
 
 // Obtener productos de la cotización
 $stmt = $mysqli->prepare("
-    SELECT cp.*, p.product_name, p.sku, p.quantity as stock_actual
+    SELECT cp.*, p.product_name, p.sku, p.quantity as stock_actual, p.description
     FROM cotizaciones_productos cp
     LEFT JOIN products p ON cp.product_id = p.product_id
     WHERE cp.cotizacion_id = ?
-    ORDER BY cp.orden
+    ORDER BY cp.cotizacion_producto_id
 ");
 $stmt->bind_param('i', $cotizacion_id);
 $stmt->execute();
@@ -42,51 +43,41 @@ $productos = $stmt->get_result();
 // Procesar conversión
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mysqli->begin_transaction();
-    
     try {
-        // Verificar si existe el tipo de movimiento "Venta", si no, crearlo
-        $stmt = $mysqli->prepare("SELECT movement_type_id FROM movement_types WHERE name = 'Venta' LIMIT 1");
+        // Descontar stock y registrar movimientos para cada producto
+        $stmt = $mysqli->prepare("
+            SELECT cp.*, p.product_name, p.sku, p.quantity as stock_actual, p.description
+            FROM cotizaciones_productos cp
+            LEFT JOIN products p ON cp.product_id = p.product_id
+            WHERE cp.cotizacion_id = ?
+            ORDER BY cp.cotizacion_producto_id
+        ");
+        $stmt->bind_param('i', $cotizacion_id);
         $stmt->execute();
-        $movement_type = $stmt->get_result()->fetch_assoc();
-        $movement_type_id = $movement_type['movement_type_id'] ?? null;
-        
-        if (!$movement_type_id) {
-            // Crear tipo de movimiento "Venta"
-            $stmt = $mysqli->prepare("INSERT INTO movement_types (name) VALUES ('Venta')");
-            $stmt->execute();
-            $movement_type_id = $stmt->insert_id;
-            $stmt->close();
-        }
-        
-        // Registrar movimientos de inventario para cada producto
-        while ($producto = $productos->fetch_assoc()) {
+        $productos_convertir = $stmt->get_result();
+        $stmt->close();
+        while ($producto = $productos_convertir->fetch_assoc()) {
             if ($producto['product_id']) {
-                // Verificar stock disponible
-                if ($producto['stock_actual'] < $producto['cantidad']) {
-                    throw new Exception("Stock insuficiente para {$producto['product_name']}. Disponible: {$producto['stock_actual']}, Requerido: {$producto['cantidad']}");
-                }
-                
                 // Registrar movimiento de salida
-                $stmt = $mysqli->prepare("
-                    INSERT INTO movements (product_id, movement_type_id, quantity, movement_date) 
-                    VALUES (?, ?, ?, NOW())
+                $stmt_mov = $mysqli->prepare("
+                    INSERT INTO movements (product_id, movement_type_id, quantity, movement_date, reference, notes, user_id) 
+                    VALUES (?, 4, ?, NOW(), ?, ?, ?)
                 ");
-                $cantidad_negativa = -$producto['cantidad']; // Salida
-                $stmt->bind_param('iii', $producto['product_id'], $movement_type_id, $cantidad_negativa);
-                $stmt->execute();
-                
-                // Actualizar stock del producto
-                $stmt = $mysqli->prepare("
-                    UPDATE products 
-                    SET quantity = quantity - ? 
-                    WHERE product_id = ?
-                ");
-                $stmt->bind_param('ii', $producto['cantidad'], $producto['product_id']);
-                $stmt->execute();
+                $cantidad_negativa = -$producto['cantidad'];
+                $referencia = "Venta por cotización: " . $cotizacion['numero_cotizacion'];
+                $notas = "Conversión de cotización a venta";
+                $user_id = $_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? null;
+                $stmt_mov->bind_param('idssi', $producto['product_id'], $cantidad_negativa, $referencia, $notas, $user_id);
+                $stmt_mov->execute();
+                $stmt_mov->close();
+                // Actualizar stock (permitir negativo)
+                $stmt_upd = $mysqli->prepare("UPDATE products SET quantity = quantity - ? WHERE product_id = ?");
+                $stmt_upd->bind_param('di', $producto['cantidad'], $producto['product_id']);
+                $stmt_upd->execute();
+                $stmt_upd->close();
             }
         }
-        
-        // Actualizar estado de la cotización
+        // Actualizar estado a 'Convertida'
         $stmt = $mysqli->prepare("
             UPDATE cotizaciones 
             SET estado_id = (SELECT est_cot_id FROM est_cotizacion WHERE nombre_estado = 'Convertida'), updated_at = NOW() 
@@ -94,24 +85,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ");
         $stmt->bind_param('i', $cotizacion_id);
         $stmt->execute();
-        
         // Registrar en historial
         require_once 'helpers.php';
         inicializarAccionesCotizacion($mysqli);
         registrarAccionCotizacion(
             $cotizacion_id,
             'Convertida',
-            'Cotización convertida a venta - Se registraron movimientos de inventario',
+            'Cotización convertida a venta y stock descontado',
             $_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? null,
             $mysqli
         );
-        
         $mysqli->commit();
-        $success = "Cotización convertida exitosamente a venta. Se han registrado los movimientos de inventario.";
-        
-        // Redirigir después de 2 segundos
+        $success = "Cotización convertida exitosamente a venta. El stock de los productos ha sido descontado y los movimientos registrados.";
         header("refresh:2;url=ver.php?id=$cotizacion_id");
-        
     } catch (Exception $e) {
         $mysqli->rollback();
         $error = "Error al convertir la cotización: " . $e->getMessage();
@@ -120,11 +106,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Reset productos para mostrar
 $stmt = $mysqli->prepare("
-    SELECT cp.*, p.product_name, p.sku, p.quantity as stock_actual
+    SELECT cp.*, p.product_name, p.sku, p.quantity as stock_actual, p.description
     FROM cotizaciones_productos cp
     LEFT JOIN products p ON cp.product_id = p.product_id
     WHERE cp.cotizacion_id = ?
-    ORDER BY cp.orden
+    ORDER BY cp.cotizacion_producto_id
 ");
 $stmt->bind_param('i', $cotizacion_id);
 $stmt->execute();
@@ -246,7 +232,7 @@ $productos = $stmt->get_result();
                 <div class="producto-item">
                     <div class="row align-items-center">
                         <div class="col-md-6">
-                            <h6 class="mb-1"><?= htmlspecialchars($producto['descripcion']) ?></h6>
+                            <h6 class="mb-1"><?= htmlspecialchars($producto['description'] ?? $producto['product_name'] ?? 'Sin descripción') ?></h6>
                             <?php if ($producto['product_id']): ?>
                                 <small class="text-muted">SKU: <?= htmlspecialchars($producto['sku']) ?></small>
                             <?php else: ?>
@@ -281,43 +267,40 @@ $productos = $stmt->get_result();
             <?php endwhile; ?>
         </div>
 
-        <?php if ($todos_con_stock): ?>
-            <div class="conversion-card">
-                <h5 class="mb-3"><i class="bi bi-check-circle"></i> Confirmar Conversión</h5>
-                <p>Al convertir esta cotización a venta:</p>
-                <ul>
-                    <li>Se registrarán movimientos de salida en el inventario</li>
-                    <li>Se actualizará el stock de los productos</li>
-                    <li>La cotización cambiará a estado "Convertida"</li>
-                    <li>Se registrará en el historial de la cotización</li>
-                </ul>
+        <div class="conversion-card">
+            <h5 class="mb-3"><i class="bi bi-check-circle"></i> Confirmar Conversión</h5>
+            <?php if (!$todos_con_stock): ?>
+                <div class="alert alert-warning" role="alert">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Advertencia:</strong> Algunos productos no tienen suficiente stock disponible. La venta se completará, pero deberás reponer inventario.
+                </div>
+            <?php endif; ?>
+            <p>Al convertir esta cotización a venta:</p>
+            <ul>
+                <li>Se registrarán movimientos de salida en el inventario</li>
+                <li>Se actualizará el stock de los productos</li>
+                <li>La cotización cambiará a estado "Convertida"</li>
+                <li>Se registrará en el historial de la cotización</li>
+            </ul>
+            
+            <form method="POST" class="mt-3">
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="confirmar" required>
+                    <label class="form-check-label" for="confirmar">
+                        Confirmo que deseo convertir esta cotización a venta
+                    </label>
+                </div>
                 
-                <form method="POST" class="mt-3">
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" id="confirmar" required>
-                        <label class="form-check-label" for="confirmar">
-                            Confirmo que deseo convertir esta cotización a venta
-                        </label>
-                    </div>
-                    
-                    <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-success" id="btnConvertir" disabled>
-                            <i class="bi bi-check-circle"></i> Convertir a Venta
-                        </button>
-                        <a href="ver.php?id=<?= $cotizacion_id ?>" class="btn btn-secondary">
-                            <i class="bi bi-x-circle"></i> Cancelar
-                        </a>
-                    </div>
-                </form>
-            </div>
-        <?php else: ?>
-            <div class="alert alert-warning" role="alert">
-                <i class="bi bi-exclamation-triangle"></i>
-                <strong>No se puede convertir la cotización</strong><br>
-                Algunos productos no tienen suficiente stock disponible. 
-                Por favor, actualiza el inventario antes de proceder.
-            </div>
-        <?php endif; ?>
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-success" id="btnConvertir" disabled>
+                        <i class="bi bi-check-circle"></i> Convertir a Venta
+                    </button>
+                    <a href="ver.php?id=<?= $cotizacion_id ?>" class="btn btn-secondary">
+                        <i class="bi bi-x-circle"></i> Cancelar
+                    </a>
+                </div>
+            </form>
+        </div>
     </main>
 
     <script src="../assets/js/script.js"></script>

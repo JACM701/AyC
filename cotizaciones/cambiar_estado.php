@@ -70,47 +70,7 @@ try {
 
     // Manejar cambios de stock según el cambio de estado
     if ($nuevo_estado_nombre === 'Aprobada' && $estado_anterior_nombre !== 'Aprobada') {
-        // APROBAR: Descontar stock solo si hay suficiente disponible
-        $productos->data_seek(0); // Resetear el puntero del resultado
-        $productos_sin_stock = [];
-        
-        while ($producto = $productos->fetch_assoc()) {
-            if ($producto['product_id']) { // Solo procesar productos del inventario
-                if ($producto['stock_actual'] >= $producto['cantidad']) {
-                    // Hay stock suficiente, descontar normalmente
-                    $nuevo_stock = $producto['stock_actual'] - $producto['cantidad'];
-                    
-                    $stmt = $mysqli->prepare("UPDATE products SET quantity = ? WHERE product_id = ?");
-                    $stmt->bind_param('ii', $nuevo_stock, $producto['product_id']);
-                    $stmt->execute();
-                    $stmt->close();
-                    
-                    // Registrar movimiento de salida
-                    $stmt = $mysqli->prepare("
-                        INSERT INTO movements (product_id, movement_type_id, quantity, reference, notes, user_id) 
-                        VALUES (?, 2, ?, ?, ?, ?)
-                    ");
-                    $referencia = "Cotización aprobada: " . $cotizacion['numero_cotizacion'];
-                    $notas = "Aprobación de cotización - Cliente: " . $cotizacion['cliente_nombre_real'];
-                    $user_id = $_SESSION['user_id'] ?? null;
-                    $cantidad_negativa = -$producto['cantidad']; // Cantidad negativa para salida
-                    $stmt->bind_param('iissi', $producto['product_id'], $cantidad_negativa, $referencia, $notas, $user_id);
-                    $stmt->execute();
-                    $stmt->close();
-                } else {
-                    // No hay stock suficiente, agregar a lista de productos sin stock
-                    $productos_sin_stock[] = $producto['product_name'];
-                }
-            }
-        }
-        
-        // Mensaje de éxito con información sobre productos sin stock
-        if (empty($productos_sin_stock)) {
-            $_SESSION['success'] = "Cotización aprobada exitosamente. Stock actualizado.";
-        } else {
-            $_SESSION['success'] = "Cotización aprobada exitosamente. Productos sin stock disponible: " . implode(", ", $productos_sin_stock);
-        }
-        
+        $_SESSION['success'] = "Cotización aprobada exitosamente.";
     } elseif ($estado_anterior_nombre === 'Aprobada' && $nuevo_estado_nombre !== 'Aprobada') {
         // DESAPROBAR: Restaurar stock solo para productos que fueron descontados
         $productos->data_seek(0); // Resetear el puntero del resultado
