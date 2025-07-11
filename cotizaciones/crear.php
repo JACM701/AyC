@@ -650,6 +650,19 @@ function renderTablaProductos() {
 $(document).on('input', '.cantidad-input', function() {
     const index = parseInt($(this).data('index'));
     let value = $(this).val();
+    productosCotizacion[index].cantidad = value;
+    // Validación visual
+    if (!value || isNaN(value) || value <= 0) {
+        $(this).addClass('is-invalid');
+    } else {
+        $(this).removeClass('is-invalid');
+    }
+    recalcularTotales();
+});
+
+$(document).on('blur', '.cantidad-input', function() {
+    const index = parseInt($(this).data('index'));
+    let value = $(this).val();
     const prod = productosCotizacion[index];
     if (prod) {
         if (prod.tipo_gestion === 'bobina') {
@@ -658,6 +671,8 @@ $(document).on('input', '.cantidad-input', function() {
             value = Math.max(1, Math.round(parseFloat(value) || 1));
         }
         productosCotizacion[index].cantidad = value;
+        // Actualiza el input visualmente
+        $(this).val(value);
         // Si es principal de paquete, sincronizar relacionados
         if (prod.paquete_id && prod.tipo_paquete === 'principal') {
             sincronizarCantidadesPaqueteV2(prod.paquete_id);
@@ -674,12 +689,25 @@ $(document).on('focus', '.cantidad-input', function() {
 // Eventos para precio
 $(document).on('input', '.precio-input', function() {
     const index = parseInt($(this).data('index'));
-    const value = parseFloat($(this).val()) || 0;
-    
-    if (productosCotizacion[index]) {
-        productosCotizacion[index].precio = value;
-        renderTablaProductos();
+    let value = $(this).val();
+    productosCotizacion[index].precio = value;
+    // Validación visual
+    if (!value || isNaN(value) || value < 0) {
+        $(this).addClass('is-invalid');
+    } else {
+        $(this).removeClass('is-invalid');
     }
+    recalcularTotales();
+});
+
+$(document).on('blur', '.precio-input', function() {
+    const index = parseInt($(this).data('index'));
+    let value = $(this).val();
+    value = parseFloat(value) || 0;
+    if (value < 0) value = 0;
+    productosCotizacion[index].precio = value;
+    $(this).val(value);
+    renderTablaProductos();
 });
 
 $(document).on('focus', '.precio-input', function() {
