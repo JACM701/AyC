@@ -51,14 +51,6 @@ if (!isset($total_products)) {
                     <i class="bi bi-clock-history"></i>
                     <span class="nav-text">Historial global</span>
                 </a>
-                <a href="../equipos/equipos.php" class="sidebar-equipos" title="Equipos">
-                    <i class="bi bi-tools"></i>
-                    <span class="nav-text">Equipos</span>
-                </a>
-                <a href="../insumos/insumos.php" class="sidebar-insumos" title="Insumos">
-                    <i class="bi bi-box2"></i>
-                    <span class="nav-text">Insumos</span>
-                </a>
             </div>
         </div>
 
@@ -126,10 +118,6 @@ if (!isset($total_products)) {
                 <a href="../usuarios/index.php" class="sidebar-configuracion" title="Usuarios">
                     <i class="bi bi-person-gear"></i>
                     <span class="nav-text">Usuarios</span>
-                </a>
-                <a href="../system_config/index.php" class="sidebar-sistema" title="Sistema">
-                    <i class="bi bi-sliders"></i>
-                    <span class="nav-text">Sistema</span>
                 </a>
             </div>
         </div>

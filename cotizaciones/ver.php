@@ -29,10 +29,18 @@ if (!$cotizacion) {
 
 // Obtener productos de la cotización
 $stmt = $mysqli->prepare("
-    SELECT cp.*, p.product_name, p.sku, p.image as product_image, p.cost_price, p.quantity as stock_actual
+    SELECT cp.*, p.product_name, p.sku, p.image as product_image, p.cost_price, p.tipo_gestion,
+           CASE 
+               WHEN p.tipo_gestion = 'bobina' THEN 
+                   COALESCE(SUM(b.metros_actuales), 0)
+               ELSE 
+                   p.quantity
+           END as stock_actual
     FROM cotizaciones_productos cp
     LEFT JOIN products p ON cp.product_id = p.product_id
+    LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
     WHERE cp.cotizacion_id = ?
+    GROUP BY cp.cotizacion_producto_id, cp.cotizacion_id, cp.product_id, cp.cantidad, cp.precio_unitario, cp.precio_total, p.product_name, p.sku, p.image, p.cost_price, p.tipo_gestion, p.quantity
     ORDER BY cp.cotizacion_producto_id
 ");
 $stmt->bind_param('i', $cotizacion_id);

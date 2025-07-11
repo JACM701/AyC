@@ -250,16 +250,19 @@ $valor_total = $stats['valor_total'];
         }
         .btn-action {
             flex: 1;
-            padding: 8px 12px;
+            padding: 10px 0;
             border-radius: 8px;
-            font-size: 0.9rem;
+            font-size: 1rem;
             border: none;
             cursor: pointer;
             transition: all 0.2s ease;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 4px;
+            gap: 6px;
+            min-height: 42px;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(18,24,102,0.07);
         }
         .btn-edit {
             background: #e3f2fd;
@@ -275,6 +278,22 @@ $valor_total = $stats['valor_total'];
         }
         .btn-movement:hover {
             background: #7b1fa2;
+            color: #fff;
+        }
+        .btn-print {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .btn-print:hover {
+            background: #ffe082;
+            color: #6d4c00;
+        }
+        .btn-prices {
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+        .btn-prices:hover {
+            background: #1565c0;
             color: #fff;
         }
         .empty-state {
@@ -501,15 +520,81 @@ $valor_total = $stats['valor_total'];
                             <button class="btn-action btn-movement" onclick="registrarMovimiento(<?= $producto['product_id'] ?>)">
                                 <i class="bi bi-arrow-left-right"></i> Movimiento
                             </button>
-                            <button class="btn-action" style="background: #e3f2fd; color: #1565c0;" onclick="buscarPrecios(<?= $producto['product_id'] ?>)">
+                            <button class="btn-action btn-prices" onclick="buscarPrecios(<?= $producto['product_id'] ?>)">
                                 <i class="bi bi-search"></i> Precios
                             </button>
+                            <?php if (!empty($producto['barcode'])): ?>
+                            <button class="btn-action btn-print" onclick="imprimirEtiqueta(<?= $producto['product_id'] ?>, '<?= htmlspecialchars($producto['product_name']) ?>', '<?= htmlspecialchars($producto['barcode']) ?>')">
+                                <i class="bi bi-printer"></i> Imprimir
+                            </button>
+                            <?php endif; ?>
                         </div>
                     </div>
                 <?php endwhile; ?>
             </div>
         <?php endif; ?>
     </main>
+
+    <!-- Modal para imprimir etiquetas -->
+    <div class="modal fade" id="modalImprimirEtiqueta" tabindex="-1" aria-labelledby="modalImprimirEtiquetaLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalImprimirEtiquetaLabel">
+                        <i class="bi bi-printer"></i> Imprimir etiqueta de código de barras
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <strong>Producto:</strong> <span id="modalProductName"></span>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Código de barras:</strong> <code id="modalBarcode"></code>
+                    </div>
+                    
+                    <form id="formImprimirEtiqueta">
+                        <input type="hidden" id="modalProductId">
+                        <input type="hidden" id="modalBarcodeValue">
+                        <input type="hidden" id="modalProductNameValue">
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="cantidadEtiquetas" class="form-label">Cantidad de etiquetas</label>
+                                <input type="number" class="form-control" id="cantidadEtiquetas" value="1" min="1" max="50">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="tamanoEtiqueta" class="form-label">Tamaño de etiqueta</label>
+                                <select class="form-select" id="tamanoEtiqueta">
+                                    <option value="40x20">40x20mm (Pequeña)</option>
+                                    <option value="50x30" selected>50x30mm (Mediana)</option>
+                                    <option value="60x40">60x40mm (Grande)</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle"></i>
+                                <strong>Nota:</strong> Esta funcionalidad está optimizada para impresoras térmicas de etiquetas adhesivas.
+                            </small>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle"></i> Cancelar
+                    </button>
+                    <button type="button" class="btn btn-outline-info" onclick="vistaPreviaEtiqueta()">
+                        <i class="bi bi-eye"></i> Vista previa
+                    </button>
+                    <button type="button" class="btn btn-warning" onclick="imprimirEtiquetaFinal()">
+                        <i class="bi bi-printer"></i> Imprimir
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="../assets/js/script.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -527,6 +612,50 @@ $valor_total = $stats['valor_total'];
         
         function buscarPrecios(id) {
             window.location.href = '../proveedores/buscar_producto.php?id=' + id;
+        }
+        
+        function imprimirEtiqueta(productId, productName, barcode) {
+            // Abrir modal de configuración de impresión
+            const modal = document.getElementById('modalImprimirEtiqueta');
+            document.getElementById('modalProductName').textContent = productName;
+            document.getElementById('modalBarcode').textContent = barcode;
+            document.getElementById('modalProductId').value = productId;
+            document.getElementById('modalBarcodeValue').value = barcode;
+            document.getElementById('modalProductNameValue').value = productName;
+            
+            const bootstrapModal = new bootstrap.Modal(modal);
+            bootstrapModal.show();
+        }
+        
+        function vistaPreviaEtiqueta() {
+            const barcode = document.getElementById('modalBarcodeValue').value;
+            const productName = document.getElementById('modalProductNameValue').value;
+            const tamano = document.getElementById('tamanoEtiqueta').value;
+            
+            const url = '../products/print_labels.php?barcode=' + encodeURIComponent(barcode) + 
+                       '&product_name=' + encodeURIComponent(productName) + 
+                       '&cantidad=1&tamano=' + tamano;
+            
+            window.open(url, '_blank', 'width=600,height=800');
+        }
+        
+        function imprimirEtiquetaFinal() {
+            const barcode = document.getElementById('modalBarcodeValue').value;
+            const productName = document.getElementById('modalProductNameValue').value;
+            const cantidad = document.getElementById('cantidadEtiquetas').value;
+            const tamano = document.getElementById('tamanoEtiqueta').value;
+            
+            const url = '../products/print_labels.php?barcode=' + encodeURIComponent(barcode) + 
+                       '&product_name=' + encodeURIComponent(productName) + 
+                       '&cantidad=' + cantidad + 
+                       '&tamano=' + tamano + 
+                       '&autoprint=1';
+            
+            window.open(url, '_blank', 'width=600,height=800');
+            
+            // Cerrar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalImprimirEtiqueta'));
+            modal.hide();
         }
     </script>
 </body>

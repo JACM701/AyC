@@ -1,6 +1,7 @@
 <?php
     require_once '../auth/middleware.php';
     require_once '../connection.php';
+    require_once '../includes/bobina_helpers.php';
 
     $success = $error = "";
     $sku_auto_generado = false;
@@ -98,9 +99,15 @@
         $min_stock = isset($_POST['min_stock']) && $_POST['min_stock'] !== '' ? intval($_POST['min_stock']) : null;
         $max_stock = isset($_POST['max_stock']) && $_POST['max_stock'] !== '' ? intval($_POST['max_stock']) : null;
         $unit_measure = isset($_POST['unit_measure']) ? trim($_POST['unit_measure']) : null;
-        // Si el precio está vacío y hay cost_price, sugerir price = cost_price * 1.3
+        
+        // Obtener margen de ganancia (por defecto 30%)
+        $margen_ganancia = isset($_POST['margen_ganancia']) ? floatval($_POST['margen_ganancia']) : 30.0;
+        if ($margen_ganancia < 0) $margen_ganancia = 30.0; // Valor por defecto si es negativo
+        
+        // Si el precio está vacío y hay cost_price, sugerir price usando el margen configurado
         if ((empty($_POST['price']) || $_POST['price'] == 0) && $cost_price !== null) {
-            $price = round($cost_price * 1.3, 2);
+            $factor = 1 + ($margen_ganancia / 100);
+            $price = round($cost_price * $factor, 2);
         }
 
         // Validación básica
@@ -158,11 +165,16 @@
                 $stmt_mov->execute();
                 $stmt_mov->close();
                 
-                // Actualizar stock basado en movimientos
-                $stmt_update = $mysqli->prepare("UPDATE products SET quantity = (SELECT COALESCE(SUM(quantity), 0) FROM movements WHERE product_id = ?) WHERE product_id = ?");
-                $stmt_update->bind_param("ii", $new_product_id, $new_product_id);
-                $stmt_update->execute();
-                $stmt_update->close();
+                // Actualizar stock basado en movimientos SOLO para productos normales
+                if ($tipo_gestion !== 'bobina') {
+                    $stmt_update = $mysqli->prepare("UPDATE products SET quantity = (SELECT COALESCE(SUM(quantity), 0) FROM movements WHERE product_id = ?) WHERE product_id = ?");
+                    $stmt_update->bind_param("ii", $new_product_id, $new_product_id);
+                    $stmt_update->execute();
+                    $stmt_update->close();
+                } else {
+                    // Para bobinas, el stock se calcula desde las bobinas, no desde movimientos
+                    actualizarStockBobina($mysqli, $new_product_id);
+                }
                 
                 // Si el tipo de gestión es bobina, mostrar opción de registrar bobinas
                 if ($tipo_gestion === 'bobina') {
@@ -577,8 +589,13 @@
                             </div>
                             <div class="mb-3" id="barcodeField" style="display:none;">
                                 <label for="barcode" class="form-label">Código de barras</label>
-                                <input type="text" class="form-control" name="barcode" id="barcode" maxlength="50" autocomplete="off">
-                                <small class="text-muted">Opcional. Escanea o ingresa el código de barras si aplica.</small>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" name="barcode" id="barcode" maxlength="50" autocomplete="off" placeholder="Escanea o ingresa el código de barras">
+                                    <button type="button" class="btn btn-outline-secondary" id="btnGenerarBarcode" title="Generar código de barras automáticamente">
+                                        <i class="bi bi-magic"></i> Generar
+                                    </button>
+                                </div>
+                                <small class="text-muted">Opcional. Escanea, ingresa manualmente o genera automáticamente.</small>
                             </div>
                         </div>
                     </div>
@@ -633,18 +650,35 @@
                     <div class="form-section">
                         <h6><i class="bi bi-currency-dollar"></i> Precios</h6>
                         <div class="row mb-3">
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <label for="cost_price" class="form-label">Costo unitario de compra/fabricación *</label>
                                 <div class="input-group">
                                     <input type="number" step="0.01" class="form-control" name="cost_price" id="cost_price" required>
-                                    <span class="input-group-text" tabindex="0" data-bs-toggle="tooltip" title="Costo real de adquisición o fabricación del producto. El sistema sugerirá el precio de venta automáticamente como un 30% más, pero puedes editarlo."><i class="bi bi-question-circle-fill"></i></span>
+                                    <span class="input-group-text" tabindex="0" data-bs-toggle="tooltip" title="Costo real de adquisición o fabricación del producto. El sistema sugerirá el precio de venta automáticamente según el margen configurado."><i class="bi bi-question-circle-fill"></i></span>
                                 </div>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-4">
+                                <label for="margen_ganancia" class="form-label">Margen de ganancia (%)</label>
+                                <div class="input-group">
+                                    <input type="number" step="0.1" min="0" max="1000" class="form-control" name="margen_ganancia" id="margen_ganancia" value="30">
+                                    <span class="input-group-text">%</span>
+                                </div>
+                                <small class="text-muted">Porcentaje que se aplicará sobre el costo para calcular el precio sugerido</small>
+                            </div>
+                            <div class="col-md-4">
                                 <label for="price" class="form-label">Precio de venta *</label>
                                 <div class="input-group">
                                     <input type="number" step="0.01" class="form-control" name="price" id="price" required>
-                                    <span class="input-group-text" tabindex="0" data-bs-toggle="tooltip" title="Precio sugerido: costo + 30%. Puedes modificarlo si deseas otro margen de ganancia."><i class="bi bi-question-circle-fill"></i></span>
+                                    <span class="input-group-text" tabindex="0" data-bs-toggle="tooltip" title="Precio sugerido: costo + margen configurado. Puedes modificarlo manualmente."><i class="bi bi-question-circle-fill"></i></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <div class="alert alert-info">
+                                    <i class="bi bi-info-circle"></i>
+                                    <strong>Información:</strong> El precio de venta se calcula automáticamente como: <code>Costo + (Costo × Margen%)</code>. 
+                                    Puedes ajustar el margen de ganancia según tus necesidades comerciales.
                                 </div>
                             </div>
                         </div>
@@ -698,10 +732,14 @@
         opacity: 0.93;
         transition: opacity 0.18s, box-shadow 0.18s;
     }
-    .btn-fab-volver:hover {
-        opacity: 1;
-        box-shadow: 0 8px 32px rgba(18,24,102,0.18);
-    }
+            .btn-fab-volver:hover {
+            opacity: 1;
+            box-shadow: 0 8px 32px rgba(18,24,102,0.18);
+        }
+        #btnGenerarBarcode:hover {
+            background-color: #6c757d;
+            color: white;
+        }
     @media (max-width: 700px) {
         .btn-fab-volver {
             right: 12px;
@@ -803,6 +841,52 @@
             }
         });
 
+        // Funcionalidad de generación de códigos de barras
+        document.getElementById('btnGenerarBarcode').addEventListener('click', function() {
+            const barcodeInput = document.getElementById('barcode');
+            const productName = document.getElementById('product_name').value.trim();
+            
+            if (!productName) {
+                // Mostrar mensaje sutil sin alerta de Windows
+                const mensajeDiv = document.createElement('div');
+                mensajeDiv.className = 'text-warning mt-2';
+                mensajeDiv.innerHTML = '<small><i class="bi bi-exclamation-triangle"></i> Ingresa primero el nombre del producto</small>';
+                barcodeInput.parentNode.parentNode.appendChild(mensajeDiv);
+                
+                document.getElementById('product_name').focus();
+                
+                // Remover mensaje después de 3 segundos
+                setTimeout(() => {
+                    if (mensajeDiv.parentNode) {
+                        mensajeDiv.remove();
+                    }
+                }, 3000);
+                return;
+            }
+            
+            // Generar código de barras único basado en timestamp + nombre del producto
+            const timestamp = Date.now().toString().slice(-8);
+            const productPrefix = productName.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, '');
+            const generatedBarcode = `PROD${productPrefix}${timestamp}`;
+            
+            barcodeInput.value = generatedBarcode;
+            
+            // Mostrar mensaje de éxito sutil
+            const mensajeDiv = document.createElement('div');
+            mensajeDiv.className = 'text-success mt-2';
+            mensajeDiv.innerHTML = '<small><i class="bi bi-check-circle"></i> Código generado: <strong>' + generatedBarcode + '</strong></small>';
+            barcodeInput.parentNode.parentNode.appendChild(mensajeDiv);
+            
+            // Remover mensaje después de 4 segundos
+            setTimeout(() => {
+                if (mensajeDiv.parentNode) {
+                    mensajeDiv.remove();
+                }
+            }, 4000);
+        });
+
+
+
         // Manejar campos de nueva categoría y proveedor protegida
         const categorySelect = document.getElementById('category');
         const newCategoryInput = document.getElementById('new_category');
@@ -887,6 +971,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     var costInput = document.getElementById('cost_price');
     var priceInput = document.getElementById('price');
+    var margenInput = document.getElementById('margen_ganancia');
     var userEdited = false;
 
     // Detecta si el usuario edita manualmente el precio
@@ -897,12 +982,48 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Función para calcular precio sugerido
+    function calcularPrecioSugerido() {
+        var costo = parseFloat(costInput.value);
+        var margen = parseFloat(margenInput.value);
+        
+        if (!isNaN(costo) && costo > 0 && !isNaN(margen) && margen >= 0) {
+            var factor = 1 + (margen / 100);
+            var sugerido = Math.round(costo * factor * 100) / 100;
+            return sugerido;
+        }
+        return null;
+    }
+
+    // Actualizar precio cuando cambie el costo
     costInput.addEventListener('input', function() {
-        var costo = parseFloat(this.value);
-        if (!isNaN(costo) && costo > 0) {
-            var sugerido = Math.round(costo * 1.3 * 100) / 100;
-            if (!userEdited || !priceInput.value || parseFloat(priceInput.value) === 0) {
-                priceInput.value = sugerido;
+        var sugerido = calcularPrecioSugerido();
+        if (sugerido !== null && (!userEdited || !priceInput.value || parseFloat(priceInput.value) === 0)) {
+            priceInput.value = sugerido;
+        }
+    });
+
+    // Actualizar precio cuando cambie el margen
+    margenInput.addEventListener('input', function() {
+        var sugerido = calcularPrecioSugerido();
+        if (sugerido !== null && (!userEdited || !priceInput.value || parseFloat(priceInput.value) === 0)) {
+            priceInput.value = sugerido;
+        }
+        // Guardar margen en localStorage
+        localStorage.setItem('margen_ganancia_default', margenInput.value);
+    });
+
+    // Cargar margen guardado al iniciar
+    document.addEventListener('DOMContentLoaded', function() {
+        var margenGuardado = localStorage.getItem('margen_ganancia_default');
+        if (margenGuardado && margenInput) {
+            margenInput.value = margenGuardado;
+            // Recalcular precio si ya hay un costo
+            if (costInput.value) {
+                var sugerido = calcularPrecioSugerido();
+                if (sugerido !== null && (!userEdited || !priceInput.value || parseFloat(priceInput.value) === 0)) {
+                    priceInput.value = sugerido;
+                }
             }
         }
     });
@@ -1054,3 +1175,4 @@ formNuevaCategoria.addEventListener('submit', function(e) {
     </script>
 </body>
 </html>
+

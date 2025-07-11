@@ -1,11 +1,12 @@
 <?php
 require_once '../auth/middleware.php';
 require_once '../connection.php';
+require_once '../includes/bobina_helpers.php';
 
 $success = $error = '';
 
 // Obtener productos para el select
-$products = $mysqli->query("SELECT product_id, product_name, tipo_gestion FROM products ORDER BY product_name");
+$products = $mysqli->query("SELECT product_id, product_name, tipo_gestion, barcode FROM products ORDER BY product_name");
 
 // Obtener tipos de movimiento para el select
 $movement_types = $mysqli->query("SELECT movement_type_id, name FROM movement_types ORDER BY name");
@@ -74,10 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $stmt->close();
 
                         // Actualizar stock del producto (suma de todas las bobinas)
-                        $stmt = $mysqli->prepare("UPDATE products SET quantity = (SELECT COALESCE(SUM(metros_actuales), 0) FROM bobinas WHERE product_id = ?) WHERE product_id = ?");
-                        $stmt->bind_param("ii", $product_id, $product_id);
-                        $stmt->execute();
-                        $stmt->close();
+                        actualizarStockBobina($mysqli, $product_id);
 
                         $mysqli->commit();
                         $accion = $is_entrada ? 'entrada' : 'consumo';
@@ -128,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = "Por favor, completa todos los campos correctamente.";
     }
     // Recargar selects tras el POST
-    $products = $mysqli->query("SELECT product_id, product_name, tipo_gestion FROM products ORDER BY product_name");
+    $products = $mysqli->query("SELECT product_id, product_name, tipo_gestion, barcode FROM products ORDER BY product_name");
     $movement_types = $mysqli->query("SELECT movement_type_id, name FROM movement_types ORDER BY name");
 }
 ?>
@@ -154,6 +152,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             margin-top: 10px; 
             display: none; 
         }
+        .barcode-result {
+            transition: all 0.3s ease;
+        }
+        .barcode-result .alert {
+            margin-bottom: 0;
+            border-radius: 8px;
+        }
+        #barcodeInput {
+            font-family: monospace;
+            font-size: 1.1rem;
+            letter-spacing: 1px;
+        }
+        #btnBuscarBarcode {
+            border-left: none;
+        }
+        #btnBuscarBarcode:hover {
+            background-color: #6c757d;
+            color: white;
+        }
         @media (max-width: 900px) { .main-content { max-width: 98vw; padding: 0 2vw; } }
     </style>
 </head>
@@ -175,19 +192,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <form action="" method="POST" autocomplete="off">
         <div class="mb-3">
             <label for="product_id" class="form-label">Producto:</label>
-            <select name="product_id" id="product_id" class="form-select" required>
-                <option value="">-- Selecciona un producto --</option>
-                <?php while ($row = $products->fetch_assoc()): ?>
-                    <option value="<?= $row['product_id'] ?>" 
-                            data-tipo="<?= $row['tipo_gestion'] ?>"
-                            <?= (isset($_POST['product_id']) && $_POST['product_id'] == $row['product_id']) ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($row['product_name']) ?>
-                        <?php if ($row['tipo_gestion'] === 'bobina'): ?>
-                            (Bobina)
-                        <?php endif; ?>
-                    </option>
-                <?php endwhile; ?>
-            </select>
+            <div class="input-group">
+                <select name="product_id" id="product_id" class="form-select" required>
+                    <option value="">-- Selecciona un producto --</option>
+                    <?php while ($row = $products->fetch_assoc()): ?>
+                        <option value="<?= $row['product_id'] ?>" 
+                                data-tipo="<?= $row['tipo_gestion'] ?>"
+                                data-barcode="<?= htmlspecialchars($row['barcode'] ?? '') ?>"
+                                <?= (isset($_POST['product_id']) && $_POST['product_id'] == $row['product_id']) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($row['product_name']) ?>
+                            <?php if ($row['tipo_gestion'] === 'bobina'): ?>
+                                (Bobina)
+                            <?php endif; ?>
+                        </option>
+                    <?php endwhile; ?>
+                </select>
+                <button type="button" class="btn btn-outline-secondary" id="btnBuscarBarcode" title="Buscar por código de barras">
+                    <i class="bi bi-upc-scan"></i>
+                </button>
+            </div>
+            <small class="text-muted">O usa el botón de escáner para buscar por código de barras</small>
+        </div>
+
+        <!-- Modal para búsqueda por código de barras -->
+        <div class="modal fade" id="modalBuscarBarcode" tabindex="-1" aria-labelledby="modalBuscarBarcodeLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalBuscarBarcodeLabel">
+                            <i class="bi bi-upc-scan"></i> Buscar por código de barras
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="barcodeInput" class="form-label">Código de barras:</label>
+                            <input type="text" class="form-control" id="barcodeInput" placeholder="Escanea o ingresa el código de barras" autofocus>
+                            <div class="form-text">Escanea el código de barras del producto o ingrésalo manualmente</div>
+                        </div>
+                        <div id="barcodeResult" class="mt-3 barcode-result" style="display:none;"></div>
+                        <div class="mt-3">
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle"></i>
+                                <strong>Consejos:</strong>
+                                <ul class="mt-1 mb-0">
+                                    <li>Coloca el cursor en el campo y escanea el código de barras</li>
+                                    <li>También puedes escribir el código manualmente</li>
+                                    <li>Presiona Enter para seleccionar el producto encontrado</li>
+                                </ul>
+                            </small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle"></i> Cancelar
+                        </button>
+                        <button type="button" class="btn btn-primary" id="btnSeleccionarProducto" style="display:none;">
+                            <i class="bi bi-check-circle"></i> Seleccionar producto
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Sección de bobinas (solo para productos tipo bobina) -->
@@ -204,28 +269,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
 
-        <div class="mb-3">
-            <label for="movement_type_id" class="form-label">Tipo de movimiento:</label>
-            <div class="input-group">
-                <select name="movement_type_id" id="movement_type_id" class="form-select" required>
-                    <option value="">-- Selecciona un tipo --</option>
-                    <?php while ($mt = $movement_types->fetch_assoc()): ?>
-                        <option value="<?= $mt['movement_type_id'] ?>" <?= (isset($_POST['movement_type_id']) && $_POST['movement_type_id'] == $mt['movement_type_id']) ? 'selected' : '' ?>><?= htmlspecialchars($mt['name']) ?></option>
-                    <?php endwhile; ?>
-                </select>
-                <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoTipoMovimiento" title="Agregar nuevo tipo de movimiento">
-                    <i class="bi bi-plus"></i>
-                </button>
-            </div>
+        <!-- Campo de cantidad SIEMPRE visible -->
+        <div class="mb-3" id="cantidadSection">
+            <label for="quantity" class="form-label" id="cantidadLabel">Cantidad *</label>
+            <input type="number" class="form-control" name="quantity" id="quantity" min="1" step="1" required>
+            <div class="form-text" id="quantityHelp">Ingresa la cantidad</div>
         </div>
-        <div class="mb-3">
-            <label for="quantity" class="form-label">Cantidad:</label>
-            <input type="number" name="quantity" id="quantity" class="form-control" min="0.01" step="0.01" required value="<?= isset($_POST['quantity']) ? htmlspecialchars($_POST['quantity']) : '' ?>">
-            <small class="text-muted" id="quantityHelp">Ingresa la cantidad</small>
-        </div>
-        
-        <!-- Campo para especificar tipo de movimiento (solo para productos normales) -->
-        <div class="mb-3" id="tipoMovimientoSection" style="display:none;">
+
+        <!-- Radios de tipo de movimiento SIEMPRE visibles -->
+        <div class="mb-3" id="tipoMovimientoSection">
             <label class="form-label">Tipo de movimiento:</label>
             <div class="d-flex gap-3">
                 <div class="form-check">
@@ -242,6 +294,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
             <small class="text-muted">Selecciona si este movimiento aumenta o disminuye el inventario</small>
+            <!-- Campo oculto para movement_type_id -->
+            <input type="hidden" name="movement_type_id" id="movement_type_id" value="1">
         </div>
         <div class="d-flex gap-2">
             <button type="submit" class="btn btn-primary flex-fill">
@@ -259,30 +313,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script src="../assets/js/script.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    // Manejar cambio de producto
-    document.getElementById('product_id').addEventListener('change', function() {
-        const productId = this.value;
-        const selectedOption = this.options[this.selectedIndex];
-        const tipoGestion = selectedOption.dataset.tipo;
-        const bobinaSection = document.getElementById('bobinaSection');
-        const tipoMovimientoSection = document.getElementById('tipoMovimientoSection');
-        const quantityInput = document.getElementById('quantity');
-        const quantityHelp = document.getElementById('quantityHelp');
-        
+// --- Lógica robusta para producto, bobina y cantidad ---
+document.addEventListener('DOMContentLoaded', function() {
+    const productSelect = document.getElementById('product_id');
+    const bobinaSection = document.getElementById('bobinaSection');
+    const bobinaSelect = document.getElementById('bobina_id');
+    const cantidadInput = document.getElementById('quantity');
+    const cantidadLabel = document.getElementById('cantidadLabel');
+    const cantidadHelp = document.getElementById('quantityHelp');
+    const tipoMovimientoSection = document.getElementById('tipoMovimientoSection');
+    const isEntradaRadio1 = document.getElementById('is_entrada_1');
+    const isEntradaRadio0 = document.getElementById('is_entrada_0');
+    const movementTypeIdHidden = document.getElementById('movement_type_id');
+
+    function actualizarCamposPorProducto() {
+        const selectedOption = productSelect.options[productSelect.selectedIndex];
+        const tipoGestion = selectedOption ? selectedOption.dataset.tipo : '';
         if (tipoGestion === 'bobina') {
             bobinaSection.style.display = 'block';
-            tipoMovimientoSection.style.display = 'none';
-            quantityInput.step = '0.01';
-            quantityInput.min = '0.01';
-            quantityHelp.textContent = 'Ingresa los metros a consumir';
-            
+            cantidadInput.step = '0.01';
+            cantidadInput.min = '0.01';
+            cantidadLabel.textContent = 'Metros a mover *';
+            cantidadHelp.textContent = 'Ingresa los metros a consumir o ingresar';
             // Cargar bobinas disponibles
-            fetch(`../bobinas/bobinas_por_producto.php?product_id=${productId}`)
+            fetch(`../bobinas/bobinas_por_producto.php?product_id=${productSelect.value}`)
                 .then(response => response.json())
                 .then(bobinas => {
-                    const bobinaSelect = document.getElementById('bobina_id');
                     bobinaSelect.innerHTML = '<option value="">-- Selecciona una bobina --</option>';
-                    
                     bobinas.forEach(bobina => {
                         const option = document.createElement('option');
                         option.value = bobina.bobina_id;
@@ -293,90 +350,135 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 });
         } else {
             bobinaSection.style.display = 'none';
-            tipoMovimientoSection.style.display = 'block';
-            quantityInput.step = '1';
-            quantityInput.min = '1';
-            quantityHelp.textContent = 'Ingresa la cantidad';
+            cantidadInput.step = '1';
+            cantidadInput.min = '1';
+            cantidadLabel.textContent = 'Cantidad *';
+            cantidadHelp.textContent = 'Ingresa la cantidad';
         }
-    });
+    }
+    productSelect.addEventListener('change', actualizarCamposPorProducto);
+    actualizarCamposPorProducto();
 
-    // Manejar cambio de bobina
-    document.getElementById('bobina_id').addEventListener('change', function() {
-        const selectedOption = this.options[this.selectedIndex];
-        const bobinaInfo = document.getElementById('bobinaInfo');
-        const bobinaInfoText = document.getElementById('bobinaInfoText');
-        
-        if (this.value) {
-            const metros = selectedOption.dataset.metros;
-            bobinaInfoText.textContent = `Metros disponibles: ${metros}m`;
-            bobinaInfo.style.display = 'block';
-        } else {
-            bobinaInfo.style.display = 'none';
-        }
-    });
+    // Mostrar info de bobina seleccionada
+    if (bobinaSelect) {
+        bobinaSelect.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            const bobinaInfo = document.getElementById('bobinaInfo');
+            const bobinaInfoText = document.getElementById('bobinaInfoText');
+            if (this.value) {
+                const metros = selectedOption.dataset.metros;
+                bobinaInfoText.textContent = `Metros disponibles: ${metros}m`;
+                bobinaInfo.style.display = 'block';
+            } else {
+                bobinaInfo.style.display = 'none';
+            }
+        });
+    }
 
-    // Validar formulario
+    // Actualizar el campo hidden de movement_type_id cuando cambian los radios
+    function actualizarMovementTypeId() {
+        const isEntrada = isEntradaRadio1.checked;
+        movementTypeIdHidden.value = isEntrada ? '1' : '2'; // Asumiendo que '1' es Entrada y '2' es Salida
+    }
+
+    isEntradaRadio1.addEventListener('change', actualizarMovementTypeId);
+    isEntradaRadio0.addEventListener('change', actualizarMovementTypeId);
+    // Establecer el valor inicial al cargar la página
+    actualizarMovementTypeId();
+
+    // Validar formulario antes de enviar
     document.querySelector('form').addEventListener('submit', function(e) {
-        const productId = document.getElementById('product_id').value;
-        const selectedOption = document.getElementById('product_id').options[document.getElementById('product_id').selectedIndex];
-        const tipoGestion = selectedOption.dataset.tipo;
-        const bobinaId = document.getElementById('bobina_id').value;
-        
-        if (tipoGestion === 'bobina' && !bobinaId) {
+        const selectedOption = productSelect.options[productSelect.selectedIndex];
+        const tipoGestion = selectedOption ? selectedOption.dataset.tipo : '';
+        if (tipoGestion === 'bobina' && !bobinaSelect.value) {
             e.preventDefault();
             alert('Para productos tipo bobina, debes seleccionar una bobina específica.');
         }
     });
+});
 
-    // Función para agregar nuevo tipo de movimiento
-    function agregarNuevoTipoMovimiento() {
-        const nombre = document.getElementById('nuevoTipoMovimiento').value.trim();
-        if (!nombre) {
-            alert('Por favor, ingresa un nombre para el tipo de movimiento.');
-            return;
+// --- Búsqueda por código de barras ---
+let productoEncontrado = null;
+document.getElementById('btnBuscarBarcode').addEventListener('click', function() {
+    const modal = new bootstrap.Modal(document.getElementById('modalBuscarBarcode'));
+    modal.show();
+    setTimeout(() => {
+        const input = document.getElementById('barcodeInput');
+        if (input) input.focus();
+    }, 300);
+});
+document.getElementById('barcodeInput').addEventListener('input', function() {
+    const barcode = this.value.trim().toUpperCase().replace(/\s+/g, '');
+    const resultDiv = document.getElementById('barcodeResult');
+    const btnSeleccionar = document.getElementById('btnSeleccionarProducto');
+    const productSelect = document.getElementById('product_id');
+    let encontrado = false;
+    for (let option of productSelect.options) {
+        let optBarcode = (option.dataset.barcode || '').trim().toUpperCase().replace(/\s+/g, '');
+        if (optBarcode && optBarcode === barcode) {
+            productoEncontrado = {
+                id: option.value,
+                name: option.textContent,
+                tipo: option.dataset.tipo
+            };
+            encontrado = true;
+            break;
         }
-
-        const formData = new FormData();
-        formData.append('name', nombre);
-
-        fetch('../movements/add_type.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Agregar la nueva opción al select
-                const select = document.getElementById('movement_type_id');
-                const option = document.createElement('option');
-                option.value = data.id;
-                option.textContent = data.name;
-                select.appendChild(option);
-                select.value = data.id; // Seleccionar el nuevo tipo
-                
-                // Cerrar modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('modalNuevoTipoMovimiento'));
-                modal.hide();
-                
-                // Limpiar campo
-                document.getElementById('nuevoTipoMovimiento').value = '';
-                
-                // Mostrar mensaje de éxito
-                alert('Tipo de movimiento agregado correctamente.');
-            } else {
-                alert('Error: ' + data.error);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error al agregar el tipo de movimiento.');
-        });
     }
-
-    // Enfocar el campo cuando se abra el modal
-    document.getElementById('modalNuevoTipoMovimiento').addEventListener('shown.bs.modal', function() {
-        document.getElementById('nuevoTipoMovimiento').focus();
-    });
+    if (encontrado) {
+        resultDiv.innerHTML = `
+            <div class="alert alert-success">
+                <i class="bi bi-check-circle"></i>
+                <strong>Producto encontrado:</strong><br>
+                ${productoEncontrado.name}
+            </div>
+        `;
+        resultDiv.style.display = 'block';
+        btnSeleccionar.style.display = 'inline-block';
+    } else {
+        resultDiv.innerHTML = `
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Producto no encontrado</strong><br>
+                No se encontró ningún producto con el código de barras: <code>${barcode}</code>
+            </div>
+        `;
+        resultDiv.style.display = 'block';
+        btnSeleccionar.style.display = 'none';
+        productoEncontrado = null;
+    }
+});
+document.getElementById('btnSeleccionarProducto').addEventListener('click', function() {
+    if (productoEncontrado) {
+        const productSelect = document.getElementById('product_id');
+        productSelect.value = productoEncontrado.id;
+        // Disparar el evento change para activar la lógica de bobinas
+        const event = new Event('change');
+        productSelect.dispatchEvent(event);
+        // Cerrar modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('modalBuscarBarcode'));
+        modal.hide();
+        // Limpiar campo de búsqueda
+        document.getElementById('barcodeInput').value = '';
+        document.getElementById('barcodeResult').style.display = 'none';
+        this.style.display = 'none';
+        productoEncontrado = null;
+    }
+});
+document.getElementById('modalBuscarBarcode').addEventListener('hidden.bs.modal', function() {
+    document.getElementById('barcodeInput').value = '';
+    document.getElementById('barcodeResult').style.display = 'none';
+    document.getElementById('btnSeleccionarProducto').style.display = 'none';
+    productoEncontrado = null;
+});
+document.getElementById('barcodeInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        if (productoEncontrado) {
+            document.getElementById('btnSeleccionarProducto').click();
+        }
+    }
+});
 </script>
 
 <!-- Modal para agregar nuevo tipo de movimiento -->

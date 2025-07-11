@@ -62,7 +62,28 @@ while ($prod = $productos_cotizacion->fetch_assoc()) {
 // --- Preparar datos para selects ---
 $clientes = $mysqli->query("SELECT cliente_id, nombre, telefono, ubicacion, email FROM clientes ORDER BY nombre ASC");
 $clientes_array = $clientes ? $clientes->fetch_all(MYSQLI_ASSOC) : [];
-$productos = $mysqli->query("SELECT p.product_id, p.product_name, p.sku, p.price, p.quantity, c.name as categoria, s.name as proveedor FROM products p LEFT JOIN categories c ON p.category_id = c.category_id LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id ORDER BY p.product_name ASC");
+$productos = $mysqli->query("
+    SELECT 
+        p.product_id, 
+        p.product_name, 
+        p.sku, 
+        p.price, 
+        p.tipo_gestion,
+        c.name as categoria, 
+        s.name as proveedor,
+        CASE 
+            WHEN p.tipo_gestion = 'bobina' THEN 
+                COALESCE(SUM(b.metros_actuales), 0)
+            ELSE 
+                p.quantity
+        END as stock_disponible
+    FROM products p 
+    LEFT JOIN categories c ON p.category_id = c.category_id 
+    LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id
+    LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
+    GROUP BY p.product_id, p.product_name, p.sku, p.price, p.tipo_gestion, c.name, s.name, p.quantity
+    ORDER BY p.product_name ASC
+");
 $productos_array = $productos ? $productos->fetch_all(MYSQLI_ASSOC) : [];
 $categorias = $mysqli->query("SELECT category_id, name FROM categories ORDER BY name ASC");
 $proveedores = $mysqli->query("SELECT supplier_id, name FROM suppliers ORDER BY name ASC");
@@ -316,7 +337,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 data-nombre="<?= htmlspecialchars($prod['product_name']) ?>" 
                                 data-sku="<?= htmlspecialchars($prod['sku']) ?>" 
                                 data-precio="<?= $prod['price'] ?>" 
-                                data-stock="<?= $prod['quantity'] ?>"
+                                data-stock="<?= $prod['stock_disponible'] ?>"
                                 data-categoria="<?= htmlspecialchars($prod['categoria'] ?? '') ?>"
                                 data-proveedor="<?= htmlspecialchars($prod['proveedor'] ?? '') ?>">
                             <?= htmlspecialchars($prod['product_name']) ?> - <?= htmlspecialchars($prod['sku']) ?> ($<?= number_format($prod['price'], 2) ?>)

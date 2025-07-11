@@ -1,6 +1,7 @@
 <?php
 require_once '../auth/middleware.php';
 require_once '../connection.php';
+require_once '../includes/bobina_helpers.php';
 
 $success = $error = '';
 
@@ -34,10 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->close();
 
             // Actualizar stock del producto (suma de todas las bobinas)
-            $stmt = $mysqli->prepare("UPDATE products SET quantity = (SELECT COALESCE(SUM(metros_actuales), 0) FROM bobinas WHERE product_id = ?) WHERE product_id = ?");
-            $stmt->bind_param("ii", $product_id, $product_id);
-            $stmt->execute();
-            $stmt->close();
+            actualizarStockBobina($mysqli, $product_id);
 
             $mysqli->commit();
             $success = 'Bobina registrada correctamente. Stock actualizado automáticamente.';

@@ -16,7 +16,26 @@ if (!$table_exists) {
 // Obtener datos para selects
 $categorias = $mysqli->query("SELECT * FROM categorias_plantillas ORDER BY nombre");
 $clientes = $mysqli->query("SELECT cliente_id, nombre, telefono FROM clientes ORDER BY nombre");
-$productos = $mysqli->query("SELECT p.product_id, p.product_name, p.sku, p.price, p.quantity, c.name as categoria FROM products p LEFT JOIN categories c ON p.category_id = c.category_id ORDER BY p.product_name");
+$productos = $mysqli->query("
+    SELECT 
+        p.product_id, 
+        p.product_name, 
+        p.sku, 
+        p.price, 
+        p.tipo_gestion,
+        c.name as categoria,
+        CASE 
+            WHEN p.tipo_gestion = 'bobina' THEN 
+                COALESCE(SUM(b.metros_actuales), 0)
+            ELSE 
+                p.quantity
+        END as stock_disponible
+    FROM products p 
+    LEFT JOIN categories c ON p.category_id = c.category_id
+    LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
+    GROUP BY p.product_id, p.product_name, p.sku, p.price, p.tipo_gestion, c.name, p.quantity
+    ORDER BY p.product_name ASC
+");
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nombre = trim($_POST['nombre']);
@@ -315,8 +334,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 });
                 
                 filtrados.forEach(p => {
-                    sugerencias += `<button type='button' class='list-group-item list-group-item-action' data-id='${p.product_id}' data-nombre='${p.product_name}' data-sku='${p.sku}' data-categoria='${p.categoria||''}' data-stock='${p.quantity}' data-precio='${p.price}'>
-                        <b>${p.product_name}</b> <span class='badge bg-${p.quantity > 0 ? 'success' : 'danger'} ms-2'>Stock: ${p.quantity}</span><br>
+                    sugerencias += `<button type='button' class='list-group-item list-group-item-action' data-id='${p.product_id}' data-nombre='${p.product_name}' data-sku='${p.sku}' data-categoria='${p.categoria||''}' data-stock='${p.stock_disponible}' data-precio='${p.price}'>
+                        <b>${p.product_name}</b> <span class='badge bg-${p.stock_disponible > 0 ? 'success' : 'danger'} ms-2'>Stock: ${p.stock_disponible}</span><br>
                         <small>SKU: ${p.sku || '-'} | $${parseFloat(p.price).toFixed(2)}</small>
                     </button>`;
                 });
@@ -389,7 +408,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <td>${p.nombre}</td>
                         <td>${p.sku || ''}</td>
                         <td>${p.categoria || ''}</td>
-                        <td>${p.stock}</td>
+                        <td>${p.stock_disponible}</td>
                         <td>
                             <input type="number" 
                                    min="1" 

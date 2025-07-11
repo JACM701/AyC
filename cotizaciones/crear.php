@@ -5,7 +5,28 @@ require_once '../connection.php';
 // --- Preparar datos para selects ---
 $clientes = $mysqli->query("SELECT cliente_id, nombre, telefono, ubicacion, email FROM clientes ORDER BY nombre ASC");
 $clientes_array = $clientes ? $clientes->fetch_all(MYSQLI_ASSOC) : [];
-$productos = $mysqli->query("SELECT p.product_id, p.product_name, p.sku, p.price, p.quantity, p.tipo_gestion, c.name as categoria, s.name as proveedor FROM products p LEFT JOIN categories c ON p.category_id = c.category_id LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id ORDER BY p.product_name ASC");
+$productos = $mysqli->query("
+    SELECT 
+        p.product_id, 
+        p.product_name, 
+        p.sku, 
+        p.price, 
+        p.tipo_gestion,
+        c.name as categoria, 
+        s.name as proveedor,
+        CASE 
+            WHEN p.tipo_gestion = 'bobina' THEN 
+                COALESCE(SUM(b.metros_actuales), 0)
+            ELSE 
+                p.quantity
+        END as stock_disponible
+    FROM products p 
+    LEFT JOIN categories c ON p.category_id = c.category_id 
+    LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id
+    LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
+    GROUP BY p.product_id, p.product_name, p.sku, p.price, p.tipo_gestion, c.name, s.name, p.quantity
+    ORDER BY p.product_name ASC
+");
 $productos_array = $productos ? $productos->fetch_all(MYSQLI_ASSOC) : [];
 $categorias = $mysqli->query("SELECT category_id, name FROM categories ORDER BY name ASC");
 $proveedores = $mysqli->query("SELECT supplier_id, name FROM suppliers ORDER BY name ASC");
@@ -511,8 +532,8 @@ $('#buscador_producto').on('input', function() {
         });
         
         filtrados.forEach(p => {
-            sugerencias += `<button type='button' class='list-group-item list-group-item-action' data-id='${p.product_id}' data-nombre='${p.product_name}' data-sku='${p.sku}' data-categoria='${p.categoria||''}' data-proveedor='${p.proveedor||''}' data-stock='${p.quantity}' data-precio='${p.price}'>
-                <b>${p.product_name}</b> <span class='badge bg-${p.quantity > 0 ? 'success' : 'danger'} ms-2'>Stock: ${p.quantity}</span><br>
+            sugerencias += `<button type='button' class='list-group-item list-group-item-action' data-id='${p.product_id}' data-nombre='${p.product_name}' data-sku='${p.sku}' data-categoria='${p.categoria||''}' data-proveedor='${p.proveedor||''}' data-stock='${p.stock_disponible}' data-precio='${p.price}'>
+                <b>${p.product_name}</b> <span class='badge bg-${p.stock_disponible > 0 ? 'success' : 'danger'} ms-2'>Stock: ${p.stock_disponible}</span><br>
                 <small>SKU: ${p.sku || '-'} | $${parseFloat(p.price).toFixed(2)}</small>
             </button>`;
         });
@@ -527,7 +548,7 @@ $('#sugerencias_productos').on('click', 'button', function() {
         sku: $(this).data('sku'),
         categoria: $(this).data('categoria'),
         proveedor: $(this).data('proveedor'),
-        stock: prod ? (prod.tipo_gestion === 'bobina' ? (prod.metros_totales || prod.quantity) : prod.quantity) : $(this).data('stock'),
+        stock: prod ? (prod.tipo_gestion === 'bobina' ? (prod.stock_disponible || 0) : prod.stock_disponible) : $(this).data('stock'),
         cantidad: prod && prod.tipo_gestion === 'bobina' ? 1.00 : 1,
         precio: $(this).data('precio'),
         tipo_gestion: prod ? prod.tipo_gestion : 'pieza'
@@ -775,7 +796,7 @@ function aplicarPaqueteCotizacion(idx) {
                 sku: prod.sku,
                 categoria: prod.categoria,
                 proveedor: prod.proveedor,
-                stock: prod.tipo_gestion === 'bobina' ? (prod.metros_totales || prod.quantity) : prod.quantity,
+                stock: prod.tipo_gestion === 'bobina' ? (prod.stock_disponible || 0) : prod.stock_disponible,
                 cantidad: prod.tipo_gestion === 'bobina' ? (item.factor || 1.00) : (item.factor || 1),
                 precio: prod.price,
                 tipo_gestion: prod.tipo_gestion,

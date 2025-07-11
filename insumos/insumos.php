@@ -7,12 +7,21 @@ function getProductosInventario() {
     global $mysqli;
     $productos = [];
     
-    $query = "SELECT p.product_id as id, p.product_name as nombre, p.quantity as stock, 
+    $query = "SELECT p.product_id as id, p.product_name as nombre, 
+                     CASE 
+                         WHEN p.tipo_gestion = 'bobina' THEN 
+                             COALESCE(SUM(b.metros_actuales), 0)
+                         ELSE 
+                             p.quantity
+                     END as stock,
                      p.price as precio, p.tipo_gestion, c.name as categoria, s.name as proveedor
               FROM products p 
               LEFT JOIN categories c ON p.category_id = c.category_id 
               LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id 
-              WHERE p.quantity > 0 
+              LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
+              WHERE (p.quantity > 0 OR p.tipo_gestion = 'bobina')
+              GROUP BY p.product_id, p.product_name, p.price, p.tipo_gestion, c.name, s.name, p.quantity
+              HAVING stock > 0
               ORDER BY p.product_name";
     
     $result = $mysqli->query($query);
@@ -105,7 +114,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
     
     // Obtener producto de origen
-    $stmt = $mysqli->prepare("SELECT p.product_id, p.product_name, p.quantity, p.price, p.category_id, p.supplier_id, p.tipo_gestion, c.name as categoria_nombre FROM products p LEFT JOIN categories c ON p.category_id = c.category_id WHERE p.product_id = ?");
+    $stmt = $mysqli->prepare("SELECT p.product_id, p.product_name, p.quantity, p.price, p.category_id, p.supplier_id, p.tipo_gestion, c.name as categoria_nombre,
+                                     CASE 
+                                         WHEN p.tipo_gestion = 'bobina' THEN 
+                                             COALESCE(SUM(b.metros_actuales), 0)
+                                         ELSE 
+                                             p.quantity
+                                     END as stock_disponible
+                              FROM products p 
+                              LEFT JOIN categories c ON p.category_id = c.category_id 
+                              LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
+                              WHERE p.product_id = ?
+                              GROUP BY p.product_id, p.product_name, p.quantity, p.price, p.category_id, p.supplier_id, p.tipo_gestion, c.name");
     $stmt->bind_param('i', $product_id);
     $stmt->execute();
     $producto = $stmt->get_result()->fetch_assoc();
@@ -116,8 +136,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         exit;
     }
     
-    if ($producto['quantity'] < $cantidad) {
-        echo json_encode(['success'=>false,'message'=>'No hay suficiente stock disponible en el producto de origen. Stock actual: ' . $producto['quantity']]);
+    if ($producto['stock_disponible'] < $cantidad) {
+        echo json_encode(['success'=>false,'message'=>'No hay suficiente stock disponible en el producto de origen. Stock actual: ' . $producto['stock_disponible']]);
         exit;
     }
     
@@ -138,7 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $estado = 'agotado';
     }
     
-    // Insertar insumo
+    // Insertar insumo (SIN descontar del inventario)
     $stmt = $mysqli->prepare("INSERT INTO insumos (product_id, nombre, categoria, unidad, cantidad, minimo, precio_unitario, ubicacion, estado, consumo_semanal, ultima_actualizacion, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW(), 1)");
     $nombre_insumo = $producto['product_name'];
     $categoria = $producto['categoria_nombre'] ?? '';
@@ -146,21 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $stmt->bind_param('isssddsss', $product_id, $nombre_insumo, $categoria, $unidad, $cantidad, $minimo, $precio_unitario, $ubicacion, $estado);
     
     if ($stmt->execute()) {
-        // Descontar stock del producto de origen
-        $stmt2 = $mysqli->prepare("UPDATE products SET quantity = quantity - ? WHERE product_id = ?");
-        $stmt2->bind_param('di', $cantidad, $product_id);
-        $stmt2->execute();
-        $stmt2->close();
-        
-        // Registrar movimiento en la tabla movements
-        $movement_type_id = 2; // Salida
-        $stmt3 = $mysqli->prepare("INSERT INTO movements (product_id, movement_type_id, quantity, notes, user_id, movement_date) VALUES (?, ?, ?, ?, ?, NOW())");
-        $notes = "Creación de insumo: " . $nombre_insumo;
-        $stmt3->bind_param('iissi', $product_id, $movement_type_id, $cantidad, $notes, $user_id);
-        $stmt3->execute();
-        $stmt3->close();
-        
-        echo json_encode(['success'=>true,'message'=>'Insumo registrado correctamente y stock actualizado.']);
+        echo json_encode(['success'=>true,'message'=>'Insumo registrado correctamente. Stock disponible: ' . $producto['stock_disponible']]);
     } else {
         echo json_encode(['success'=>false,'message'=>'Error al registrar el insumo: ' . $stmt->error]);
     }
@@ -228,11 +234,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         exit;
     }
     
-    // Obtener insumo actual y producto origen
-    $stmt = $mysqli->prepare("SELECT i.*, p.product_id as product_id, p.quantity as product_stock, p.tipo_gestion 
+    // Obtener datos del insumo con información del producto origen
+    $stmt = $mysqli->prepare("SELECT i.*, p.product_name as producto_origen, p.tipo_gestion,
+                                     CASE 
+                                         WHEN p.tipo_gestion = 'bobina' THEN 
+                                             COALESCE(SUM(b.metros_actuales), 0)
+                                         ELSE 
+                                             p.quantity
+                                     END as product_stock
                               FROM insumos i 
                               LEFT JOIN products p ON i.product_id = p.product_id 
-                              WHERE i.insumo_id = ?");
+                              LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
+                              WHERE i.insumo_id = ?
+                              GROUP BY i.insumo_id, i.product_id, i.nombre, i.categoria, i.unidad, i.cantidad, i.minimo, i.precio_unitario, i.ubicacion, i.estado, i.consumo_semanal, i.ultima_actualizacion, i.is_active, i.created_at, i.updated_at, p.product_id, p.product_name, p.tipo_gestion, p.quantity");
     $stmt->bind_param('i', $insumo_id);
     $stmt->execute();
     $insumo = $stmt->get_result()->fetch_assoc();
@@ -258,37 +272,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             exit;
         }
         
-        if ($insumo['tipo_gestion'] === 'bobina') {
-            // --- Lógica especial para bobinas ---
-            // Obtener bobinas con stock, ordenadas por fecha (FIFO)
-            $stmt_bobinas = $mysqli->prepare("SELECT bobina_id, metros_actuales FROM bobinas WHERE product_id = ? AND is_active = 1 AND metros_actuales > 0 ORDER BY created_at ASC, bobina_id ASC");
-            $stmt_bobinas->bind_param('i', $insumo['product_id']);
-            $stmt_bobinas->execute();
-            $bobinas = $stmt_bobinas->get_result()->fetch_all(MYSQLI_ASSOC);
-            $stmt_bobinas->close();
-            
-            $metros_restantes = $cantidad;
-            $bobinas_a_descontar = [];
-            foreach ($bobinas as $bobina) {
-                if ($metros_restantes <= 0) break;
-                $descontar = min($bobina['metros_actuales'], $metros_restantes);
-                $bobinas_a_descontar[] = [
-                    'bobina_id' => $bobina['bobina_id'],
-                    'descontar' => $descontar
-                ];
-                $metros_restantes -= $descontar;
-            }
-            if ($metros_restantes > 0) {
-                echo json_encode(['success'=>false,'message'=>'No hay suficientes metros disponibles en las bobinas para realizar la entrada.']);
-                exit;
-            }
-        }
-        else {
-            // Producto normal: verificar stock en products
-            if ($insumo['product_stock'] < $cantidad) {
-                echo json_encode(['success'=>false,'message'=>'No hay suficiente stock en el inventario. Stock disponible: ' . $insumo['product_stock'] . ' ' . $insumo['unidad']]);
-                exit;
-            }
+        // Verificar que hay stock disponible (sin descontar)
+        if ($insumo['product_stock'] < $cantidad) {
+            echo json_encode(['success'=>false,'message'=>'No hay suficiente stock disponible en el inventario. Stock disponible: ' . $insumo['product_stock'] . ' ' . $insumo['unidad']]);
+            exit;
         }
     } else {
         // Para salidas, verificar stock del insumo
@@ -319,7 +306,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $mysqli->begin_transaction();
     
     try {
-        // Registrar movimiento (insert y bind_param en orden correcto)
+        // Registrar movimiento
         $stmt = $mysqli->prepare("INSERT INTO insumos_movements (insumo_id, user_id, tipo_movimiento, motivo, cantidad, fecha_movimiento) VALUES (?, ?, ?, ?, ?, NOW())");
         $stmt->bind_param('iissd', $insumo_id, $user_id, $tipo_movimiento, $motivo, $cantidad);
         
@@ -328,7 +315,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
         $stmt->close();
         
-        // Actualizar stock del insumo
+        // Actualizar stock del insumo (SIN descontar del inventario)
         $stmt2 = $mysqli->prepare("UPDATE insumos SET cantidad = ?, estado = ?, ultima_actualizacion = NOW() WHERE insumo_id = ?");
         $stmt2->bind_param('dsi', $nueva_cantidad, $estado, $insumo_id);
         
@@ -336,47 +323,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             throw new Exception('Error al actualizar el insumo: ' . $stmt2->error);
         }
         $stmt2->close();
-        
-        // Si es entrada, descontar del producto origen solo si la cantidad es mayor a 0
-        if ($tipo_movimiento === 'entrada' && $cantidad > 0) {
-            if ($insumo['tipo_gestion'] === 'bobina') {
-                // Descontar metros de las bobinas seleccionadas
-                foreach ($bobinas_a_descontar as $b) {
-                    $stmt3 = $mysqli->prepare("UPDATE bobinas SET metros_actuales = metros_actuales - ? WHERE bobina_id = ?");
-                    $stmt3->bind_param('di', $b['descontar'], $b['bobina_id']);
-                    if (!$stmt3->execute()) {
-                        throw new Exception('Error al descontar metros de la bobina: ' . $stmt3->error);
-                    }
-                    $stmt3->close();
-
-                    // Registrar movimiento en tabla movements (Salida de bobina)
-                    $movement_type_id = 2; // Salida
-                    $cantidad_negativa = -1 * $b['descontar'];
-                    $notes = "Descuento por creación de insumo ID $insumo_id: $motivo";
-                    $stmt_mov = $mysqli->prepare("INSERT INTO movements (product_id, bobina_id, movement_type_id, quantity, notes, user_id, movement_date) VALUES (?, ?, ?, ?, ?, ?, NOW())");
-                    $stmt_mov->bind_param('iiidsi', $insumo['product_id'], $b['bobina_id'], $movement_type_id, $cantidad_negativa, $notes, $user_id);
-                    if (!$stmt_mov->execute()) {
-                        throw new Exception('Error al registrar movimiento de bobina: ' . $stmt_mov->error);
-                    }
-                    $stmt_mov->close();
-                }
-                // Actualizar el stock total del producto (suma de todas las bobinas)
-                $stmt4 = $mysqli->prepare("UPDATE products SET quantity = (SELECT COALESCE(SUM(metros_actuales),0) FROM bobinas WHERE product_id = ?) WHERE product_id = ?");
-                $stmt4->bind_param('ii', $insumo['product_id'], $insumo['product_id']);
-                if (!$stmt4->execute()) {
-                    throw new Exception('Error al actualizar el stock total del producto bobina: ' . $stmt4->error);
-                }
-                $stmt4->close();
-            } else {
-                // Producto normal: descontar del campo quantity
-                $stmt3 = $mysqli->prepare("UPDATE products SET quantity = quantity - ? WHERE product_id = ?");
-                $stmt3->bind_param('di', $cantidad, $insumo['product_id']);
-                if (!$stmt3->execute()) {
-                    throw new Exception('Error al actualizar el producto origen: ' . $stmt3->error);
-                }
-                $stmt3->close();
-            }
-        }
         
         $mysqli->commit();
         echo json_encode(['success'=>true,'message'=>'Movimiento registrado correctamente. Nuevo stock del insumo: ' . $nueva_cantidad . ' ' . $insumo['unidad']]);
