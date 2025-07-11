@@ -16,6 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $movement_type_id = isset($_POST['movement_type_id']) ? intval($_POST['movement_type_id']) : 0;
     $quantity = isset($_POST['quantity']) ? floatval($_POST['quantity']) : 0;
     $bobina_id = isset($_POST['bobina_id']) ? intval($_POST['bobina_id']) : null;
+    $usuario_id = $_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? null;
 
     if ($product_id && $movement_type_id && $quantity > 0) {
         // Verificar si es producto tipo bobina
@@ -59,8 +60,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         // Para bobinas: suma si es entrada, resta si es salida
                         $movement_quantity = $is_entrada ? $quantity : -$quantity;
                         // Insertar movimiento
-                        $stmt = $mysqli->prepare("INSERT INTO movements (product_id, movement_type_id, quantity, movement_date, bobina_id) VALUES (?, ?, ?, NOW(), ?)");
-                        $stmt->bind_param("iiid", $product_id, $movement_type_id, $movement_quantity, $bobina_id);
+                        $stmt = $mysqli->prepare("INSERT INTO movements (product_id, movement_type_id, quantity, movement_date, bobina_id, user_id) VALUES (?, ?, ?, NOW(), ?, ?)");
+                        $stmt->bind_param("iiidi", $product_id, $movement_type_id, $movement_quantity, $bobina_id, $usuario_id);
                         $stmt->execute();
                         $stmt->close();
 
@@ -102,8 +103,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 // Insertar movimiento (cantidad positiva para entradas, negativa para salidas)
                 $movement_quantity = $is_entrada ? $quantity : -$quantity;
-                $stmt = $mysqli->prepare("INSERT INTO movements (product_id, movement_type_id, quantity, movement_date) VALUES (?, ?, ?, NOW())");
-                $stmt->bind_param("iid", $product_id, $movement_type_id, $movement_quantity);
+                $stmt = $mysqli->prepare("INSERT INTO movements (product_id, movement_type_id, quantity, movement_date, user_id) VALUES (?, ?, ?, NOW(), ?)");
+                $stmt->bind_param("iidi", $product_id, $movement_type_id, $movement_quantity, $usuario_id);
                 $stmt->execute();
                 $stmt->close();
 

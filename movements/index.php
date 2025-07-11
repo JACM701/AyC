@@ -10,7 +10,8 @@
             p.tipo_gestion,
             mt.name AS movement_type_nombre,
             b.identificador AS bobina_identificador,
-            b.metros_actuales AS bobina_metros_actuales
+            b.metros_actuales AS bobina_metros_actuales,
+            u.username AS usuario_nombre
         FROM 
             movements m
         JOIN 
@@ -19,6 +20,8 @@
             movement_types mt ON m.movement_type_id = mt.movement_type_id
         LEFT JOIN
             bobinas b ON m.bobina_id = b.bobina_id
+        LEFT JOIN
+            users u ON m.user_id = u.user_id
         ORDER BY 
             m.movement_date DESC
     ";
@@ -115,6 +118,7 @@
                         <th scope="col">Producto</th>
                         <th scope="col">Tipo</th>
                         <th scope="col">Cantidad</th>
+                        <th scope="col">Usuario</th>
                         <th scope="col">Fecha</th>
                     </tr>
                 </thead>
@@ -147,6 +151,7 @@
                                     <br><small class="text-muted">Restante: <?= $row['bobina_metros_actuales'] ?>m</small>
                                 <?php endif; ?>
                             </td>
+                            <td><?= htmlspecialchars($row['usuario_nombre']) ?: '<span class=\'text-muted\'>-</span>' ?></td>
                             <td><?= date('d/m/Y H:i', strtotime($row['movement_date'])) ?></td>
                         </tr>
                     <?php endwhile; ?>
