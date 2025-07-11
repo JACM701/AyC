@@ -5,7 +5,7 @@ require_once '../connection.php';
 // --- Preparar datos para selects ---
 $clientes = $mysqli->query("SELECT cliente_id, nombre, telefono, ubicacion, email FROM clientes ORDER BY nombre ASC");
 $clientes_array = $clientes ? $clientes->fetch_all(MYSQLI_ASSOC) : [];
-$productos = $mysqli->query("SELECT p.product_id, p.product_name, p.sku, p.price, p.quantity, c.name as categoria, s.name as proveedor FROM products p LEFT JOIN categories c ON p.category_id = c.category_id LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id ORDER BY p.product_name ASC");
+$productos = $mysqli->query("SELECT p.product_id, p.product_name, p.sku, p.price, p.quantity, p.tipo_gestion, c.name as categoria, s.name as proveedor FROM products p LEFT JOIN categories c ON p.category_id = c.category_id LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id ORDER BY p.product_name ASC");
 $productos_array = $productos ? $productos->fetch_all(MYSQLI_ASSOC) : [];
 $categorias = $mysqli->query("SELECT category_id, name FROM categories ORDER BY name ASC");
 $proveedores = $mysqli->query("SELECT supplier_id, name FROM suppliers ORDER BY name ASC");
@@ -53,14 +53,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$error) {
         // Cliente: alta si es nuevo
         if (!$cliente_id) {
-            $stmt = $mysqli->prepare("SELECT cliente_id FROM clientes WHERE nombre = ? OR telefono = ? OR email = ? LIMIT 1");
-            $stmt->bind_param('sss', $cliente_nombre, $cliente_telefono, $cliente_email);
-            $stmt->execute();
-            $stmt->bind_result($cliente_id_encontrado);
-            if ($stmt->fetch()) {
-                $cliente_id = $cliente_id_encontrado;
+            // Solo buscar cliente existente si se proporcionan datos completos
+            $cliente_id = null;
+            if ($cliente_nombre && ($cliente_telefono || $cliente_email)) {
+                // Buscar coincidencia exacta (nombre Y teléfono/email)
+                $stmt = $mysqli->prepare("SELECT cliente_id FROM clientes WHERE nombre = ? AND (telefono = ? OR email = ?) LIMIT 1");
+                $stmt->bind_param('sss', $cliente_nombre, $cliente_telefono, $cliente_email);
+                $stmt->execute();
+                $stmt->bind_result($cliente_id_encontrado);
+                if ($stmt->fetch()) {
+                    $cliente_id = $cliente_id_encontrado;
+                }
+                $stmt->close();
             }
-            $stmt->close();
+            
+            // Si no se encontró cliente existente, crear uno nuevo
             if (!$cliente_id) {
                 $stmt = $mysqli->prepare("INSERT INTO clientes (nombre, telefono, ubicacion, email) VALUES (?, ?, ?, ?)");
                 $stmt->bind_param('ssss', $cliente_nombre, $cliente_telefono, $cliente_ubicacion, $cliente_email);
@@ -80,6 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         // Calcular totales
         $subtotal = 0;
+        $total_productos = count($productos);
         foreach ($productos as $prod) {
             $subtotal += floatval($prod['precio']) * intval($prod['cantidad']);
         }
@@ -104,6 +112,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($stmt->execute()) {
             $cotizacion_id = $stmt->insert_id;
             $stmt->close();
+            
+            // Registrar acción en el historial
+            require_once 'helpers.php';
+            inicializarAccionesCotizacion($mysqli);
+            registrarAccionCotizacion(
+                $cotizacion_id, 
+                'Creada', 
+                "Cotización creada con {$total_productos} productos por un total de $" . number_format($total, 2),
+                $usuario_id,
+                $mysqli
+            );
             // Productos
             foreach ($productos as $prod) {
                 $product_id = $prod['product_id'] ?? null;
@@ -262,6 +281,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <button type="button" class="btn btn-success" id="btnAgregarProductoRapido"><i class="bi bi-check-circle"></i> Agregar producto</button>
                 </div>
             </div>
+            <div class="mb-3">
+                <button type="button" class="btn btn-outline-info" id="btnGestionarPaquetes">
+                    <i class="bi bi-boxes"></i> Gestionar paquetes inteligentes
+                </button>
+            </div>
+            <!-- Modal de gestión de paquetes -->
+            <div class="modal fade" id="modalPaquetes" tabindex="-1" aria-labelledby="modalPaquetesLabel" aria-hidden="true">
+              <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h5 class="modal-title" id="modalPaquetesLabel">Paquetes inteligentes</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                  </div>
+                  <div class="modal-body" id="paquetesPanel">
+                    <!-- Aquí se renderizará el panel de paquetes por JS -->
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                  </div>
+                </div>
+              </div>
+            </div>
             <div class="table-responsive mt-4">
                 <table class="table table-striped align-middle" id="tablaProductosCotizacion">
                     <thead class="table-dark">
@@ -348,6 +389,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="paquetes.js"></script>
 <script>
 // --- CLIENTES ---
 const clientesArray = <?= json_encode($clientes_array) ?>;
@@ -375,8 +417,49 @@ $(document).ready(function() {
     toggleCamposCliente();
 });
 
+// Manejo del cliente
+document.getElementById('cliente_select').addEventListener('change', function() {
+    const selectedOption = this.options[this.selectedIndex];
+    if (this.value) {
+        // Cliente existente seleccionado
+        document.getElementById('cliente_nombre').value = selectedOption.dataset.nombre || '';
+        document.getElementById('cliente_telefono').value = selectedOption.dataset.telefono || '';
+        document.getElementById('cliente_ubicacion').value = selectedOption.dataset.ubicacion || '';
+        document.getElementById('cliente_email').value = selectedOption.dataset.email || '';
+        
+        // Hacer campos readonly y cambiar estilo
+        document.getElementById('cliente_nombre').readOnly = true;
+        document.getElementById('cliente_telefono').readOnly = true;
+        document.getElementById('cliente_ubicacion').readOnly = true;
+        document.getElementById('cliente_email').readOnly = true;
+        
+        // Cambiar estilo visual
+        document.getElementById('camposNuevoCliente').style.opacity = '0.6';
+        mostrarNotificacion('Cliente existente seleccionado. Los campos están bloqueados.', 'info');
+    } else {
+        // Crear cliente nuevo
+        document.getElementById('cliente_nombre').value = '';
+        document.getElementById('cliente_telefono').value = '';
+        document.getElementById('cliente_ubicacion').value = '';
+        document.getElementById('cliente_email').value = '';
+        
+        // Hacer campos editables
+        document.getElementById('cliente_nombre').readOnly = false;
+        document.getElementById('cliente_telefono').readOnly = false;
+        document.getElementById('cliente_ubicacion').readOnly = false;
+        document.getElementById('cliente_email').readOnly = false;
+        
+        // Cambiar estilo visual
+        document.getElementById('camposNuevoCliente').style.opacity = '1';
+        mostrarNotificacion('Modo: Crear cliente nuevo. Completa al menos el nombre.', 'success');
+    }
+});
+
 // --- PRODUCTOS ---
-const productosArray = <?= json_encode($productos_array) ?>;
+const productosArray = <?= json_encode($productos_array) ?>.map(p => ({
+    ...p,
+    tipo_gestion: p.tipo_gestion || 'pieza'
+}));
 let productosCotizacion = [];
 
 // Función para normalizar texto (quitar acentos y convertir a minúsculas)
@@ -408,15 +491,17 @@ $('#buscador_producto').on('input', function() {
     $('#sugerencias_productos').html(sugerencias).show();
 });
 $('#sugerencias_productos').on('click', 'button', function() {
+    const prod = productosArray.find(p => p.product_id == $(this).data('id'));
     agregarProductoATabla({
         product_id: $(this).data('id'),
         nombre: $(this).data('nombre'),
         sku: $(this).data('sku'),
         categoria: $(this).data('categoria'),
         proveedor: $(this).data('proveedor'),
-        stock: $(this).data('stock'),
-        cantidad: 1,
-        precio: $(this).data('precio')
+        stock: prod ? (prod.tipo_gestion === 'bobina' ? (prod.metros_totales || prod.quantity) : prod.quantity) : $(this).data('stock'),
+        cantidad: prod && prod.tipo_gestion === 'bobina' ? 1.00 : 1,
+        precio: $(this).data('precio'),
+        tipo_gestion: prod ? prod.tipo_gestion : 'pieza'
     });
     $('#buscador_producto').val('');
     $('#sugerencias_productos').hide();
@@ -429,7 +514,7 @@ $('#btnAgregarProductoRapido').on('click', function() {
     const precio = parseFloat($('#nuevo_precio_producto').val()) || 0;
     const cantidad = parseInt($('#nuevo_cantidad_producto').val()) || 1;
     if (!nombre || !precio || !cantidad) {
-        alert('Completa nombre, precio y cantidad para el producto.');
+        mostrarNotificacion('Completa nombre, precio y cantidad para el producto.', 'warning');
         return;
     }
     agregarProductoATabla({
@@ -442,13 +527,16 @@ $('#btnAgregarProductoRapido').on('click', function() {
         supplier_id: $('#nuevo_proveedor_producto').val(),
         stock: '',
         cantidad: cantidad,
-        precio: precio
+        precio: precio,
+        tipo_gestion: 'pieza' // Default to 'pieza'
     });
     $('#nuevo_nombre_producto, #nuevo_sku_producto, #nuevo_precio_producto, #nuevo_cantidad_producto').val('');
     $('#nuevo_categoria_producto, #nuevo_proveedor_producto').val('');
     $('#altaRapidaProductoForm').hide();
+    mostrarNotificacion('Producto agregado correctamente.', 'success');
 });
 function agregarProductoATabla(prod) {
+    if (!prod.tipo_gestion) prod.tipo_gestion = 'pieza';
     productosCotizacion.push(prod);
     renderTablaProductos();
 }
@@ -460,11 +548,13 @@ $(document).on('click', '.btn-eliminar-producto', function() {
 function renderTablaProductos() {
     let html = '';
     let subtotal = 0;
-    
     productosCotizacion.forEach((p, i) => {
-        const sub = (parseFloat(p.precio) || 0) * (parseInt(p.cantidad) || 1);
+        const sub = (parseFloat(p.precio) || 0) * (parseFloat(p.cantidad) || 1);
         subtotal += sub;
-        
+        const esBobina = p.tipo_gestion === 'bobina';
+        const step = esBobina ? '0.01' : '1';
+        const min = esBobina ? '0.01' : '1';
+        const unidad = esBobina ? ' m' : '';
         html += `
             <tr>
                 <td>${p.nombre}</td>
@@ -474,12 +564,14 @@ function renderTablaProductos() {
                 <td>${p.stock}</td>
                 <td>
                     <input type="number" 
-                           min="1" 
-                           step="1" 
+                           min="${min}" 
+                           step="${step}" 
                            value="${p.cantidad}" 
                            class="form-control form-control-sm cantidad-input" 
                            data-index="${i}" 
-                           style="width: 80px;">
+                           data-paquete-id="${p.paquete_id || ''}"
+                           data-tipo-paquete="${p.tipo_paquete || ''}"
+                           style="width: 80px; display:inline-block;">${unidad}
                 </td>
                 <td>
                     <input type="number" 
@@ -499,7 +591,6 @@ function renderTablaProductos() {
             </tr>
         `;
     });
-    
     $('#tablaProductosCotizacion tbody').html(html);
     $('#subtotal').val(`$${subtotal.toFixed(2)}`);
     recalcularTotales();
@@ -508,11 +599,21 @@ function renderTablaProductos() {
 // Eventos para cantidad
 $(document).on('input', '.cantidad-input', function() {
     const index = parseInt($(this).data('index'));
-    const value = parseInt($(this).val()) || 1;
-    
-    if (productosCotizacion[index]) {
+    let value = $(this).val();
+    const prod = productosCotizacion[index];
+    if (prod) {
+        if (prod.tipo_gestion === 'bobina') {
+            value = parseFloat(value) || 0.01;
+        } else {
+            value = Math.max(1, Math.round(parseFloat(value) || 1));
+        }
         productosCotizacion[index].cantidad = value;
-        renderTablaProductos();
+        // Si es principal de paquete, sincronizar relacionados
+        if (prod.paquete_id && prod.tipo_paquete === 'principal') {
+            sincronizarCantidadesPaqueteV2(prod.paquete_id);
+        } else {
+            renderTablaProductos();
+        }
     }
 });
 
@@ -535,7 +636,7 @@ $(document).on('focus', '.precio-input', function() {
     $(this).select();
 });
 function recalcularTotales() {
-    const subtotal = productosCotizacion.reduce((sum, p) => sum + ((parseFloat(p.precio)||0)*(parseInt(p.cantidad)||1)), 0);
+    const subtotal = productosCotizacion.reduce((sum, p) => sum + ((parseFloat(p.precio)||0)*(parseFloat(p.cantidad)||1)), 0);
     const descuentoPorcentaje = parseFloat($('#descuento_porcentaje').val()) || 0;
     const descuentoMonto = subtotal * descuentoPorcentaje / 100;
     const total = subtotal - descuentoMonto;
@@ -547,21 +648,393 @@ $('#descuento_porcentaje').on('input', recalcularTotales);
 $('#formCrearCotizacion').on('submit', function(e) {
     let error = '';
     const clienteId = $('#cliente_select').val();
-    const nombre = $('#cliente_nombre').val();
+    const nombre = $('#cliente_nombre').val().trim();
+    const telefono = $('#cliente_telefono').val().trim();
+    const ubicacion = $('#cliente_ubicacion').val().trim();
+    const email = $('#cliente_email').val().trim();
+    
+    // Validar cliente: debe tener ID seleccionado O al menos nombre
     if (!clienteId && !nombre) {
-        error = 'Debes seleccionar o registrar un cliente.';
+        error = 'Debes seleccionar un cliente existente o registrar uno nuevo con al menos el nombre.';
     }
+    
     if (productosCotizacion.length === 0) {
         error = 'Debes agregar al menos un producto a la cotización.';
     }
+    
+    // Validar cantidades según tipo
+    productosCotizacion.forEach(p => {
+        if (p.tipo_gestion === 'bobina') {
+            p.cantidad = parseFloat(p.cantidad) || 0.01;
+        } else {
+            p.cantidad = Math.max(1, Math.round(parseFloat(p.cantidad) || 1));
+        }
+    });
+    
     if (error) {
         e.preventDefault();
-        alert(error);
+        mostrarNotificacion(error, 'danger');
         return false;
     }
+    
     $('<input>').attr({type:'hidden', name:'productos_json', value: JSON.stringify(productosCotizacion)}).appendTo(this);
     $(this).find('button[type=submit]').prop('disabled', true).text('Guardando...');
 });
+
+document.getElementById('btnGestionarPaquetes').addEventListener('click', function() {
+    const modal = new bootstrap.Modal(document.getElementById('modalPaquetes'));
+    renderPaquetesPanel();
+    modal.show();
+});
+
+function renderPaquetesPanel() {
+    const panel = document.getElementById('paquetesPanel');
+    const paquetes = window.PaquetesCotizacion.getPaquetes();
+    let html = '';
+    if (paquetes.length === 0) {
+        html += '<div class="alert alert-info">No hay paquetes definidos. Crea uno nuevo para empezar.</div>';
+    } else {
+        html += '<ul class="list-group mb-3">';
+        paquetes.forEach((paq, idx) => {
+            html += `<li class="list-group-item d-flex justify-content-between align-items-center">
+                <span><b>${paq.nombre}</b> (${paq.items.length} productos)</span>
+                <span>
+                    <button class="btn btn-sm btn-outline-primary me-2" onclick="aplicarPaqueteCotizacion(${idx}); return false;" type="button">
+                        <i class="bi bi-play"></i> Aplicar
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary me-2" onclick="editarPaquete(${idx}); return false;" type="button">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="eliminarPaquete(${idx}); return false;" type="button">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </span>
+            </li>`;
+        });
+        html += '</ul>';
+    }
+    html += '<button class="btn btn-success" onclick="nuevoPaquete(); return false;" type="button"><i class="bi bi-plus-circle"></i> Nuevo paquete</button>';
+    panel.innerHTML = html;
+}
+// --- PAQUETES INTELIGENTES ---
+function aplicarPaqueteCotizacion(idx) {
+    const paquetes = window.PaquetesCotizacion.getPaquetes();
+    const paquete = paquetes[idx];
+    if (!paquete) return;
+    
+    // Prevenir que se dispare el submit del formulario
+    event.preventDefault();
+    event.stopPropagation();
+    
+    // Preservar datos del cliente antes de aplicar paquete
+    const clienteSeleccionado = {
+        cliente_id: $('#cliente_select').val(),
+        cliente_nombre: $('#cliente_nombre').val(),
+        cliente_telefono: $('#cliente_telefono').val(),
+        cliente_ubicacion: $('#cliente_ubicacion').val(),
+        cliente_email: $('#cliente_email').val()
+    };
+    
+    productosCotizacion = [];
+    const paqueteId = 'paq_' + Date.now();
+    paquete.items.forEach(item => {
+        const prod = productosArray.find(p => p.product_id == item.product_id);
+        if (prod) {
+            productosCotizacion.push({
+                product_id: prod.product_id,
+                nombre: prod.product_name,
+                sku: prod.sku,
+                categoria: prod.categoria,
+                proveedor: prod.proveedor,
+                stock: prod.tipo_gestion === 'bobina' ? (prod.metros_totales || prod.quantity) : prod.quantity,
+                cantidad: prod.tipo_gestion === 'bobina' ? (item.factor || 1.00) : (item.factor || 1),
+                precio: prod.price,
+                tipo_gestion: prod.tipo_gestion,
+                paquete_id: paqueteId,
+                tipo_paquete: item.tipo,
+                factor_paquete: item.factor
+            });
+        }
+    });
+    
+    // Restaurar datos del cliente INMEDIATAMENTE después de aplicar paquete
+    $('#cliente_select').val(clienteSeleccionado.cliente_id).trigger('change');
+    $('#cliente_nombre').val(clienteSeleccionado.cliente_nombre);
+    $('#cliente_telefono').val(clienteSeleccionado.cliente_telefono);
+    $('#cliente_ubicacion').val(clienteSeleccionado.cliente_ubicacion);
+    $('#cliente_email').val(clienteSeleccionado.cliente_email);
+    
+    // Restaurar estado de readonly si había cliente seleccionado
+    if (clienteSeleccionado.cliente_id) {
+        $('#cliente_nombre, #cliente_telefono, #cliente_ubicacion, #cliente_email').prop('readonly', true);
+    } else {
+        $('#cliente_nombre, #cliente_telefono, #cliente_ubicacion, #cliente_email').prop('readonly', false);
+    }
+    
+    // Ahora renderizar la tabla
+    renderTablaProductos();
+    
+    // Configurar sincronización de cantidades
+    setTimeout(() => {
+        document.querySelectorAll('.cantidad-input').forEach(inp => {
+            inp.addEventListener('input', function() {
+                sincronizarCantidadesPaqueteV2(paqueteId);
+            });
+        });
+    }, 200);
+    
+    const modal = bootstrap.Modal.getInstance(document.getElementById('modalPaquetes'));
+    if (modal) modal.hide();
+    
+    // Mostrar notificación de éxito
+    mostrarNotificacion(`Paquete "${paquete.nombre}" aplicado correctamente.`, 'success');
+    
+    return false; // Prevenir cualquier comportamiento por defecto
+}
+function sincronizarCantidadesPaqueteV2(paqueteId) {
+    // Encuentra el principal
+    const principal = productosCotizacion.find(p => p.paquete_id === paqueteId && p.tipo_paquete === 'principal');
+    if (!principal) return;
+    const cantidadPrincipal = parseFloat(principal.cantidad) || 1;
+    productosCotizacion.forEach((p, idx) => {
+        if (p.paquete_id === paqueteId && p.tipo_paquete === 'relacionado') {
+            const factor = parseFloat(p.factor_paquete) || 1;
+            p.cantidad = p.tipo_gestion === 'bobina' ? (cantidadPrincipal * factor).toFixed(2) : Math.round(cantidadPrincipal * factor);
+            // Actualizar input visual
+            const input = document.querySelector(`.cantidad-input[data-index='${idx}']`);
+            if (input) input.value = p.cantidad;
+        }
+    });
+    renderTablaProductos();
+}
+function eliminarPaquete(idx) {
+    // Prevenir que se dispare el submit del formulario
+    event.preventDefault();
+    event.stopPropagation();
+    
+    const paquetes = window.PaquetesCotizacion.getPaquetes();
+    const paquete = paquetes[idx];
+    if (!paquete) return;
+    
+    // Crear modal de confirmación elegante
+    const modalId = 'modalConfirmarEliminar';
+    const modalHtml = `
+        <div class="modal fade" id="${modalId}" tabindex="-1" aria-labelledby="${modalId}Label" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="${modalId}Label">
+                            <i class="bi bi-exclamation-triangle text-warning"></i> Confirmar eliminación
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>¿Estás seguro de que quieres eliminar el paquete <strong>"${paquete.nombre}"</strong>?</p>
+                        <p class="text-muted mb-0">Esta acción no se puede deshacer.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle"></i> Cancelar
+                        </button>
+                        <button type="button" class="btn btn-danger" onclick="confirmarEliminarPaquete(${idx})">
+                            <i class="bi bi-trash"></i> Eliminar paquete
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remover modal anterior si existe
+    const modalAnterior = document.getElementById(modalId);
+    if (modalAnterior) {
+        modalAnterior.remove();
+    }
+    
+    // Agregar modal al body
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById(modalId));
+    modal.show();
+    
+    // Limpiar modal después de cerrar
+    document.getElementById(modalId).addEventListener('hidden.bs.modal', function() {
+        this.remove();
+    });
+    
+    return false;
+}
+
+function confirmarEliminarPaquete(idx) {
+    window.PaquetesCotizacion.deletePaquete(idx);
+    renderPaquetesPanel();
+    mostrarNotificacion('Paquete eliminado correctamente.', 'info');
+    
+    // Cerrar modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('modalConfirmarEliminar'));
+    if (modal) modal.hide();
+}
+
+// Funciones de edición de paquetes (movidas desde paquetes.js)
+function editarPaquete(idx) {
+    const paquetes = window.PaquetesCotizacion.getPaquetes();
+    const paquete = paquetes[idx];
+    if (!paquete) return;
+    
+    window._paqEdit = { 
+        nombre: paquete.nombre, 
+        items: [...paquete.items] 
+    };
+    window._paqEditIndex = idx;
+    
+    window._paqRender = function() {
+        // Guardar el nombre antes de renderizar
+        const nombreInput = document.getElementById('paqNombre');
+        if (nombreInput && window._paqEdit) {
+            window._paqEdit.nombre = nombreInput.value;
+        }
+        const panel = document.getElementById('paquetesPanel');
+        panel.innerHTML = window.renderPaqueteForm({
+            productos: productosArray.map(p => ({ product_id: p.product_id, product_name: p.product_name })),
+            paquete: window._paqEdit,
+            onSave: guardarPaqueteEditado,
+            onCancel: renderPaquetesPanel
+        });
+        document.getElementById('paqProductoSelect').onchange = function() {
+            const pid = this.value;
+            if (!pid) return;
+            const prod = productosArray.find(p => p.product_id == pid);
+            if (!prod) return;
+            // Prevenir duplicados
+            if (window._paqEdit.items.some(i => i.product_id == prod.product_id)) return;
+            window._paqEdit.items.push({ product_id: prod.product_id, nombre: prod.product_name, tipo: 'relacionado', factor: 1 });
+            window._paqRender();
+        };
+        document.getElementById('btnGuardarPaquete').onclick = guardarPaqueteEditado;
+        document.getElementById('btnCancelarPaquete').onclick = renderPaquetesPanel;
+        document.querySelectorAll('.paq-tipo').forEach(sel => {
+            sel.onchange = function() {
+                window._paqEdit.items[this.dataset.idx].tipo = this.value;
+            };
+        });
+        document.querySelectorAll('.paq-factor').forEach(inp => {
+            inp.oninput = function() {
+                window._paqEdit.items[this.dataset.idx].factor = parseFloat(this.value) || 1;
+            };
+        });
+    };
+    window._paqRender();
+}
+
+function guardarPaqueteEditado() {
+    window._paqEdit.nombre = document.getElementById('paqNombre').value.trim();
+    if (!window._paqEdit.nombre || window._paqEdit.items.length === 0) {
+        mostrarNotificacion('Ponle nombre y al menos un producto al paquete.', 'warning');
+        return;
+    }
+    window.PaquetesCotizacion.updatePaquete(window._paqEditIndex, window._paqEdit);
+    renderPaquetesPanel();
+    mostrarNotificacion('Paquete actualizado correctamente.', 'success');
+}
+
+// Función para crear nuevo paquete
+function nuevoPaquete() {
+    window._paqEdit = { nombre: '', items: [] };
+    window._paqRender = function() {
+        // Guardar el nombre antes de renderizar
+        const nombreInput = document.getElementById('paqNombre');
+        if (nombreInput && window._paqEdit) {
+            window._paqEdit.nombre = nombreInput.value;
+        }
+        const panel = document.getElementById('paquetesPanel');
+        panel.innerHTML = window.renderPaqueteForm({
+            productos: productosArray.map(p => ({ product_id: p.product_id, product_name: p.product_name })),
+            paquete: window._paqEdit,
+            onSave: guardarPaquete,
+            onCancel: renderPaquetesPanel
+        });
+        document.getElementById('paqProductoSelect').onchange = function() {
+            const pid = this.value;
+            if (!pid) return;
+            const prod = productosArray.find(p => p.product_id == pid);
+            if (!prod) return;
+            // Prevenir duplicados
+            if (window._paqEdit.items.some(i => i.product_id == prod.product_id)) return;
+            window._paqEdit.items.push({ product_id: prod.product_id, nombre: prod.product_name, tipo: 'relacionado', factor: 1 });
+            window._paqRender();
+        };
+        document.getElementById('btnGuardarPaquete').onclick = guardarPaquete;
+        document.getElementById('btnCancelarPaquete').onclick = renderPaquetesPanel;
+        document.querySelectorAll('.paq-tipo').forEach(sel => {
+            sel.onchange = function() {
+                window._paqEdit.items[this.dataset.idx].tipo = this.value;
+            };
+        });
+        document.querySelectorAll('.paq-factor').forEach(inp => {
+            inp.oninput = function() {
+                window._paqEdit.items[this.dataset.idx].factor = parseFloat(this.value) || 1;
+            };
+        });
+    };
+    window._paqRender();
+}
+
+function guardarPaquete() {
+    window._paqEdit.nombre = document.getElementById('paqNombre').value.trim();
+    if (!window._paqEdit.nombre || window._paqEdit.items.length === 0) {
+        mostrarNotificacion('Ponle nombre y al menos un producto al paquete.', 'warning');
+        return;
+    }
+    window.PaquetesCotizacion.addPaquete(window._paqEdit);
+    renderPaquetesPanel();
+    mostrarNotificacion('Paquete guardado correctamente.', 'success');
+}
+
+// Función para mostrar notificaciones elegantes
+function mostrarNotificacion(mensaje, tipo = 'info') {
+    // Crear toast notification
+    const toastId = 'toast-' + Date.now();
+    const iconClass = {
+        'success': 'bi-check-circle',
+        'warning': 'bi-exclamation-triangle',
+        'danger': 'bi-x-circle',
+        'info': 'bi-info-circle'
+    }[tipo] || 'bi-info-circle';
+    
+    const toastHtml = `
+        <div class="toast align-items-center text-bg-${tipo} border-0" id="${toastId}" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="bi ${iconClass}"></i> ${mensaje}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
+            </div>
+        </div>
+    `;
+    
+    // Agregar toast al contenedor
+    let toastContainer = document.getElementById('toastContainer');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toastContainer';
+        toastContainer.className = 'position-fixed bottom-0 end-0 p-3';
+        toastContainer.style.zIndex = '1100';
+        document.body.appendChild(toastContainer);
+    }
+    
+    toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+    
+    // Mostrar toast
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement, { delay: 4000 });
+    toast.show();
+    
+    // Remover toast después de que se oculte
+    toastElement.addEventListener('hidden.bs.toast', function() {
+        toastElement.remove();
+    });
+}
 </script>
 </body>
 </html> 

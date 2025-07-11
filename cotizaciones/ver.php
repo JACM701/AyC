@@ -29,7 +29,7 @@ if (!$cotizacion) {
 
 // Obtener productos de la cotización
 $stmt = $mysqli->prepare("
-    SELECT cp.*, p.product_name, p.sku, p.image as product_image, p.cost_price
+    SELECT cp.*, p.product_name, p.sku, p.image as product_image, p.cost_price, p.quantity as stock_actual
     FROM cotizaciones_productos cp
     LEFT JOIN products p ON cp.product_id = p.product_id
     WHERE cp.cotizacion_id = ?
@@ -184,6 +184,8 @@ $productos = $stmt->get_result();
             .cotizacion-container { box-shadow: none; border-radius: 0; margin: 0; padding: 0; } 
             .acciones-cotizacion { display: none !important; } 
             th.costo-total, td.costo-total { display: none !important; }
+            .badge.bg-danger { display: none !important; }
+            .text-muted { display: none !important; }
         }
     </style>
 </head>
@@ -210,14 +212,26 @@ $productos = $stmt->get_result();
             <a href="editar.php?id=<?= $cotizacion_id ?>" class="btn btn-success">
                 <i class="bi bi-pencil"></i> Editar
             </a>
+            <a href="historial.php?id=<?= $cotizacion_id ?>" class="btn btn-info">
+                <i class="bi bi-clock-history"></i> Historial
+            </a>
             <a href="#" class="btn" onclick="window.print(); return false;">
                 <i class="bi bi-printer"></i> Imprimir
             </a>
             
             <!-- Botones de cambio de estado -->
-            <?php if ($cotizacion['nombre_estado'] !== 'Aprobada' && $cotizacion['nombre_estado'] !== 'Convertida'): ?>
+            <?php if ($cotizacion['nombre_estado'] === 'Borrador'): ?>
+                <button type="button" class="btn btn-primary" onclick="cambiarEstado(<?= $cotizacion_id ?>, 2, <?= $cotizacion['estado_id'] ?>)">
+                    <i class="bi bi-send"></i> Enviar
+                </button>
+            <?php endif; ?>
+            
+            <?php if ($cotizacion['nombre_estado'] === 'Enviada'): ?>
                 <button type="button" class="btn btn-success" onclick="cambiarEstado(<?= $cotizacion_id ?>, 3, <?= $cotizacion['estado_id'] ?>)">
                     <i class="bi bi-check-circle"></i> Aprobar
+                </button>
+                <button type="button" class="btn btn-warning" onclick="cambiarEstado(<?= $cotizacion_id ?>, 4, <?= $cotizacion['estado_id'] ?>)">
+                    <i class="bi bi-x-circle"></i> Rechazar
                 </button>
             <?php endif; ?>
             
@@ -289,8 +303,24 @@ $productos = $stmt->get_result();
                             <?php
                             $nombre = $producto['product_name'] ?? $producto['descripcion'] ?? 'Producto sin nombre';
                             echo htmlspecialchars($nombre);
+                            
+                            // Mostrar badge "Sin stock" si el stock actual es menor que la cantidad requerida
+                            if ($producto['product_id'] && $producto['stock_actual'] < $producto['cantidad']) {
+                                echo '<span class="badge bg-danger ms-2" style="font-size: 0.75rem;">Sin stock</span>';
+                                // Para bobinas, mostrar información adicional
+                                if ($producto['product_id']) {
+                                    $stmt_tipo = $mysqli->prepare("SELECT tipo_gestion FROM products WHERE product_id = ?");
+                                    $stmt_tipo->bind_param('i', $producto['product_id']);
+                                    $stmt_tipo->execute();
+                                    $tipo_gestion = $stmt_tipo->get_result()->fetch_assoc()['tipo_gestion'] ?? '';
+                                    $stmt_tipo->close();
+                                    
+                                    if ($tipo_gestion === 'bobina') {
+                                        echo '<br><small class="text-muted">Stock disponible: ' . number_format($producto['stock_actual'], 2) . 'm | Solicitado: ' . number_format($producto['cantidad'], 2) . 'm</small>';
+                                    }
+                                }
+                            }
                             ?>
-                            <span class="badge-sin-stock" style="display:none;"></span>
                         </td>
                         <td class="imagen">
                             <?php

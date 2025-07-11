@@ -96,13 +96,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute();
         
         // Registrar en historial
-        $stmt = $mysqli->prepare("
-            INSERT INTO cotizaciones_historial (cotizacion_id, accion_id, comentario, user_id) 
-            VALUES (?, (SELECT accion_id FROM cotizaciones_acciones WHERE nombre_accion = 'Convertida'), 'Cotización convertida a venta', ?)
-        ");
-        $usuario_id = $_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? null;
-        $stmt->bind_param('ii', $cotizacion_id, $usuario_id);
-        $stmt->execute();
+        require_once 'helpers.php';
+        inicializarAccionesCotizacion($mysqli);
+        registrarAccionCotizacion(
+            $cotizacion_id,
+            'Convertida',
+            'Cotización convertida a venta - Se registraron movimientos de inventario',
+            $_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? null,
+            $mysqli
+        );
         
         $mysqli->commit();
         $success = "Cotización convertida exitosamente a venta. Se han registrado los movimientos de inventario.";

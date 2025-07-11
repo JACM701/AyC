@@ -7,6 +7,7 @@ if (!isset($total_products)) {
     $total_products = $total_result ? $total_result->fetch_assoc()['total'] : 0;
 }
 ?>
+<?php $current_script = basename($_SERVER['SCRIPT_NAME']); ?>
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-header sidebar-header-compact">
         <div class="sidebar-toggle-container">
@@ -41,9 +42,14 @@ if (!isset($total_products)) {
                     <span class="nav-text">Inventario</span>
                     <span class="badge bg-success"><?= $total_products ?></span>
                 </a>
-                <a href="../cotizaciones/index.php" class="sidebar-cotizaciones" title="Cotizaciones">
+                <a href="../cotizaciones/index.php" class="sidebar-cotizaciones<?php if ($current_script === 'index.php' && strpos($_SERVER['SCRIPT_NAME'], '/cotizaciones/') !== false) echo ' active'; ?>" title="Cotizaciones">
                     <i class="bi bi-file-earmark-text"></i>
                     <span class="nav-text">Cotizaciones</span>
+                </a>
+
+                <a href="../cotizaciones/historial_global.php" class="sidebar-historial-global<?php if ($current_script === 'historial_global.php') echo ' active'; ?>" title="Historial global">
+                    <i class="bi bi-clock-history"></i>
+                    <span class="nav-text">Historial global</span>
                 </a>
                 <a href="../equipos/equipos.php" class="sidebar-equipos" title="Equipos">
                     <i class="bi bi-tools"></i>
@@ -103,6 +109,10 @@ if (!isset($total_products)) {
                 <a href="../reports/index.php" class="sidebar-reportes" title="Reportes">
                     <i class="bi bi-graph-up"></i>
                     <span class="nav-text">Reportes</span>
+                </a>
+                <a href="../cotizaciones/reporte_auditoria.php" class="sidebar-auditoria-cotizaciones<?php if ($current_script === 'reporte_auditoria.php') echo ' active'; ?>" title="Auditoría de cotizaciones">
+                    <i class="bi bi-shield-check"></i>
+                    <span class="nav-text">Auditoría de cotizaciones</span>
                 </a>
             </div>
         </div>

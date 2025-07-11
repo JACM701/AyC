@@ -9,12 +9,23 @@ $filtro_cliente = isset($_GET['cliente']) ? trim($_GET['cliente']) : '';
 $filtro_letra = isset($_GET['letra']) ? strtoupper($_GET['letra']) : '';
 $filtro_fecha_desde = isset($_GET['fecha_desde']) ? $_GET['fecha_desde'] : '';
 $filtro_fecha_hasta = isset($_GET['fecha_hasta']) ? $_GET['fecha_hasta'] : '';
+$filtro_usuario = isset($_GET['usuario']) ? trim($_GET['usuario']) : '';
+
+// Si no hay filtro de usuario, mostrar solo las del usuario actual
+if (!$filtro_usuario) {
+    $filtro_usuario = $_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? '';
+}
 
 // Construir consulta con filtros
 $where_conditions = [];
 $params = [];
 $param_types = '';
 
+if ($filtro_usuario) {
+    $where_conditions[] = "c.user_id = ?";
+    $params[] = $filtro_usuario;
+    $param_types .= 'i';
+}
 if ($filtro_letra && $filtro_letra !== 'TODOS') {
     $where_conditions[] = "LEFT(cl.nombre, 1) = ?";
     $params[] = $filtro_letra;
@@ -36,6 +47,10 @@ if ($filtro_fecha_hasta) {
     $param_types .= 's';
 }
 $where_clause = !empty($where_conditions) ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
+
+// Obtener lista de usuarios para el filtro
+$usuarios = $mysqli->query("SELECT user_id, username FROM users ORDER BY username ASC");
+$usuarios_array = $usuarios ? $usuarios->fetch_all(MYSQLI_ASSOC) : [];
 
 // Consulta principal
 $query = "
@@ -236,9 +251,14 @@ $img_files = array_filter(scandir($img_dir), function($f) {
     <main class="main-content">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h2><i class="bi bi-file-earmark-text"></i> Gestión de Cotizaciones</h2>
-            <a href="crear.php" class="btn btn-primary">
-                <i class="bi bi-plus-circle"></i> Nueva Cotización
-            </a>
+            <div>
+                <a href="reportes.php" class="btn btn-info me-2">
+                    <i class="bi bi-graph-up"></i> Reportes
+                </a>
+                <a href="crear.php" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Nueva Cotización
+                </a>
+            </div>
         </div>
 
         <!-- Botón de configuración -->
@@ -320,6 +340,17 @@ $img_files = array_filter(scandir($img_dir), function($f) {
                 <div class="col-md-3 col-12">
                     <label class="form-label">Cliente</label>
                     <input type="text" name="cliente" id="filtroCliente" class="form-control" value="<?= htmlspecialchars($filtro_cliente) ?>" placeholder="Buscar por cliente">
+                </div>
+                <div class="col-md-2 col-6">
+                    <label class="form-label">Creada por</label>
+                    <select name="usuario" id="filtroUsuario" class="form-select">
+                        <option value="">Todos los usuarios</option>
+                        <?php foreach ($usuarios_array as $usuario): ?>
+                            <option value="<?= $usuario['user_id'] ?>" <?= $filtro_usuario == $usuario['user_id'] ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($usuario['username']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 <div class="col-md-2 col-6">
                     <label class="form-label">Desde</label>

@@ -29,7 +29,7 @@ if (!$cotizacion) {
 
 // Obtener productos de la cotización
 $stmt = $mysqli->prepare("
-    SELECT cp.*, p.product_name, p.sku, p.image as product_image, c.name as categoria, s.name as proveedor
+    SELECT cp.*, p.product_name, p.sku, p.image as product_image, c.name as categoria, s.name as proveedor, p.tipo_gestion
     FROM cotizaciones_productos cp
     LEFT JOIN products p ON cp.product_id = p.product_id
     LEFT JOIN categories c ON p.category_id = c.category_id
@@ -54,7 +54,8 @@ while ($prod = $productos_cotizacion->fetch_assoc()) {
         'sku' => $prod['sku'],
         'cantidad' => $prod['cantidad'],
         'precio' => $prod['precio_unitario'],
-        'imagen' => $img
+        'imagen' => $img,
+        'tipo_gestion' => $prod['tipo_gestion']
     ];
 }
 
@@ -150,6 +151,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         if ($stmt->execute()) {
             $stmt->close();
+            
+            // Registrar acción en el historial
+            require_once 'helpers.php';
+            inicializarAccionesCotizacion($mysqli);
+            registrarAccionCotizacion(
+                $cotizacion_id, 
+                'Modificada', 
+                "Cotización modificada con " . count($productos) . " productos por un total de $" . number_format($total, 2),
+                $_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? null,
+                $mysqli
+            );
             
             // Eliminar productos anteriores
             $stmt = $mysqli->prepare("DELETE FROM cotizaciones_productos WHERE cotizacion_id = ?");
@@ -463,17 +475,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Funciones para manejar productos
     function agregarProducto(producto) {
         const tbody = document.querySelector('#tablaProductos tbody');
+        const esBobina = producto.tipo_gestion === 'bobina';
+        const step = esBobina ? '0.01' : '1';
+        const min = esBobina ? '0.01' : '1';
+        const unidad = esBobina ? ' m' : '';
+        const cantidad = esBobina ? parseFloat(producto.cantidad) : Math.max(1, Math.round(parseFloat(producto.cantidad) || 1));
         const row = document.createElement('tr');
         row.dataset.productId = producto.product_id;
+        row.dataset.tipoGestion = producto.tipo_gestion || '';
         row.innerHTML = `
             <td>
                 ${producto.imagen ? `<img src="../${producto.imagen}" alt="Imagen" style="height:32px;max-width:40px;margin-right:6px;vertical-align:middle;">` : ''}
                 ${producto.nombre}
             </td>
-            <td>${producto.sku}</td>
-            <td><input type="number" class="form-control form-control-sm cantidad-input" value="${producto.cantidad}" min="1" style="width: 80px;"></td>
+            <td>${producto.sku || ''}</td>
+            <td><input type="number" class="form-control form-control-sm cantidad-input" value="${cantidad}" min="${min}" step="${step}" style="width: 80px;">${unidad}</td>
             <td><input type="number" class="form-control form-control-sm precio-input" value="${producto.precio}" min="0" step="0.01" style="width: 100px;"></td>
-            <td class="total-fila">$${(producto.precio * producto.cantidad).toFixed(2)}</td>
+            <td class="total-fila">$${(producto.precio * cantidad).toFixed(2)}</td>
             <td><button type="button" class="btn btn-sm btn-outline-danger btn-remove-product"><i class="bi bi-trash"></i></button></td>
         `;
         tbody.appendChild(row);
@@ -484,7 +502,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     document.addEventListener('input', function(e) {
         if (e.target.classList.contains('cantidad-input') || e.target.classList.contains('precio-input')) {
             const row = e.target.closest('tr');
-            const cantidad = parseFloat(row.querySelector('.cantidad-input').value) || 0;
+            let cantidad = row.querySelector('.cantidad-input').value;
+            const tipoGestion = row.dataset.tipogestion;
+            if (tipoGestion === 'bobina') {
+                cantidad = parseFloat(cantidad) || 0.01;
+            } else {
+                cantidad = Math.max(1, Math.round(parseFloat(cantidad) || 1));
+            }
+            row.querySelector('.cantidad-input').value = cantidad;
             const precio = parseFloat(row.querySelector('.precio-input').value) || 0;
             const total = cantidad * precio;
             row.querySelector('.total-fila').textContent = '$' + total.toFixed(2);
@@ -524,11 +549,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Preparar datos para envío
     document.getElementById('formEditarCotizacion').addEventListener('submit', function(e) {
         const productos = [];
+        let error = '';
         document.querySelectorAll('#tablaProductos tbody tr').forEach(row => {
             const productId = row.dataset.productId;
-            const cantidad = parseInt(row.querySelector('.cantidad-input').value) || 0;
+            let cantidad = row.querySelector('.cantidad-input').value;
+            const tipoGestion = row.dataset.tipogestion;
+            if (tipoGestion === 'bobina') {
+                cantidad = parseFloat(cantidad) || 0.01;
+            } else {
+                cantidad = Math.max(1, Math.round(parseFloat(cantidad) || 1));
+            }
             const precio = parseFloat(row.querySelector('.precio-input').value) || 0;
-            
             if (productId && cantidad > 0 && precio > 0) {
                 productos.push({
                     product_id: productId,
