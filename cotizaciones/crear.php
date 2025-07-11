@@ -130,6 +130,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt_prod = $mysqli->prepare("INSERT INTO products (product_name, sku, price, quantity, category_id, supplier_id) VALUES (?, ?, ?, ?, ?, ?)");
                     $cat_id = $prod['category_id'] ?? null;
                     $prov_id = $prod['supplier_id'] ?? null;
+                    
+                    // Validar que category_id y supplier_id existan si no son null
+                    if ($cat_id && $cat_id !== '') {
+                        $check_cat = $mysqli->prepare("SELECT category_id FROM categories WHERE category_id = ?");
+                        $check_cat->bind_param('i', $cat_id);
+                        $check_cat->execute();
+                        if (!$check_cat->get_result()->fetch_assoc()) {
+                            $cat_id = null; // Si no existe, usar null
+                        }
+                        $check_cat->close();
+                    } else {
+                        $cat_id = null;
+                    }
+                    
+                    if ($prov_id && $prov_id !== '') {
+                        $check_prov = $mysqli->prepare("SELECT supplier_id FROM suppliers WHERE supplier_id = ?");
+                        $check_prov->bind_param('i', $prov_id);
+                        $check_prov->execute();
+                        if (!$check_prov->get_result()->fetch_assoc()) {
+                            $prov_id = null; // Si no existe, usar null
+                        }
+                        $check_prov->close();
+                    } else {
+                        $prov_id = null;
+                    }
+                    
+                    // Debug: verificar valores antes de insertar
+                    error_log("Insertando producto: nombre=" . $prod['nombre'] . ", sku=" . $prod['sku'] . ", precio=" . $prod['precio'] . ", cantidad=" . $prod['cantidad'] . ", cat_id=" . var_export($cat_id, true) . ", prov_id=" . var_export($prov_id, true));
+                    
                     $stmt_prod->bind_param('ssdiis', $prod['nombre'], $prod['sku'], $prod['precio'], $prod['cantidad'], $cat_id, $prov_id);
                     $stmt_prod->execute();
                     $product_id = $stmt_prod->insert_id;
@@ -522,9 +551,9 @@ $('#btnAgregarProductoRapido').on('click', function() {
         nombre: nombre,
         sku: $('#nuevo_sku_producto').val(),
         categoria: $('#nuevo_categoria_producto option:selected').text(),
-        category_id: $('#nuevo_categoria_producto').val(),
+        category_id: $('#nuevo_categoria_producto').val() || null,
         proveedor: $('#nuevo_proveedor_producto option:selected').text(),
-        supplier_id: $('#nuevo_proveedor_producto').val(),
+        supplier_id: $('#nuevo_proveedor_producto').val() || null,
         stock: '',
         cantidad: cantidad,
         precio: precio,
