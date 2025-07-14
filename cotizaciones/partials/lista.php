@@ -3,7 +3,12 @@
         <div class="cotizacion-card">
             <div class="row align-items-center">
                 <div class="col-md-3">
-                    <h5 class="mb-1"><?= htmlspecialchars($cot['numero_cotizacion']) ?></h5>
+                    <a href="ver.php?id=<?= $cot['cotizacion_id'] ?>" class="text-decoration-none">
+                        <?= htmlspecialchars($cot['numero_cotizacion']) ?>
+                    </a>
+                    <span class="estado-badge estado-<?= strtolower($cot['estado']) ?> ms-2">
+                        <?= htmlspecialchars($cot['estado']) ?>
+                    </span>
                     <p class="text-muted mb-0"><?= htmlspecialchars($cot['cliente_nombre_real'] ?? $cot['cliente_nombre']) ?></p>
                     <small class="text-muted"><?= htmlspecialchars($cot['cliente_telefono_real'] ?? $cot['cliente_telefono']) ?></small><br>
                     <small class="text-muted"><?= htmlspecialchars($cot['cliente_direccion_real'] ?? $cot['cliente_ubicacion']) ?></small>

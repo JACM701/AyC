@@ -7,6 +7,11 @@ $categoria_filtro = isset($_GET['categoria']) ? $_GET['categoria'] : '';
 $busqueda = isset($_GET['busqueda']) ? $_GET['busqueda'] : '';
 $estado_filtro = isset($_GET['estado']) ? $_GET['estado'] : '';
 
+// --- PAGINADO ---
+$por_pagina = 20;
+$pagina = isset($_GET['pagina']) ? max(1, intval($_GET['pagina'])) : 1;
+$offset = ($pagina - 1) * $por_pagina;
+
 // Construir consulta base con información de bobinas
 $query = "SELECT p.*, c.name as categoria, s.name as proveedor,
           COALESCE(SUM(b.metros_actuales), 0) as metros_totales,
@@ -40,6 +45,7 @@ if ($estado_filtro) {
     }
 }
 $query .= " GROUP BY p.product_id, p.product_name, p.sku, p.price, p.quantity, p.category_id, p.supplier_id, p.description, p.barcode, p.image, p.tipo_gestion, p.cost_price, p.min_stock, p.max_stock, p.unit_measure, p.is_active, p.created_at, p.updated_at, c.name, s.name ORDER BY p.product_name ASC";
+$query .= " LIMIT $por_pagina OFFSET $offset";
 
 $stmt = $mysqli->prepare($query);
 if (!empty($params)) {
@@ -64,6 +70,44 @@ $disponibles = $stats['disponibles'];
 $bajo_stock = $stats['bajo_stock'];
 $agotados = $stats['agotados'];
 $valor_total = $stats['valor_total'];
+
+// Contar total de productos (con filtros)
+$count_query = "SELECT COUNT(DISTINCT p.product_id) as total FROM products p
+    LEFT JOIN categories c ON p.category_id = c.category_id
+    LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id
+    LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
+    WHERE 1=1";
+$count_params = [];
+$count_types = '';
+if ($categoria_filtro) {
+    $count_query .= " AND c.category_id = ?";
+    $count_params[] = $categoria_filtro;
+    $count_types .= 'i';
+}
+if ($busqueda) {
+    $count_query .= " AND (p.product_name LIKE ? OR p.sku LIKE ? OR p.description LIKE ?)";
+    $like = "%$busqueda%";
+    $count_params[] = $like; $count_params[] = $like; $count_params[] = $like;
+    $count_types .= 'sss';
+}
+if ($estado_filtro) {
+    if ($estado_filtro === 'disponible') {
+        $count_query .= " AND p.quantity > 10";
+    } elseif ($estado_filtro === 'bajo_stock') {
+        $count_query .= " AND p.quantity > 0 AND p.quantity <= 10";
+    } elseif ($estado_filtro === 'agotado') {
+        $count_query .= " AND p.quantity = 0";
+    }
+}
+$stmt_count = $mysqli->prepare($count_query);
+if (!empty($count_params)) {
+    $stmt_count->bind_param($count_types, ...$count_params);
+}
+$stmt_count->execute();
+$res_count = $stmt_count->get_result();
+$total_productos_filtrados = $res_count->fetch_assoc()['total'] ?? 0;
+$stmt_count->close();
+$total_paginas = max(1, ceil($total_productos_filtrados / $por_pagina));
 ?>
 
 <!DOCTYPE html>
@@ -434,6 +478,18 @@ $valor_total = $stats['valor_total'];
                 </a>
             </div>
         <?php else: ?>
+            <?php
+            // --- PAGINADOR ARRIBA DEL GRID ---
+            echo '<nav aria-label="Paginado de inventario" class="mt-4">';
+            echo '<ul class="pagination justify-content-center">';
+            $params_url = $_GET;
+            for ($i = 1; $i <= $total_paginas; $i++) {
+                $params_url['pagina'] = $i;
+                $active = $i == $pagina ? 'active' : '';
+                echo '<li class="page-item ' . $active . '"><a class="page-link paginador-inv" href="?' . http_build_query($params_url) . '">' . $i . '</a></li>';
+            }
+            echo '</ul></nav>';
+            ?>
             <div class="product-grid">
                 <?php while ($producto = $productos->fetch_assoc()): ?>
                     <div class="product-card">
@@ -541,6 +597,18 @@ $valor_total = $stats['valor_total'];
                     </div>
                 <?php endwhile; ?>
             </div>
+            <?php
+            // --- PAGINADOR ABAJO DEL GRID ---
+            echo '<nav aria-label="Paginado de inventario" class="mt-4">';
+            echo '<ul class="pagination justify-content-center">';
+            $params_url = $_GET;
+            for ($i = 1; $i <= $total_paginas; $i++) {
+                $params_url['pagina'] = $i;
+                $active = $i == $pagina ? 'active' : '';
+                echo '<li class="page-item ' . $active . '"><a class="page-link paginador-inv" href="?' . http_build_query($params_url) . '">' . $i . '</a></li>';
+            }
+            echo '</ul></nav>';
+            ?>
         <?php endif; ?>
     </main>
 

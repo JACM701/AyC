@@ -197,15 +197,51 @@ if (!$product) {
         </div>
 
         <div class="search-providers">
-            <!-- Syscom -->
+            <!-- Google Shopping (primero) -->
+            <div class="provider-card">
+                <div class="provider-icon" style="color: #2e7d32;">
+                    <i class="bi bi-google"></i>
+                </div>
+                <div class="provider-name">Google Shopping</div>
+                <div class="provider-description">Comparador de precios general</div>
+                <button class="btn-provider btn-google" onclick="buscarEnProveedor('<?= htmlspecialchars($product['product_name']) ?>', 'google')">
+                    <i class="bi bi-search"></i> Buscar en Google
+                </button>
+            </div>
+
+            <!-- TVC en Línea -->
+            <div class="provider-card">
+                <div class="provider-icon" style="color: #1976d2;">
+                    <i class="bi bi-hdd-network"></i>
+                </div>
+                <div class="provider-name">TVC en Línea</div>
+                <div class="provider-description">Distribuidor mayorista de seguridad y tecnología</div>
+                <button class="btn-provider" style="background:#e3f0fa;color:#1976d2;" onclick="buscarEnProveedor('<?= htmlspecialchars($product['product_name']) ?>', 'tvc')">
+                    <i class="bi bi-search"></i> Buscar en TVC
+                </button>
+            </div>
+
+            <!-- SYSCOM -->
             <div class="provider-card">
                 <div class="provider-icon" style="color: #1565c0;">
                     <i class="bi bi-building"></i>
                 </div>
-                <div class="provider-name">Syscom</div>
+                <div class="provider-name">SYSCOM</div>
                 <div class="provider-description">Proveedor principal de electrónicos y componentes</div>
                 <button class="btn-provider btn-syscom" onclick="buscarEnProveedor('<?= htmlspecialchars($product['product_name']) ?>', 'syscom')">
-                    <i class="bi bi-search"></i> Buscar en Syscom
+                    <i class="bi bi-search"></i> Buscar en SYSCOM
+                </button>
+            </div>
+
+            <!-- CT Internacional -->
+            <div class="provider-card">
+                <div class="provider-icon" style="color: #00838f;">
+                    <i class="bi bi-pc-display"></i>
+                </div>
+                <div class="provider-name">CT Internacional</div>
+                <div class="provider-description">Mayorista de tecnología y cómputo</div>
+                <button class="btn-provider" style="background:#e0f7fa;color:#00838f;" onclick="buscarEnProveedor('<?= htmlspecialchars($product['product_name']) ?>', 'ct')">
+                    <i class="bi bi-search"></i> Buscar en CT
                 </button>
             </div>
 
@@ -221,51 +257,15 @@ if (!$product) {
                 </button>
             </div>
 
-            <!-- Amazon -->
+            <!-- Tecnosinergia -->
             <div class="provider-card">
-                <div class="provider-icon" style="color: #f57c00;">
-                    <i class="bi bi-bag"></i>
+                <div class="provider-icon" style="color: #c62828;">
+                    <i class="bi bi-diagram-3"></i>
                 </div>
-                <div class="provider-name">Amazon México</div>
-                <div class="provider-description">Tienda online con amplia variedad</div>
-                <button class="btn-provider btn-amazon" onclick="buscarEnProveedor('<?= htmlspecialchars($product['product_name']) ?>', 'amazon')">
-                    <i class="bi bi-search"></i> Buscar en Amazon
-                </button>
-            </div>
-
-            <!-- Google -->
-            <div class="provider-card">
-                <div class="provider-icon" style="color: #2e7d32;">
-                    <i class="bi bi-google"></i>
-                </div>
-                <div class="provider-name">Google Shopping</div>
-                <div class="provider-description">Comparador de precios general</div>
-                <button class="btn-provider btn-google" onclick="buscarEnProveedor('<?= htmlspecialchars($product['product_name']) ?>', 'google')">
-                    <i class="bi bi-search"></i> Buscar en Google
-                </button>
-            </div>
-
-            <!-- Mercado Libre -->
-            <div class="provider-card">
-                <div class="provider-icon" style="color: #ff8f00;">
-                    <i class="bi bi-shop"></i>
-                </div>
-                <div class="provider-name">Mercado Libre</div>
-                <div class="provider-description">Marketplace con múltiples vendedores</div>
-                <button class="btn-provider btn-mercadolibre" onclick="buscarEnProveedor('<?= htmlspecialchars($product['product_name']) ?>', 'mercadolibre')">
-                    <i class="bi bi-search"></i> Buscar en Mercado Libre
-                </button>
-            </div>
-
-            <!-- eBay -->
-            <div class="provider-card">
-                <div class="provider-icon" style="color: #c2185b;">
-                    <i class="bi bi-globe"></i>
-                </div>
-                <div class="provider-name">eBay</div>
-                <div class="provider-description">Subastas y productos nuevos/usados</div>
-                <button class="btn-provider btn-ebay" onclick="buscarEnProveedor('<?= htmlspecialchars($product['product_name']) ?>', 'ebay')">
-                    <i class="bi bi-search"></i> Buscar en eBay
+                <div class="provider-name">Tecnosinergia</div>
+                <div class="provider-description">Distribuidor de seguridad, redes y energía</div>
+                <button class="btn-provider" style="background:#fde0dc;color:#c62828;" onclick="buscarEnProveedor('<?= htmlspecialchars($product['product_name']) ?>', 'tecnosinergia')">
+                    <i class="bi bi-search"></i> Buscar en Tecnosinergia
                 </button>
             </div>
         </div>
@@ -289,19 +289,26 @@ if (!$product) {
             const productoEncoded = encodeURIComponent(producto);
             
             switch (proveedor) {
+                case 'google':
+                    url = `https://www.google.com/search?q=${productoEncoded}+precio+comprar`;
+                    break;
+                case 'tvc':
+                    url = `https://www.google.com/search?q=${productoEncoded}+site:tvc.mx`;
+                    break;
                 case 'syscom':
-                    // Usar búsqueda directa en Google para Syscom
                     url = `https://www.google.com/search?q=${productoEncoded}+site:syscom.mx`;
                     break;
+                case 'ct':
+                    url = `https://www.google.com/search?q=${productoEncoded}+site:ctonline.mx`;
+                    break;
                 case 'pch':
-                    // Usar búsqueda directa en Google para PCH
                     url = `https://www.google.com/search?q=${productoEncoded}+site:pch.com.mx`;
+                    break;
+                case 'tecnosinergia':
+                    url = `https://www.google.com/search?q=${productoEncoded}+site:tecnosinergia.com`;
                     break;
                 case 'amazon':
                     url = `https://www.amazon.com.mx/s?k=${productoEncoded}`;
-                    break;
-                case 'google':
-                    url = `https://www.google.com/search?q=${productoEncoded}+precio+comprar`;
                     break;
                 case 'mercadolibre':
                     url = `https://listado.mercadolibre.com.mx/${productoEncoded}`;

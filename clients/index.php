@@ -276,21 +276,32 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
             margin-top: 20px;
         }
         .stat-card {
-            background: linear-gradient(135deg, #121866, #232a7c);
+            background: #232a7c; /* Color sólido, sin degradado */
             color: #fff;
             border-radius: 12px;
             padding: 20px;
             text-align: center;
+            box-shadow: 0 2px 8px rgba(35,42,124,0.07);
+            border: 1.5px solid #e3e6f0;
+            transition: box-shadow 0.2s, transform 0.2s;
+        }
+        .stat-card:hover {
+            box-shadow: 0 6px 24px rgba(35,42,124,0.13);
+            transform: translateY(-2px) scale(1.03);
         }
         .stat-number {
-            font-size: 2rem;
+            font-size: 2.2rem;
             font-weight: 700;
             display: block;
             margin-bottom: 8px;
+            color: #fff;
+            letter-spacing: 1px;
         }
         .stat-label {
-            font-size: 0.9rem;
-            opacity: 0.9;
+            font-size: 1rem;
+            opacity: 0.93;
+            color: #e3e6fa;
+            font-weight: 500;
         }
         .search-section {
             background: #fff;
@@ -305,15 +316,16 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
             border-radius: 16px;
             padding: 20px;
             margin-bottom: 16px;
-            box-shadow: 0 4px 24px rgba(18,24,102,0.10);
+            box-shadow: 0 2px 12px rgba(35,42,124,0.07);
             border: 1.5px solid #e3e6f0;
-            transition: all 0.3s ease;
+            transition: box-shadow 0.2s, transform 0.2s;
             position: relative;
             overflow: hidden;
         }
         .client-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 32px rgba(18,24,102,0.15);
+            box-shadow: 0 8px 32px rgba(35,42,124,0.13);
+            transform: translateY(-2px) scale(1.01);
+            border-color: #232a7c;
         }
         .client-card::before {
             content: '';
@@ -322,7 +334,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
             left: 0;
             width: 4px;
             height: 100%;
-            background: linear-gradient(135deg, #121866, #232a7c);
+            background: #232a7c;
         }
         .client-header {
             display: flex;
@@ -333,7 +345,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
         .client-name {
             font-size: 1.3rem;
             font-weight: 700;
-            color: #121866;
+            color: #232a7c;
             margin: 0;
             display: flex;
             align-items: center;
@@ -355,8 +367,8 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
             font-size: 1.1rem;
         }
         .contact-text {
-            color: #666;
-            font-size: 0.9rem;
+            color: #232a7c;
+            font-size: 0.98rem;
         }
         .client-stats {
             display: grid;
@@ -371,16 +383,16 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
             border-radius: 10px;
             border: 1px solid #e3e6f0;
         }
-        .stat-number {
+        .stat-item .stat-number {
             font-size: 1.2rem;
             font-weight: 700;
-            color: #121866;
+            color: #232a7c;
             display: block;
             margin-bottom: 4px;
         }
-        .stat-label {
-            font-size: 0.8rem;
-            color: #666;
+        .stat-item .stat-label {
+            font-size: 0.85rem;
+            color: #667eea;
             font-weight: 500;
         }
         .client-actions {

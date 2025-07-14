@@ -238,6 +238,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .select2-selection__arrow { height: 38px !important; }
         .table thead th { background: #121866; color: #fff; }
         .badge-stock { font-size: 0.85rem; }
+        /* Icono de búsqueda discreto en la tabla */
+        .icon-buscar-google {
+            color: #888;
+            font-size: 1.05em;
+            margin-left: 6px;
+            opacity: 0;
+            cursor: pointer;
+            transition: opacity 0.15s;
+            vertical-align: middle;
+        }
+        #tablaProductosCotizacion td:hover .icon-buscar-google {
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
@@ -605,13 +618,24 @@ function renderTablaProductos() {
         const step = esBobina ? '0.01' : '1';
         const min = esBobina ? '0.01' : '1';
         const unidad = esBobina ? ' m' : '';
+        const nombreGoogle = encodeURIComponent(p.nombre || '');
+        const skuGoogle = encodeURIComponent(p.sku || '');
+        // Mostrar stock según tipo
+        let stockStr = '';
+        if (typeof p.stock !== 'undefined' && p.stock !== null && p.stock !== '') {
+            stockStr = esBobina ? parseFloat(p.stock).toFixed(2) : parseInt(p.stock);
+        }
         html += `
             <tr>
-                <td>${p.nombre}</td>
-                <td>${p.sku || ''}</td>
+                <td>${p.nombre}
+                    ${p.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google"><i class="bi bi-search"></i></a>` : ''}
+                </td>
+                <td>${p.sku || ''}
+                    ${p.sku ? `<a href="https://www.google.com/search?q=${skuGoogle}" target="_blank" title="Buscar SKU en Google" class="icon-buscar-google"><i class="bi bi-search"></i></a>` : ''}
+                </td>
                 <td>${p.categoria || ''}</td>
                 <td>${p.proveedor || ''}</td>
-                <td>${p.stock}</td>
+                <td>${stockStr}</td>
                 <td>
                     <input type="number" 
                            min="${min}" 
@@ -759,12 +783,25 @@ $('#formCrearCotizacion').on('submit', function(e) {
     $(this).find('button[type=submit]').prop('disabled', true).text('Guardando...');
 });
 
+// Prevenir submit por Enter accidental
+$('#formCrearCotizacion').on('keydown', function(e) {
+    if (e.key === 'Enter') {
+        // Permitir Enter solo si el foco está en el botón de submit
+        const isSubmitBtn = document.activeElement && document.activeElement.type === 'submit';
+        if (!isSubmitBtn) {
+            e.preventDefault();
+            return false;
+        }
+    }
+});
+
 document.getElementById('btnGestionarPaquetes').addEventListener('click', function() {
     const modal = new bootstrap.Modal(document.getElementById('modalPaquetes'));
     renderPaquetesPanel();
     modal.show();
 });
 
+// --- NUEVO GESTOR DE PAQUETES VISUAL ---
 function renderPaquetesPanel() {
     const panel = document.getElementById('paquetesPanel');
     const paquetes = window.PaquetesCotizacion.getPaquetes();
@@ -772,28 +809,49 @@ function renderPaquetesPanel() {
     if (paquetes.length === 0) {
         html += '<div class="alert alert-info">No hay paquetes definidos. Crea uno nuevo para empezar.</div>';
     } else {
-        html += '<ul class="list-group mb-3">';
+        html += '<div class="row g-3">';
         paquetes.forEach((paq, idx) => {
-            html += `<li class="list-group-item d-flex justify-content-between align-items-center">
-                <span><b>${paq.nombre}</b> (${paq.items.length} productos)</span>
-                <span>
-                    <button class="btn btn-sm btn-outline-primary me-2" onclick="aplicarPaqueteCotizacion(${idx}); return false;" type="button">
-                        <i class="bi bi-play"></i> Aplicar
-                    </button>
-                    <button class="btn btn-sm btn-outline-secondary me-2" onclick="editarPaquete(${idx}); return false;" type="button">
-                        <i class="bi bi-pencil"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="eliminarPaquete(${idx}); return false;" type="button">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </span>
-            </li>`;
+            html += `<div class="col-md-6 col-lg-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h5 class="card-title mb-0" style="font-size:1.1rem;">${paq.nombre}</h5>
+                            <span class="badge bg-primary">${paq.items.length} productos</span>
+                        </div>
+                        <ul class="list-group list-group-flush mb-2" style="font-size:0.97rem;">
+                            ${paq.items.map(item => `<li class="list-group-item py-1 px-2 d-flex justify-content-between align-items-center">
+                                <span>${item.nombre || 'Producto'} <span class="text-muted">x${item.factor || 1}</span></span>
+                                <span class="badge bg-light text-dark">${item.tipo === 'principal' ? 'Principal' : 'Relacionado'}</span>
+                            </li>`).join('')}
+                        </ul>
+                        <div class="mt-auto d-flex gap-2 justify-content-end">
+                            <button class="btn btn-sm btn-success" onclick="aplicarPaqueteCotizacion(${idx});"><i class="bi bi-play"></i></button>
+                            <button class="btn btn-sm btn-outline-primary" onclick="editarPaquete(${idx});"><i class="bi bi-pencil"></i></button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="duplicarPaquete(${idx});"><i class="bi bi-files"></i></button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="eliminarPaquete(${idx});"><i class="bi bi-trash"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
         });
-        html += '</ul>';
+        html += '</div>';
     }
-    html += '<button class="btn btn-success" onclick="nuevoPaquete(); return false;" type="button"><i class="bi bi-plus-circle"></i> Nuevo paquete</button>';
+    html += '<div class="mt-4"><button class="btn btn-success" onclick="nuevoPaquete(); return false;" type="button"><i class="bi bi-plus-circle"></i> Nuevo paquete</button></div>';
     panel.innerHTML = html;
 }
+
+// Duplicar paquete
+function duplicarPaquete(idx) {
+    const paquetes = window.PaquetesCotizacion.getPaquetes();
+    const paq = paquetes[idx];
+    if (!paq) return;
+    const copia = JSON.parse(JSON.stringify(paq));
+    copia.nombre = paq.nombre + ' (Copia)';
+    window.PaquetesCotizacion.addPaquete(copia);
+    renderPaquetesPanel();
+    mostrarNotificacion('Paquete duplicado correctamente.', 'success');
+}
+
 // --- PAQUETES INTELIGENTES ---
 function aplicarPaqueteCotizacion(idx) {
     const paquetes = window.PaquetesCotizacion.getPaquetes();
@@ -1113,6 +1171,108 @@ function mostrarNotificacion(mensaje, tipo = 'info') {
         toastElement.remove();
     });
 }
+
+// --- GUARDADO AUTOMÁTICO DE BORRADOR EN LOCALSTORAGE ---
+const BORRADOR_KEY = 'borrador_cotizacion';
+
+function guardarBorrador() {
+    const datos = {
+        cliente_id: $('#cliente_select').val(),
+        cliente_nombre: $('#cliente_nombre').val(),
+        cliente_telefono: $('#cliente_telefono').val(),
+        cliente_ubicacion: $('#cliente_ubicacion').val(),
+        cliente_email: $('#cliente_email').val(),
+        productos: productosCotizacion,
+        fecha_cotizacion: $('input[name="fecha_cotizacion"]').val(),
+        validez_dias: $('input[name="validez_dias"]').val(),
+        estado_id: $('#estado_id').val(),
+        condiciones_pago: $('input[name="condiciones_pago"]').val(),
+        observaciones: $('textarea[name="observaciones"]').val(),
+        descuento_porcentaje: $('#descuento_porcentaje').val()
+    };
+    localStorage.setItem(BORRADOR_KEY, JSON.stringify(datos));
+}
+
+function limpiarBorrador() {
+    localStorage.removeItem(BORRADOR_KEY);
+}
+
+function restaurarBorrador() {
+    const datos = JSON.parse(localStorage.getItem(BORRADOR_KEY));
+    if (!datos) return;
+    if (datos.cliente_id) $('#cliente_select').val(datos.cliente_id).trigger('change');
+    $('#cliente_nombre').val(datos.cliente_nombre || '');
+    $('#cliente_telefono').val(datos.cliente_telefono || '');
+    $('#cliente_ubicacion').val(datos.cliente_ubicacion || '');
+    $('#cliente_email').val(datos.cliente_email || '');
+    productosCotizacion = datos.productos || [];
+    renderTablaProductos();
+    $('input[name="fecha_cotizacion"]').val(datos.fecha_cotizacion || '');
+    $('input[name="validez_dias"]').val(datos.validez_dias || '');
+    $('#estado_id').val(datos.estado_id || '');
+    $('input[name="condiciones_pago"]').val(datos.condiciones_pago || '');
+    $('textarea[name="observaciones"]').val(datos.observaciones || '');
+    $('#descuento_porcentaje').val(datos.descuento_porcentaje || 0);
+    recalcularTotales();
+}
+
+// Guardar borrador al cambiar datos relevantes
+$(document).on('input change', '#cliente_select, #cliente_nombre, #cliente_telefono, #cliente_ubicacion, #cliente_email, #estado_id, input[name="fecha_cotizacion"], input[name="validez_dias"], input[name="condiciones_pago"], textarea[name="observaciones"], #descuento_porcentaje', function() {
+    guardarBorrador();
+});
+$(document).on('input change', '.cantidad-input, .precio-input', function() {
+    guardarBorrador();
+});
+// Guardar también al agregar/eliminar productos
+$('#btnAgregarProductoRapido, #btnAltaRapidaProducto').on('click', function() { setTimeout(guardarBorrador, 300); });
+$(document).on('click', '.btn-eliminar-producto', function() { setTimeout(guardarBorrador, 300); });
+
+// Al cargar la página, preguntar si hay borrador
+$(document).ready(function() {
+    if (localStorage.getItem(BORRADOR_KEY)) {
+        // Crear modal si no existe
+        if (!document.getElementById('modalRestaurarBorrador')) {
+            const modalHtml = `
+            <div class="modal fade" id="modalRestaurarBorrador" tabindex="-1" aria-labelledby="modalRestaurarBorradorLabel" aria-hidden="true">
+              <div class="modal-dialog">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h5 class="modal-title" id="modalRestaurarBorradorLabel"><i class="bi bi-exclamation-triangle text-warning"></i> Borrador de cotización encontrado</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                  </div>
+                  <div class="modal-body">
+                    <p>Se detectó un borrador de cotización sin guardar. ¿Deseas restaurar tu avance anterior o descartarlo?</p>
+                    <ul>
+                      <li><b>Restaurar:</b> Recupera todos los datos y productos que tenías antes de salir.</li>
+                      <li><b>Descartar:</b> Elimina el borrador y comienza una nueva cotización.</li>
+                    </ul>
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="btnDescartarBorrador" data-bs-dismiss="modal">Descartar</button>
+                    <button type="button" class="btn btn-primary" id="btnRestaurarBorrador">Restaurar borrador</button>
+                  </div>
+                </div>
+              </div>
+            </div>`;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+        const modal = new bootstrap.Modal(document.getElementById('modalRestaurarBorrador'));
+        modal.show();
+        document.getElementById('btnRestaurarBorrador').onclick = function() {
+            restaurarBorrador();
+            mostrarNotificacion('Borrador restaurado correctamente.', 'info');
+            modal.hide();
+        };
+        document.getElementById('btnDescartarBorrador').onclick = function() {
+            limpiarBorrador();
+            modal.hide();
+        };
+    }
+});
+// Al guardar exitosamente, limpiar el borrador (esto se hace al hacer submit y redirigir)
+$('#formCrearCotizacion').on('submit', function() {
+    limpiarBorrador();
+});
 </script>
 </body>
 </html> 

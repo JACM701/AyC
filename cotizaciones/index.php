@@ -10,6 +10,7 @@ $filtro_letra = isset($_GET['letra']) ? strtoupper($_GET['letra']) : '';
 $filtro_fecha_desde = isset($_GET['fecha_desde']) ? $_GET['fecha_desde'] : '';
 $filtro_fecha_hasta = isset($_GET['fecha_hasta']) ? $_GET['fecha_hasta'] : '';
 $filtro_usuario = isset($_GET['usuario']) ? trim($_GET['usuario']) : '';
+$filtro_estado = isset($_GET['estado_id']) ? $_GET['estado_id'] : '';
 
 // Si no hay filtro de usuario, mostrar solo las del usuario actual
 if (!$filtro_usuario) {
@@ -46,11 +47,20 @@ if ($filtro_fecha_hasta) {
     $params[] = $filtro_fecha_hasta;
     $param_types .= 's';
 }
+if ($filtro_estado) {
+    $where_conditions[] = "c.estado_id = ?";
+    $params[] = $filtro_estado;
+    $param_types .= 'i';
+}
 $where_clause = !empty($where_conditions) ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
 
 // Obtener lista de usuarios para el filtro
 $usuarios = $mysqli->query("SELECT user_id, username FROM users ORDER BY username ASC");
 $usuarios_array = $usuarios ? $usuarios->fetch_all(MYSQLI_ASSOC) : [];
+
+// Obtener lista de estados para el filtro
+$estados = $mysqli->query("SELECT est_cot_id, nombre_estado FROM est_cotizacion ORDER BY est_cot_id ASC");
+$estados_array = $estados ? $estados->fetch_all(MYSQLI_ASSOC) : [];
 
 // Consulta principal
 $query = "
@@ -353,6 +363,18 @@ $img_files = array_filter(scandir($img_dir), function($f) {
                     </select>
                 </div>
                 <div class="col-md-2 col-6">
+                    <label class="form-label">Estado</label>
+                    <div class="input-group">
+                        <span class="input-group-text" style="background:#f4f6fb;color:#232a7c;"><i class="bi bi-flag"></i></span>
+                        <select name="estado_id" id="filtroEstado" class="form-select" style="border-color:#232a7c;">
+                            <option value="">Todos los estados</option>
+                            <?php foreach ($estados_array as $est): ?>
+                                <option value="<?= $est['est_cot_id'] ?>" <?= $filtro_estado == $est['est_cot_id'] ? 'selected' : '' ?>><?= htmlspecialchars($est['nombre_estado']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-2 col-6">
                     <label class="form-label">Desde</label>
                     <input type="date" name="fecha_desde" id="filtroFechaDesde" class="form-control" value="<?= $filtro_fecha_desde ?>">
                 </div>
@@ -445,6 +467,8 @@ $img_files = array_filter(scandir($img_dir), function($f) {
             e.preventDefault();
             buscarCotizacionesAJAX();
         });
+
+        document.getElementById('filtroEstado').addEventListener('change', buscarCotizacionesAJAX);
 
         // Configuración de encabezado (localStorage) - ahora con logos dinámicos
         const defaultConfig = {

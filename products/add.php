@@ -1172,6 +1172,57 @@ formNuevaCategoria.addEventListener('submit', function(e) {
   });
 });
     </script>
+    <?php if ($success && strpos($success, 'bobina') !== false): ?>
+<!-- Modal de advertencia para bobina -->
+<div class="modal fade" id="modalAlertaBobina" tabindex="-1" aria-labelledby="modalAlertaBobinaLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-warning">
+        <h5 class="modal-title" id="modalAlertaBobinaLabel"><i class="bi bi-exclamation-triangle"></i> Atención</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>La página que buscas ha utilizado la información que has especificado.<br>Volver a la página podría provocar la repetición de alguna acción.<br><b>¿Quieres continuar?</b></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-warning" id="btnConfirmarVolverBobina">Sí, continuar</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+// Interceptar botón flotante y navegación atrás
+let volverPendiente = false;
+const btnVolver = document.getElementById('btnVolverFlotante');
+if (btnVolver) {
+  btnVolver.addEventListener('click', function(e) {
+    e.preventDefault();
+    volverPendiente = this.href;
+    const modal = new bootstrap.Modal(document.getElementById('modalAlertaBobina'));
+    modal.show();
+  });
+}
+document.getElementById('btnConfirmarVolverBobina').onclick = function() {
+  if (volverPendiente) {
+    window.location.href = volverPendiente;
+  } else {
+    history.back();
+  }
+};
+// Interceptar navegación atrás del navegador
+window.addEventListener('beforeunload', function(e) {
+  if (!window.__bobinaConfirm) {
+    e.preventDefault();
+    e.returnValue = '';
+    const modal = new bootstrap.Modal(document.getElementById('modalAlertaBobina'));
+    modal.show();
+    window.__bobinaConfirm = true;
+    return '';
+  }
+});
+</script>
+<?php endif; ?>
 </body>
 </html>
 
