@@ -164,7 +164,11 @@
 
         error_log('DEBUG: Antes de validación - product_name: ' . $product_name . ', price: ' . $price . ', quantity: ' . $quantity);
 
-        if ($product_name && $price >= 0 && $quantity >= 0 && empty($error)) {
+        // Cambia la validación principal:
+        // Antes:
+        // if ($product_name && $price >= 0 && $quantity >= 0 && empty($error)) {
+        // Después:
+        if ($product_name && $price >= 0 && empty($error)) {
             error_log('DEBUG: Validación pasada, ejecutando UPDATE');
             error_log('DEBUG: category_id: ' . ($category_id ?? 'NULL') . ', supplier_id: ' . ($supplier_id ?? 'NULL'));
             

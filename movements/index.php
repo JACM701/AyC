@@ -151,7 +151,7 @@
                                     <br><small class="text-muted">Restante: <?= $row['bobina_metros_actuales'] ?>m</small>
                                 <?php endif; ?>
                             </td>
-                            <td><?= htmlspecialchars($row['usuario_nombre']) ?: '<span class=\'text-muted\'>-</span>' ?></td>
+                            <td><?= $row['usuario_nombre'] ? htmlspecialchars($row['usuario_nombre']) : '<span class="text-muted">Desconocido</span>' ?></td>
                             <td><?= date('d/m/Y H:i', strtotime($row['movement_date'])) ?></td>
                         </tr>
                     <?php endwhile; ?>

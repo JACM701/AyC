@@ -438,6 +438,15 @@ $valor_total = $stats['valor_total'];
                 <?php while ($producto = $productos->fetch_assoc()): ?>
                     <div class="product-card">
                         <div class="product-header">
+                            <div style="width:100%;text-align:center;">
+                                <?php if (!empty($producto['image'])): ?>
+                                    <img src="../<?= htmlspecialchars($producto['image']) ?>" alt="Imagen de producto" style="max-height:90px;max-width:95%;object-fit:contain;margin-bottom:10px;display:block;margin-left:auto;margin-right:auto;">
+                                <?php else: ?>
+                                    <div style="height:90px;display:flex;align-items:center;justify-content:center;background:#f4f6fb;border-radius:10px;margin-bottom:10px;">
+                                        <i class="bi bi-image" style="font-size:2.5rem;color:#cfd8dc;"></i>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
                             <div>
                                 <h5 class="product-title"><?= htmlspecialchars($producto['product_name']) ?></h5>
                                 <div class="product-sku">

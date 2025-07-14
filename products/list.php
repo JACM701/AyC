@@ -136,6 +136,16 @@
             align-items: center;
             justify-content: center;
         }
+        .barcode-col span {
+            font-size: 0.65rem !important;
+            font-weight: 400 !important;
+            color: #888 !important;
+            background: none !important;
+            padding: 0 2px !important;
+            border-radius: 0 !important;
+            font-family: 'Fira Mono', 'Consolas', monospace;
+            display: inline-block;
+        }
         @media (max-width: 900px) {
             .main-content { width: calc(100vw - 70px); margin-left: 70px; max-width: 100vw; padding: 12px 2vw; box-sizing: border-box; }
             .titulo-lista { font-size: 1.2rem; }

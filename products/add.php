@@ -99,6 +99,7 @@
         $min_stock = isset($_POST['min_stock']) && $_POST['min_stock'] !== '' ? intval($_POST['min_stock']) : null;
         $max_stock = isset($_POST['max_stock']) && $_POST['max_stock'] !== '' ? intval($_POST['max_stock']) : null;
         $unit_measure = isset($_POST['unit_measure']) ? trim($_POST['unit_measure']) : null;
+        if ($unit_measure === '' || $unit_measure === '0') $unit_measure = null;
         
         // Obtener margen de ganancia (por defecto 30%)
         $margen_ganancia = isset($_POST['margen_ganancia']) ? floatval($_POST['margen_ganancia']) : 30.0;
@@ -146,7 +147,7 @@
             // Si no hay errores, proceder con la inserción
             if (empty($error)) {
                 $stmt = $mysqli->prepare("INSERT INTO products (product_name, sku, price, quantity, category_id, supplier_id, description, barcode, image, tipo_gestion, cost_price, min_stock, max_stock, unit_measure) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->bind_param("ssdiissssssddi", $product_name, $sku, $price, $cantidad_inicial, $category_id, $supplier_id, $description, $barcode, $image_path, $tipo_gestion, $cost_price, $min_stock, $max_stock, $unit_measure);
+                $stmt->bind_param("ssdiiissssdis", $product_name, $sku, $price, $cantidad_inicial, $category_id, $supplier_id, $description, $barcode, $image_path, $tipo_gestion, $cost_price, $min_stock, $max_stock, $unit_measure);
             if ($stmt->execute()) {
                 $new_product_id = $stmt->insert_id;
                 
