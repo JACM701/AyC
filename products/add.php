@@ -244,8 +244,6 @@
             color: #232a7c;
             margin-right: 10px;
             background: none;
-            -webkit-background-clip: unset;
-            -webkit-text-fill-color: unset;
         }
         .form-section {
             margin-bottom: 22px;
