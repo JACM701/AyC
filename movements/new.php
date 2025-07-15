@@ -140,180 +140,298 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        .main-content { max-width: 440px; margin: 40px auto 0 auto; }
-        .main-content h2 { margin-bottom: 22px; }
-        .form-group { margin-bottom: 14px; }
-        .form-group input, .form-group select { margin-top: 4px; }
-        .form-actions { display: flex; gap: 10px; margin-top: 18px; }
-        .form-actions button { flex: 1; }
-        .bobina-info { 
-            background: #e3f2fd; 
-            padding: 10px; 
-            border-radius: 8px; 
-            margin-top: 10px; 
-            display: none; 
+        body {
+            background: #f4f6fb;
         }
-        .barcode-result {
-            transition: all 0.3s ease;
+        .main-content {
+            max-width: 520px;
+            margin: 48px auto 0 auto;
+            padding: 0;
         }
-        .barcode-result .alert {
-            margin-bottom: 0;
+        .card-movimiento {
+            background: #fff;
+            border-radius: 18px;
+            box-shadow: 0 4px 32px rgba(18,24,102,0.10);
+            padding: 36px 32px 28px 32px;
+            border: 1.5px solid #e3e6f0;
+        }
+        .titulo-mov {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: #121866;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .subtitulo-mov {
+            color: #667eea;
+            font-size: 1.02rem;
+            margin-bottom: 24px;
+        }
+        .form-label {
+            font-weight: 600;
+            color: #232a7c;
+        }
+        .input-group .form-select, .input-group .form-control {
             border-radius: 8px;
         }
-        #barcodeInput {
-            font-family: monospace;
+        .form-select, .form-control {
+            border-radius: 8px;
+            font-size: 1.05rem;
+        }
+        .form-text, .text-muted {
+            font-size: 0.93rem;
+        }
+        .btn-primary, .btn-secondary, .btn-outline-info {
+            font-size: 1.08rem;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        .btn-primary {
+            background: #232a7c;
+            border: none;
+        }
+        .btn-primary:hover {
+            background: #121866;
+        }
+        .btn-secondary {
+            background: #e3e6fa;
+            color: #232a7c;
+            border: none;
+        }
+        .btn-secondary:hover {
+            background: #232a7c;
+            color: #fff;
+        }
+        .btn-outline-info {
+            border-color: #232a7c;
+            color: #232a7c;
+        }
+        .btn-outline-info:hover {
+            background: #232a7c;
+            color: #fff;
+        }
+        .alert {
+            border-radius: 10px;
+            font-size: 1.01rem;
+        }
+        .input-group-text {
+            background: #f4f6fb;
+            color: #232a7c;
+            border-radius: 8px 0 0 8px;
             font-size: 1.1rem;
-            letter-spacing: 1px;
         }
-        #btnBuscarBarcode {
-            border-left: none;
+        .d-flex.gap-2 {
+            gap: 12px !important;
         }
-        #btnBuscarBarcode:hover {
-            background-color: #6c757d;
-            color: white;
+        @media (max-width: 700px) {
+            .main-content { max-width: 98vw; padding: 0 2vw; }
+            .card-movimiento { padding: 18px 6vw 18px 6vw; }
         }
-        @media (max-width: 900px) { .main-content { max-width: 98vw; padding: 0 2vw; } }
     </style>
 </head>
 <body>
 <?php include '../includes/sidebar.php'; ?>
 <main class="main-content">
-    <h2>Registrar movimiento de inventario</h2>
-    <?php if ($success): ?>
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            <i class="bi bi-check-circle"></i> <?= $success ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    <?php elseif ($error): ?>
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            <i class="bi bi-exclamation-triangle"></i> <?= $error ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    <?php endif; ?>
-    <form action="" method="POST" autocomplete="off">
-        <div class="mb-3">
-            <label for="product_id" class="form-label">Producto:</label>
-            <div class="input-group">
-                <select name="product_id" id="product_id" class="form-select" required>
-                    <option value="">-- Selecciona un producto --</option>
-                    <?php while ($row = $products->fetch_assoc()): ?>
-                        <option value="<?= $row['product_id'] ?>" 
-                                data-tipo="<?= $row['tipo_gestion'] ?>"
-                                data-barcode="<?= htmlspecialchars($row['barcode'] ?? '') ?>"
-                                <?= (isset($_POST['product_id']) && $_POST['product_id'] == $row['product_id']) ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($row['product_name']) ?>
-                            <?php if ($row['tipo_gestion'] === 'bobina'): ?>
-                                (Bobina)
-                            <?php endif; ?>
-                        </option>
-                    <?php endwhile; ?>
-                </select>
-                <button type="button" class="btn btn-outline-secondary" id="btnBuscarBarcode" title="Buscar por código de barras">
-                    <i class="bi bi-upc-scan"></i>
-                </button>
+    <div class="card-movimiento">
+        <div class="titulo-mov"><i class="bi bi-arrow-left-right"></i> Registrar movimiento</div>
+        <div class="subtitulo-mov">Agrega una entrada, salida o ajuste de inventario de forma rápida y profesional.</div>
+        <?php if ($success): ?>
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="bi bi-check-circle"></i> <?= $success ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
-            <small class="text-muted">O usa el botón de escáner para buscar por código de barras</small>
-        </div>
-
-        <!-- Modal para búsqueda por código de barras -->
-        <div class="modal fade" id="modalBuscarBarcode" tabindex="-1" aria-labelledby="modalBuscarBarcodeLabel" aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="modalBuscarBarcodeLabel">
-                            <i class="bi bi-upc-scan"></i> Buscar por código de barras
-                        </h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label for="barcodeInput" class="form-label">Código de barras:</label>
-                            <input type="text" class="form-control" id="barcodeInput" placeholder="Escanea o ingresa el código de barras" autofocus>
-                            <div class="form-text">Escanea el código de barras del producto o ingrésalo manualmente</div>
-                        </div>
-                        <div id="barcodeResult" class="mt-3 barcode-result" style="display:none;"></div>
-                        <div class="mt-3">
-                            <small class="text-muted">
-                                <i class="bi bi-info-circle"></i>
-                                <strong>Consejos:</strong>
-                                <ul class="mt-1 mb-0">
-                                    <li>Coloca el cursor en el campo y escanea el código de barras</li>
-                                    <li>También puedes escribir el código manualmente</li>
-                                    <li>Presiona Enter para seleccionar el producto encontrado</li>
-                                </ul>
-                            </small>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                            <i class="bi bi-x-circle"></i> Cancelar
-                        </button>
-                        <button type="button" class="btn btn-primary" id="btnSeleccionarProducto" style="display:none;">
-                            <i class="bi bi-check-circle"></i> Seleccionar producto
-                        </button>
-                    </div>
-                </div>
+        <?php elseif ($error): ?>
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle"></i> <?= $error ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
-        </div>
-
-        <!-- Sección de bobinas (solo para productos tipo bobina) -->
-        <div id="bobinaSection" style="display:none;">
+        <?php endif; ?>
+        <form action="" method="POST" autocomplete="off">
             <div class="mb-3">
-                <label for="bobina_id" class="form-label">Bobina:</label>
-                <select name="bobina_id" id="bobina_id" class="form-select">
-                    <option value="">-- Selecciona una bobina --</option>
-                </select>
+                <label for="buscador_producto" class="form-label">Buscar producto por nombre o SKU</label>
+                <input type="text" class="form-control" id="buscador_producto" placeholder="Escribe el nombre o SKU...">
+                <div id="sugerencias_productos" class="list-group mt-1" style="position: absolute; z-index: 10; width: 100%; display: none;"></div>
             </div>
-            <div id="bobinaInfo" class="bobina-info">
-                <i class="bi bi-info-circle"></i>
-                <span id="bobinaInfoText"></span>
-            </div>
-        </div>
-
-        <!-- Campo de cantidad SIEMPRE visible -->
-        <div class="mb-3" id="cantidadSection">
-            <label for="quantity" class="form-label" id="cantidadLabel">Cantidad *</label>
-            <input type="number" class="form-control" name="quantity" id="quantity" min="1" step="1" required>
-            <div class="form-text" id="quantityHelp">Ingresa la cantidad</div>
-        </div>
-
-        <!-- Radios de tipo de movimiento SIEMPRE visibles -->
-        <div class="mb-3" id="tipoMovimientoSection">
-            <label class="form-label">Tipo de movimiento:</label>
-            <div class="d-flex gap-3">
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="is_entrada" id="is_entrada_1" value="1" checked>
-                    <label class="form-check-label" for="is_entrada_1">
-                        <i class="bi bi-arrow-down-circle text-success"></i> Entrada (aumenta stock)
-                    </label>
+            <div class="mb-3">
+                <label for="product_id" class="form-label">Producto</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-box"></i></span>
+                    <select name="product_id" id="product_id" class="form-select" required>
+                        <option value="">-- Selecciona un producto --</option>
+                        <?php while ($row = $products->fetch_assoc()): ?>
+                            <option value="<?= $row['product_id'] ?>" 
+                                    data-tipo="<?= $row['tipo_gestion'] ?>"
+                                    data-barcode="<?= htmlspecialchars($row['barcode'] ?? '') ?>"
+                                    <?= (isset($_POST['product_id']) && $_POST['product_id'] == $row['product_id']) ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($row['product_name']) ?>
+                                <?php if ($row['tipo_gestion'] === 'bobina'): ?>(Bobina)<?php endif; ?>
+                            </option>
+                        <?php endwhile; ?>
+                    </select>
+                    <button type="button" class="btn btn-outline-secondary" id="btnBuscarBarcode" title="Buscar por código de barras">
+                        <i class="bi bi-upc-scan"></i>
+                    </button>
                 </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="is_entrada" id="is_entrada_0" value="0">
-                    <label class="form-check-label" for="is_entrada_0">
-                        <i class="bi bi-arrow-up-circle text-danger"></i> Salida (disminuye stock)
-                    </label>
+                <small class="text-muted">O usa el botón de escáner para buscar por código de barras</small>
+            </div>
+
+            <!-- Modal para búsqueda por código de barras -->
+            <div class="modal fade" id="modalBuscarBarcode" tabindex="-1" aria-labelledby="modalBuscarBarcodeLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="modalBuscarBarcodeLabel">
+                                <i class="bi bi-upc-scan"></i> Buscar por código de barras
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="barcodeInput" class="form-label">Código de barras:</label>
+                                <input type="text" class="form-control" id="barcodeInput" placeholder="Escanea o ingresa el código de barras" autofocus>
+                                <div class="form-text">Escanea el código de barras del producto o ingrésalo manualmente</div>
+                            </div>
+                            <div id="barcodeResult" class="mt-3 barcode-result" style="display:none;"></div>
+                            <div class="mt-3">
+                                <small class="text-muted">
+                                    <i class="bi bi-info-circle"></i>
+                                    <strong>Consejos:</strong>
+                                    <ul class="mt-1 mb-0">
+                                        <li>Coloca el cursor en el campo y escanea el código de barras</li>
+                                        <li>También puedes escribir el código manualmente</li>
+                                        <li>Presiona Enter para seleccionar el producto encontrado</li>
+                                    </ul>
+                                </small>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                <i class="bi bi-x-circle"></i> Cancelar
+                            </button>
+                            <button type="button" class="btn btn-primary" id="btnSeleccionarProducto" style="display:none;">
+                                <i class="bi bi-check-circle"></i> Seleccionar producto
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <small class="text-muted">Selecciona si este movimiento aumenta o disminuye el inventario</small>
-            <!-- Campo oculto para movement_type_id -->
-            <input type="hidden" name="movement_type_id" id="movement_type_id" value="1">
-        </div>
-        <div class="d-flex gap-2">
-            <button type="submit" class="btn btn-primary flex-fill">
-                <i class="bi bi-plus-circle"></i> Registrar movimiento
-            </button>
-            <a href="index.php" class="btn btn-secondary">
-                <i class="bi bi-arrow-left"></i> Volver
-            </a>
-            <a href="manage_types.php" class="btn btn-outline-info">
-                <i class="bi bi-gear"></i> Gestionar Tipos
-            </a>
-        </div>
-    </form>
+
+            <!-- Sección de bobinas (solo para productos tipo bobina) -->
+            <div id="bobinaSection" style="display:none;">
+                <div class="mb-3">
+                    <label for="bobina_id" class="form-label">Bobina</label>
+                    <select name="bobina_id" id="bobina_id" class="form-select">
+                        <option value="">-- Selecciona una bobina --</option>
+                    </select>
+                </div>
+                <div id="bobinaInfo" class="bobina-info">
+                    <i class="bi bi-info-circle"></i>
+                    <span id="bobinaInfoText"></span>
+                </div>
+            </div>
+
+            <!-- Campo de cantidad SIEMPRE visible -->
+            <div class="mb-3" id="cantidadSection">
+                <label for="quantity" class="form-label" id="cantidadLabel">Cantidad *</label>
+                <input type="number" class="form-control" name="quantity" id="quantity" min="1" step="1" required>
+                <div class="form-text" id="quantityHelp">Ingresa la cantidad</div>
+            </div>
+
+            <!-- Radios de tipo de movimiento SIEMPRE visibles -->
+            <div class="mb-3" id="tipoMovimientoSection">
+                <label class="form-label">Tipo de movimiento</label>
+                <div class="d-flex gap-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="is_entrada" id="is_entrada_1" value="1" checked>
+                        <label class="form-check-label" for="is_entrada_1">
+                            <i class="bi bi-arrow-down-circle text-success"></i> Entrada (aumenta stock)
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="is_entrada" id="is_entrada_0" value="0">
+                        <label class="form-check-label" for="is_entrada_0">
+                            <i class="bi bi-arrow-up-circle text-danger"></i> Salida (disminuye stock)
+                        </label>
+                    </div>
+                </div>
+                <small class="text-muted">Selecciona si este movimiento aumenta o disminuye el inventario</small>
+                <input type="hidden" name="movement_type_id" id="movement_type_id" value="1">
+            </div>
+            <div class="d-flex gap-2 mt-3">
+                <button type="submit" class="btn btn-primary flex-fill">
+                    <i class="bi bi-plus-circle"></i> Registrar movimiento
+                </button>
+                <a href="index.php" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> Volver
+                </a>
+                <a href="manage_types.php" class="btn btn-outline-info">
+                    <i class="bi bi-gear"></i> Gestionar Tipos
+                </a>
+            </div>
+        </form>
+    </div>
 </main>
+<?php
+// Obtener todos los productos para JS (solo id, nombre, sku, tipo_gestion, barcode)
+$productos_autocomplete = $mysqli->query("SELECT product_id, product_name, sku, tipo_gestion, barcode FROM products ORDER BY product_name");
+$productos_js = [];
+while ($p = $productos_autocomplete->fetch_assoc()) {
+    $productos_js[] = $p;
+}
+?>
 <script src="../assets/js/script.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+// --- Autocompletado de productos por nombre o SKU ---
+let productosArray = <?= json_encode($productos_js) ?>;
+const buscador = document.getElementById('buscador_producto');
+const sugerencias = document.getElementById('sugerencias_productos');
+const selectProducto = document.getElementById('product_id');
+
+buscador.addEventListener('input', function() {
+    const query = this.value.trim().toLowerCase();
+    sugerencias.innerHTML = '';
+    if (query.length < 2) {
+        sugerencias.style.display = 'none';
+        return;
+    }
+    const filtrados = productosArray.filter(p =>
+        (p.product_name && p.product_name.toLowerCase().includes(query)) ||
+        (p.sku && p.sku.toLowerCase().includes(query))
+    );
+    if (filtrados.length === 0) {
+        sugerencias.style.display = 'none';
+        return;
+    }
+    filtrados.forEach(p => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'list-group-item list-group-item-action';
+        item.innerHTML = `<b>${p.product_name}</b> <span class='badge bg-light text-dark ms-2'>SKU: ${p.sku || '-'}</span> ${p.tipo_gestion === 'bobina' ? '<span class=\'badge bg-info ms-2\'>Bobina</span>' : ''}`;
+        item.onclick = function() {
+            selectProducto.value = p.product_id;
+            // Disparar el evento change para activar la lógica de bobinas/cantidad
+            const event = new Event('change');
+            selectProducto.dispatchEvent(event);
+            buscador.value = p.product_name;
+            sugerencias.style.display = 'none';
+        };
+        sugerencias.appendChild(item);
+    });
+    sugerencias.style.display = 'block';
+});
+// Ocultar sugerencias al perder foco
+buscador.addEventListener('blur', function() {
+    setTimeout(() => { sugerencias.style.display = 'none'; }, 200);
+});
+// Si el usuario selecciona manualmente en el select, actualizar el campo de búsqueda
+selectProducto.addEventListener('change', function() {
+    const selected = productosArray.find(p => p.product_id == selectProducto.value);
+    if (selected) buscador.value = selected.product_name;
+});
+
 // --- Lógica robusta para producto, bobina y cantidad ---
 document.addEventListener('DOMContentLoaded', function() {
     const productSelect = document.getElementById('product_id');
@@ -322,7 +440,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const cantidadInput = document.getElementById('quantity');
     const cantidadLabel = document.getElementById('cantidadLabel');
     const cantidadHelp = document.getElementById('quantityHelp');
-    const tipoMovimientoSection = document.getElementById('tipoMovimientoSection');
     const isEntradaRadio1 = document.getElementById('is_entrada_1');
     const isEntradaRadio0 = document.getElementById('is_entrada_0');
     const movementTypeIdHidden = document.getElementById('movement_type_id');
@@ -381,10 +498,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const isEntrada = isEntradaRadio1.checked;
         movementTypeIdHidden.value = isEntrada ? '1' : '2'; // Asumiendo que '1' es Entrada y '2' es Salida
     }
-
     isEntradaRadio1.addEventListener('change', actualizarMovementTypeId);
     isEntradaRadio0.addEventListener('change', actualizarMovementTypeId);
-    // Establecer el valor inicial al cargar la página
     actualizarMovementTypeId();
 
     // Validar formulario antes de enviar
@@ -480,35 +595,108 @@ document.getElementById('barcodeInput').addEventListener('keypress', function(e)
         }
     }
 });
-</script>
 
-<!-- Modal para agregar nuevo tipo de movimiento -->
-<div class="modal fade" id="modalNuevoTipoMovimiento" tabindex="-1" aria-labelledby="modalNuevoTipoMovimientoLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="modalNuevoTipoMovimientoLabel">
-                    <i class="bi bi-plus-circle"></i> Agregar Nuevo Tipo de Movimiento
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <label for="nuevoTipoMovimiento" class="form-label">Nombre del tipo de movimiento:</label>
-                    <input type="text" class="form-control" id="nuevoTipoMovimiento" placeholder="Ej: Transferencia, Devolución, etc." onkeypress="if(event.key === 'Enter') { event.preventDefault(); agregarNuevoTipoMovimiento(); }">
-                    <div class="form-text">Ingresa un nombre descriptivo para el nuevo tipo de movimiento.</div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="bi bi-x-circle"></i> Cancelar
-                </button>
-                <button type="button" class="btn btn-primary" onclick="agregarNuevoTipoMovimiento()">
-                    <i class="bi bi-check-circle"></i> Agregar
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
+// --- Modal para agregar nuevo tipo de movimiento ---
+document.addEventListener('DOMContentLoaded', function() {
+    const modalNuevoTipoMovimiento = new bootstrap.Modal(document.getElementById('modalNuevoTipoMovimiento'));
+    const nuevoTipoMovimientoInput = document.getElementById('nuevoTipoMovimiento');
+    const btnAgregarTipoMovimiento = document.querySelector('#modalNuevoTipoMovimiento .btn-primary');
+
+    btnAgregarTipoMovimiento.addEventListener('click', function() {
+        const nuevoNombre = nuevoTipoMovimientoInput.value.trim();
+        if (nuevoNombre) {
+            fetch('../movement_types/add_type.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `name=${encodeURIComponent(nuevoNombre)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Tipo de movimiento agregado correctamente: ' + data.message);
+                    modalNuevoTipoMovimiento.hide();
+                    // Recargar tipos de movimiento para el select
+                    fetch('../movement_types/get_types.php')
+                        .then(response => response.json())
+                        .then(types => {
+                            const movementTypeSelect = document.getElementById('movement_type_id');
+                            movementTypeSelect.innerHTML = '<option value="">-- Selecciona un tipo de movimiento --</option>';
+                            types.forEach(type => {
+                                const option = document.createElement('option');
+                                option.value = type.movement_type_id;
+                                option.textContent = type.name;
+                                movementTypeSelect.appendChild(option);
+                            });
+                            // Establecer el valor inicial del tipo de movimiento
+                            const isEntrada = isEntradaRadio1.checked;
+                            movementTypeSelect.value = isEntrada ? '1' : '2';
+                        });
+                } else {
+                    alert('Error al agregar tipo de movimiento: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error al agregar tipo de movimiento:', error);
+                alert('Error de red al agregar tipo de movimiento.');
+            });
+        } else {
+            alert('Por favor, ingresa un nombre para el nuevo tipo de movimiento.');
+        }
+    });
+});
+
+// --- Modal de advertencia de stock máximo ---
+document.addEventListener('DOMContentLoaded', function() {
+    const modalStockMaximo = new bootstrap.Modal(document.getElementById('modalStockMaximo'));
+    const productSelect = document.getElementById('product_id');
+    const cantidadInput = document.getElementById('quantity');
+    const isEntradaRadio1 = document.getElementById('is_entrada_1');
+    const btnConfirmarStockMax = document.getElementById('btnConfirmarStockMax');
+    const detalleStockMax = document.getElementById('detalleStockMax');
+
+    function fetchStockInfo(productId, cb) {
+        if (!productId) return;
+        fetch(`../products/check_sku.php?stockinfo=1&product_id=${productId}`)
+            .then(res => res.json())
+            .then(data => {
+                stockActual = data.stock;
+                stockMax = data.max_stock;
+                if (cb) cb();
+            });
+    }
+    productSelect.addEventListener('change', function() {
+        fetchStockInfo(this.value);
+    });
+
+    // Interceptar submit para advertir si se supera el stock máximo
+    let submitPendiente = false;
+    document.querySelector('form').addEventListener('submit', function(e) {
+        const selectedOption = productSelect.options[productSelect.selectedIndex];
+        const tipoGestion = selectedOption ? selectedOption.dataset.tipo : '';
+        const cantidad = parseFloat(cantidadInput.value) || 0;
+        const esEntrada = isEntradaRadio1.checked;
+        if (!esEntrada || !cantidad || !productSelect.value) return;
+        if (stockMax !== null && stockMax > 0 && stockActual !== null) {
+            let stockFinal = stockActual + cantidad;
+            if (tipoGestion === 'bobina') {
+                // Para bobinas, sumar metros a todas las bobinas (requiere ajuste si hay varias)
+                // Aquí solo advertimos si stockFinal > stockMax
+            }
+            if (stockFinal > stockMax) {
+                e.preventDefault();
+                detalleStockMax.innerHTML = `Stock actual: <b>${stockActual}</b> | Stock máximo: <b>${stockMax}</b> | Stock final: <b>${stockFinal}</b>`;
+                modalStockMaximo.show();
+                submitPendiente = true;
+            }
+        }
+    });
+    btnConfirmarStockMax.onclick = function() {
+        submitPendiente = false;
+        document.querySelector('form').submit();
+    };
+});
+</script>
 </body>
 </html>

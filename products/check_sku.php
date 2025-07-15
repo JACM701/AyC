@@ -26,6 +26,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sku'])) {
     }
     
     $stmt->close();
+} else if (isset($_GET['stockinfo']) && $_GET['stockinfo'] == '1' && isset($_GET['product_id'])) {
+    $product_id = intval($_GET['product_id']);
+    $stmt = $mysqli->prepare("SELECT quantity, max_stock FROM products WHERE product_id = ?");
+    $stmt->bind_param("i", $product_id);
+    $stmt->execute();
+    $stmt->bind_result($stock, $max_stock);
+    if ($stmt->fetch()) {
+        echo json_encode(['stock' => floatval($stock), 'max_stock' => floatval($max_stock)]);
+    } else {
+        echo json_encode(['stock' => null, 'max_stock' => null]);
+    }
+    $stmt->close();
+    $mysqli->close();
+    exit;
 } else {
     echo json_encode(['error' => 'Solicitud inválida']);
 }
