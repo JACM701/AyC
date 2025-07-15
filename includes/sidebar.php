@@ -68,6 +68,10 @@ if (!isset($total_products)) {
                     <i class="bi bi-arrow-left-right"></i>
                     <span class="nav-text">Movimientos</span>
                 </a>
+                <a href="../tecnicos/index.php" class="sidebar-tecnicos" title="Técnicos">
+                    <i class="bi bi-person-badge"></i>
+                    <span class="nav-text">Técnicos</span>
+                </a>
                 <a href="../products/categories.php" class="sidebar-categorias" title="Categorías">
                     <i class="bi bi-tags"></i>
                     <span class="nav-text">Categorías</span>
