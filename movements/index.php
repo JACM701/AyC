@@ -48,7 +48,8 @@
             mt.name AS movement_type_nombre,
             b.identificador AS bobina_identificador,
             b.metros_actuales AS bobina_metros_actuales,
-            u.username AS usuario_nombre
+            u.username AS usuario_nombre,
+            t.nombre AS tecnico_nombre
         FROM 
             movements m
         JOIN 
@@ -59,6 +60,8 @@
             bobinas b ON m.bobina_id = b.bobina_id
         LEFT JOIN
             users u ON m.user_id = u.user_id
+        LEFT JOIN
+            tecnicos t ON m.tecnico_id = t.tecnico_id
         $where_sql
         ORDER BY $orden_col $orden_dir
     ";
@@ -471,6 +474,7 @@
                                     'mt.name' => 'Tipo',
                                     'm.quantity' => 'Cantidad',
                                     'u.username' => 'Usuario',
+                                    't.nombre' => 'Técnico',
                                     'm.movement_date' => 'Fecha'
                                 ];
                                 foreach ($cols as $col => $label):
@@ -527,6 +531,15 @@
                                             <i class="bi bi-person"></i>
                                             <?= $row['usuario_nombre'] ? htmlspecialchars($row['usuario_nombre']) : 'Desconocido' ?>
                                         </span>
+                                    </td>
+                                    <td>
+                                        <?php if ($row['tecnico_nombre']): ?>
+                                            <span class="badge bg-primary">
+                                                <i class="bi bi-person-badge"></i> <?= htmlspecialchars($row['tecnico_nombre']) ?>
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="text-muted">-</span>
+                                        <?php endif; ?>
                                     </td>
                                     <td>
                                         <small class="text-muted">

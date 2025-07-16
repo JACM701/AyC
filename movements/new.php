@@ -14,6 +14,12 @@ $tipos_array = [];
 while ($row = $movement_types->fetch_assoc()) {
     $tipos_array[] = $row;
 }
+// Obtener técnicos para el select
+$tecnicos = $mysqli->query("SELECT tecnico_id, nombre FROM tecnicos ORDER BY nombre");
+$tecnicos_array = [];
+while ($row = $tecnicos->fetch_assoc()) {
+    $tecnicos_array[] = $row;
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -42,7 +48,17 @@ while ($row = $movement_types->fetch_assoc()) {
             <i class="bi bi-arrow-left"></i> Volver a movimientos
         </a>
     </div>
+    <!-- Select opcional de técnico -->
     <form id="movimientosForm" autocomplete="off">
+        <div class="mb-3">
+            <label for="tecnico_id" class="form-label">Técnico (opcional)</label>
+            <select class="form-select" name="tecnico_id" id="tecnico_id">
+                <option value="">-- Sin técnico --</option>
+                <?php foreach ($tecnicos_array as $t): ?>
+                    <option value="<?= $t['tecnico_id'] ?>"><?= htmlspecialchars($t['nombre']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
         <table class="table table-bordered table-movs" id="tablaMovimientos">
             <thead class="table-light">
                 <tr>
@@ -121,6 +137,20 @@ function crearFilaMovimiento() {
     selectTipo.required = true;
     selectTipo.innerHTML = '<option value="">Tipo</option>' +
         tipos.map(t => `<option value="${t.movement_type_id}">${t.name}</option>`).join('');
+    // Si no existe la opción Devolución, la agrego
+    if (!tipos.some(t => t.name && t.name.toLowerCase() === 'devolución')) {
+        const optDevolucion = document.createElement('option');
+        optDevolucion.value = 'devolucion';
+        optDevolucion.textContent = 'Devolución';
+        selectTipo.appendChild(optDevolucion);
+    }
+    // Si no existe la opción Ajuste, la agrego
+    if (!tipos.some(t => t.name && t.name.toLowerCase() === 'ajuste')) {
+        const optAjuste = document.createElement('option');
+        optAjuste.value = 'ajuste';
+        optAjuste.textContent = 'Ajuste';
+        selectTipo.appendChild(optAjuste);
+    }
     tdTipo.appendChild(selectTipo);
     tr.appendChild(tdTipo);
     // Cantidad
@@ -155,10 +185,40 @@ function crearFilaMovimiento() {
     tr.appendChild(tdDel);
     // Lógica para mostrar bobinas si aplica
     selectProd.addEventListener('change', function() {
+        actualizarOpcionesBobina();
+    });
+    selectTipo.addEventListener('change', function() {
+        actualizarOpcionesBobina();
+    });
+    function actualizarOpcionesBobina() {
         const tipo = selectProd.options[selectProd.selectedIndex].dataset.tipo;
         const prodId = selectProd.value;
+        const tipoMovId = selectTipo.value;
         if (tipo === 'bobina' && prodId) {
-            fetch(`../bobinas/bobinas_por_producto.php?product_id=${prodId}`)
+            // Buscar si el tipo de movimiento es entrada, ajuste o devolución
+            let isEntrada = false;
+            if (tipoMovId) {
+                const tipoMov = tipos.find(t => t.movement_type_id == tipoMovId);
+                if (tipoMov && tipoMov.name) {
+                    const nombre = tipoMov.name.toLowerCase();
+                    if (
+                        nombre.includes('entrada') ||
+                        nombre.includes('ajuste') ||
+                        nombre.includes('devolucion') || // sin tilde
+                        nombre.includes('devolución')    // con tilde
+                    ) {
+                        isEntrada = true;
+                    }
+                } else if (tipoMov && tipoMov.is_entry == 1) {
+                    isEntrada = true;
+                }
+            }
+            // Fetch bobinas (todas o solo con metros > 0)
+            let url = `../bobinas/bobinas_por_producto.php?product_id=${prodId}`;
+            if (!isEntrada) {
+                url += '&solo_disponibles=1';
+            }
+            fetch(url)
                 .then(r => r.json())
                 .then(bobinas => {
                     selectBobina.innerHTML = '<option value="">-- Selecciona una bobina --</option>';
@@ -166,8 +226,16 @@ function crearFilaMovimiento() {
                         const opt = document.createElement('option');
                         opt.value = bobina.bobina_id;
                         opt.textContent = `${bobina.identificador || 'Bobina #' + bobina.bobina_id} - ${bobina.metros_actuales}m disponibles`;
+                        if (bobina.metros_actuales == 0) {
+                            opt.textContent += ' (agotada)';
+                        }
                         selectBobina.appendChild(opt);
                     });
+                    // Agregar opción para nueva bobina
+                    const optNueva = document.createElement('option');
+                    optNueva.value = 'nueva';
+                    optNueva.textContent = '[Nueva bobina]';
+                    selectBobina.appendChild(optNueva);
                     selectBobina.disabled = false;
                 });
             selectBobina.disabled = false;
@@ -175,7 +243,7 @@ function crearFilaMovimiento() {
             selectBobina.innerHTML = '<option value="">-</option>';
             selectBobina.disabled = true;
         }
-    });
+    }
     // Inicialmente deshabilitar bobina
     selectBobina.disabled = true;
     return tr;
@@ -288,10 +356,12 @@ document.getElementById('movimientosForm').onsubmit = function(e) {
         showToast('Completa todos los campos de cada fila.', 'danger');
         return;
     }
+    // Obtener el técnico seleccionado
+    const tecnico_id = document.getElementById('tecnico_id').value;
     fetch('add_multiple.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(datos)
+        body: JSON.stringify({ movimientos: datos, tecnico_id })
     })
     .then(r => r.json())
     .then(res => {

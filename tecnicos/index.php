@@ -84,6 +84,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion']) && $_POST['
 }
 // Listado principal
 $tecnicos = $mysqli->query("SELECT * FROM tecnicos ORDER BY nombre ASC");
+// Calcular el siguiente código de técnico
+$res = $mysqli->query("SELECT MAX(CAST(SUBSTRING(codigo, 5) AS UNSIGNED)) as max_codigo FROM tecnicos WHERE codigo LIKE 'TEC-%'");
+$row = $res ? $res->fetch_assoc() : null;
+$ultimo_num = $row && $row['max_codigo'] ? intval($row['max_codigo']) : 0;
+$siguiente_codigo = 'TEC-' . str_pad($ultimo_num + 1, 4, '0', STR_PAD_LEFT);
+// Fecha de hoy para el campo de fecha
+$fecha_hoy = date('Y-m-d');
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -177,7 +184,7 @@ $tecnicos = $mysqli->query("SELECT * FROM tecnicos ORDER BY nombre ASC");
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="edit_codigo" class="form-label">Código</label>
-                        <input type="text" class="form-control" name="codigo" id="edit_codigo" required>
+                        <input type="text" class="form-control" name="codigo" id="edit_codigo" required readonly>
                     </div>
                     <div class="mb-3">
                         <label for="edit_nombre" class="form-label">Nombre</label>
@@ -241,7 +248,7 @@ $tecnicos = $mysqli->query("SELECT * FROM tecnicos ORDER BY nombre ASC");
         const alert = document.createElement('div');
         alert.className = `alert alert-${tipo} alert-dismissible fade show`;
         alert.role = 'alert';
-        alert.innerHTML = `<i class=\"bi bi-${tipo === 'success' ? 'check-circle' : 'exclamation-triangle'}\"></i> ${mensaje}<button type=\"button\" class=\"btn-close\" data-bs-dismiss=\"alert\"></button>`;
+        alert.innerHTML = `<i class="bi bi-${tipo === 'success' ? 'check-circle' : 'exclamation-triangle'}"></i> ${mensaje}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
         document.querySelector('.main-content').insertBefore(alert, document.querySelector('.main-content').firstChild);
         setTimeout(() => { if (alert) alert.remove(); }, 4000);
     }
@@ -277,21 +284,27 @@ $tecnicos = $mysqli->query("SELECT * FROM tecnicos ORDER BY nombre ASC");
     // Delegar eventos para nuevos botones de editar/eliminar tras AJAX
     function delegarBotonesTecnicos() {
         document.querySelectorAll('.btn-edit').forEach(btn => {
-            btn.addEventListener('click', function() {
+            btn.onclick = function() {
                 document.getElementById('edit_tecnico_id').value = this.dataset.id;
                 document.getElementById('edit_codigo').value = this.dataset.codigo;
                 document.getElementById('edit_nombre').value = this.dataset.nombre;
                 document.getElementById('edit_fecha_ingreso').value = this.dataset.fecha || '';
-            });
+                // Mostrar el modal de edición
+                const modal = new bootstrap.Modal(document.getElementById('modalEditarTecnico'));
+                modal.show();
+            };
         });
         document.querySelectorAll('.btn-delete').forEach(btn => {
-            btn.addEventListener('click', function() {
+            btn.onclick = function() {
                 document.getElementById('delete_tecnico_id').value = this.dataset.id;
                 document.getElementById('delete_tecnico_nombre').textContent = this.dataset.nombre;
-            });
+                // Mostrar el modal de eliminación
+                const modal = new bootstrap.Modal(document.getElementById('modalEliminarTecnico'));
+                modal.show();
+            };
         });
     }
     document.addEventListener('DOMContentLoaded', delegarBotonesTecnicos);
 </script>
 </body>
-</html> 
+</html>
