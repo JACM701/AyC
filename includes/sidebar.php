@@ -76,6 +76,10 @@ if (!isset($total_products)) {
                     <i class="bi bi-tags"></i>
                     <span class="nav-text">Categorías</span>
                 </a>
+                <a href="../servicios/index.php" class="sidebar-servicios" title="Servicios">
+                    <i class="bi bi-tools"></i>
+                    <span class="nav-text">Servicios</span>
+                </a>
             </div>
         </div>
 

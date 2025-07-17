@@ -33,9 +33,8 @@ function deletePaquete(index) {
 // {
 //   nombre: 'Kit Cámaras',
 //   items: [
-//     { product_id: 1, nombre: 'Cámara', tipo: 'principal', factor: 1 },
-//     { product_id: 2, nombre: 'Conector', tipo: 'relacionado', factor: 2 },
-//     { product_id: 3, nombre: 'Fuente', tipo: 'relacionado', factor: 1 },
+//     { tipo_item: 'producto', product_id: 1, nombre: 'Cámara', tipo: 'principal', factor: 1 },
+//     { tipo_item: 'servicio', servicio_id: 2, nombre: 'Instalación', tipo: 'relacionado', factor: 1 },
 //     ...
 //   ]
 // }
@@ -68,17 +67,17 @@ window.PaquetesCotizacion = {
 // Renderiza el formulario de creación/edición de paquete
 window.renderPaqueteForm = function({productos, paquete, onSave, onCancel}) {
     // productos: [{product_id, product_name}]
-    // paquete: {nombre, items: [{product_id, nombre, tipo, factor}]}
-    // onSave(paquete), onCancel()
+    // serviciosArray: global
     let html = '';
     html += `<div class='mb-3'>
         <label class='form-label'>Nombre del paquete</label>
         <input type='text' class='form-control' id='paqNombre' value='${paquete?.nombre ? paquete.nombre.replace(/'/g, "&#39;") : ''}' placeholder='Ej: Kit cámaras 8ch'>
     </div>`;
-    html += `<div class='mb-2'><b>Productos del paquete</b></div>`;
-    html += `<table class='table table-bordered'><thead><tr><th>Producto</th><th>Tipo</th><th>Factor</th><th></th></tr></thead><tbody id='paqItemsTbody'>`;
+    html += `<div class='mb-2'><b>Ítems del paquete</b></div>`;
+    html += `<table class='table table-bordered'><thead><tr><th>Tipo</th><th>Nombre</th><th>Tipo relación</th><th>Factor</th><th></th></tr></thead><tbody id='paqItemsTbody'>`;
     (paquete?.items || []).forEach((item, idx) => {
         html += `<tr>
+            <td>${item.tipo_item === 'servicio' ? 'Servicio' : 'Producto'}</td>
             <td>${item.nombre}</td>
             <td>
                 <select class='form-select paq-tipo' data-idx='${idx}'>
@@ -91,13 +90,24 @@ window.renderPaqueteForm = function({productos, paquete, onSave, onCancel}) {
         </tr>`;
     });
     html += `</tbody></table>`;
+    // Select para productos
     html += `<div class='mb-2'>
         <select class='form-select' id='paqProductoSelect'>
             <option value=''>Agregar producto...</option>`;
     productos.forEach(p => {
-        // Prevenir duplicados
-        if (!(paquete.items || []).some(i => i.product_id == p.product_id)) {
+        if (!(paquete.items || []).some(i => i.tipo_item === 'producto' && i.product_id == p.product_id)) {
             html += `<option value='${p.product_id}'>${p.product_name}</option>`;
+        }
+    });
+    html += `</select>
+    </div>`;
+    // Select para servicios
+    html += `<div class='mb-2'>
+        <select class='form-select' id='paqServicioSelect'>
+            <option value=''>Agregar servicio...</option>`;
+    (window.serviciosArray || []).forEach(s => {
+        if (!(paquete.items || []).some(i => i.tipo_item === 'servicio' && i.servicio_id == s.servicio_id)) {
+            html += `<option value='${s.servicio_id}'>${s.nombre}</option>`;
         }
     });
     html += `</select>
@@ -154,16 +164,43 @@ window.editarPaquete = function(idx) {
             onSave: window.guardarPaqueteEditado,
             onCancel: renderPaquetesPanel
         });
-        document.getElementById('paqProductoSelect').onchange = function() {
-            const pid = this.value;
-            if (!pid) return;
-            const prod = productosArray.find(p => p.product_id == pid);
-            if (!prod) return;
-            // Prevenir duplicados
-            if (window._paqEdit.items.some(i => i.product_id == prod.product_id)) return;
-            window._paqEdit.items.push({ product_id: prod.product_id, nombre: prod.product_name, tipo: 'relacionado', factor: 1 });
-            window._paqRender();
-        };
+        // Agregar producto o servicio al paquete
+        if (typeof window._paqRender === 'function') {
+            const oldRender = window._paqRender;
+            window._paqRender = function() {
+                const nombreInput = document.getElementById('paqNombre');
+                if (nombreInput && window._paqEdit) {
+                    window._paqEdit.nombre = nombreInput.value;
+                }
+                oldRender();
+                // Productos
+                const prodSel = document.getElementById('paqProductoSelect');
+                if (prodSel) {
+                    prodSel.onchange = function() {
+                        const pid = this.value;
+                        if (!pid) return;
+                        const prod = productosArray.find(p => p.product_id == pid);
+                        if (!prod) return;
+                        if (window._paqEdit.items.some(i => i.tipo_item === 'producto' && i.product_id == prod.product_id)) return;
+                        window._paqEdit.items.push({ tipo_item: 'producto', product_id: prod.product_id, nombre: prod.product_name, tipo: 'relacionado', factor: 1 });
+                        window._paqRender();
+                    };
+                }
+                // Servicios
+                const servSel = document.getElementById('paqServicioSelect');
+                if (servSel) {
+                    servSel.onchange = function() {
+                        const sid = this.value;
+                        if (!sid) return;
+                        const serv = (window.serviciosArray || []).find(s => s.servicio_id == sid);
+                        if (!serv) return;
+                        if (window._paqEdit.items.some(i => i.tipo_item === 'servicio' && i.servicio_id == serv.servicio_id)) return;
+                        window._paqEdit.items.push({ tipo_item: 'servicio', servicio_id: serv.servicio_id, nombre: serv.nombre, tipo: 'relacionado', factor: 1 });
+                        window._paqRender();
+                    };
+                }
+            };
+        }
         document.getElementById('btnGuardarPaquete').onclick = window.guardarPaqueteEditado;
         document.getElementById('btnCancelarPaquete').onclick = renderPaquetesPanel;
         document.querySelectorAll('.paq-tipo').forEach(sel => {
@@ -198,3 +235,61 @@ window.eliminarPaquete = function(idx) {
         mostrarNotificacion('Paquete eliminado correctamente.', 'info');
     }
 }; 
+
+// Función para crear nuevo paquete
+function nuevoPaquete() {
+    window._paqEdit = { nombre: '', items: [] };
+    window._paqRender = function() {
+        // Guardar el nombre antes de renderizar
+        const nombreInput = document.getElementById('paqNombre');
+        if (nombreInput && window._paqEdit) {
+            window._paqEdit.nombre = nombreInput.value;
+        }
+        const panel = document.getElementById('paquetesPanel');
+        panel.innerHTML = window.renderPaqueteForm({
+            productos: productosArray.map(p => ({ product_id: p.product_id, product_name: p.product_name })),
+            paquete: window._paqEdit,
+            onSave: guardarPaquete,
+            onCancel: renderPaquetesPanel
+        });
+        // --- AGREGAR PRODUCTO ---
+        const prodSel = document.getElementById('paqProductoSelect');
+        if (prodSel) {
+            prodSel.onchange = function() {
+                const pid = this.value;
+                if (!pid) return;
+                const prod = productosArray.find(p => p.product_id == pid);
+                if (!prod) return;
+                if (window._paqEdit.items.some(i => i.tipo_item === 'producto' && i.product_id == prod.product_id)) return;
+                window._paqEdit.items.push({ tipo_item: 'producto', product_id: prod.product_id, nombre: prod.product_name, tipo: 'relacionado', factor: 1 });
+                window._paqRender();
+            };
+        }
+        // --- AGREGAR SERVICIO ---
+        const servSel = document.getElementById('paqServicioSelect');
+        if (servSel) {
+            servSel.onchange = function() {
+                const sid = this.value;
+                if (!sid) return;
+                const serv = (window.serviciosArray || []).find(s => s.servicio_id == sid);
+                if (!serv) return;
+                if (window._paqEdit.items.some(i => i.tipo_item === 'servicio' && i.servicio_id == serv.servicio_id)) return;
+                window._paqEdit.items.push({ tipo_item: 'servicio', servicio_id: serv.servicio_id, nombre: serv.nombre, tipo: 'relacionado', factor: 1 });
+                window._paqRender();
+            };
+        }
+        document.getElementById('btnGuardarPaquete').onclick = guardarPaquete;
+        document.getElementById('btnCancelarPaquete').onclick = renderPaquetesPanel;
+        document.querySelectorAll('.paq-tipo').forEach(sel => {
+            sel.onchange = function() {
+                window._paqEdit.items[this.dataset.idx].tipo = this.value;
+            };
+        });
+        document.querySelectorAll('.paq-factor').forEach(inp => {
+            inp.oninput = function() {
+                window._paqEdit.items[this.dataset.idx].factor = parseFloat(this.value) || 1;
+            };
+        });
+    };
+    window._paqRender();
+} 

@@ -26,7 +26,3 @@ Desktop.ini
 vendor/
 node_modules/
 
-# Ignore database dumps (optional)
-*.sql
-*.sqlite
-*.db

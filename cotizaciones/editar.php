@@ -59,6 +59,39 @@ while ($prod = $productos_cotizacion->fetch_assoc()) {
     ];
 }
 
+// Obtener servicios de la cotización
+$stmt = $mysqli->prepare("
+    SELECT cs.*, s.nombre as servicio_nombre, s.descripcion as servicio_descripcion, s.categoria as servicio_categoria, s.imagen as servicio_imagen
+    FROM cotizaciones_servicios cs
+    LEFT JOIN servicios s ON cs.servicio_id = s.servicio_id
+    WHERE cs.cotizacion_id = ?
+    ORDER BY cs.cotizacion_servicio_id
+");
+$stmt->bind_param('i', $cotizacion_id);
+$stmt->execute();
+$servicios_cotizacion = $stmt->get_result();
+
+// Preparar servicios existentes para JS
+$servicios_existentes = [];
+while ($serv = $servicios_cotizacion->fetch_assoc()) {
+    $img = $serv['imagen'] ?? $serv['servicio_imagen'] ?? '';
+    if ($img && strpos($img, 'uploads/services/') === false) {
+        $img = 'uploads/services/' . $img;
+    }
+    $servicios_existentes[] = [
+        'servicio_id' => $serv['servicio_id'],
+        'nombre' => $serv['nombre_servicio'],
+        'categoria' => $serv['servicio_categoria'],
+        'descripcion' => $serv['descripcion'],
+        'cantidad' => $serv['cantidad'],
+        'precio' => $serv['precio_unitario'],
+        'imagen' => $img
+    ];
+}
+// Servicios disponibles para agregar
+$servicios = $mysqli->query("SELECT servicio_id, nombre, categoria, descripcion, precio, imagen FROM servicios WHERE is_active = 1 ORDER BY categoria, nombre ASC");
+$servicios_array = $servicios ? $servicios->fetch_all(MYSQLI_ASSOC) : [];
+
 // --- Preparar datos para selects ---
 $clientes = $mysqli->query("SELECT cliente_id, nombre, telefono, ubicacion, email FROM clientes ORDER BY nombre ASC");
 $clientes_array = $clientes ? $clientes->fetch_all(MYSQLI_ASSOC) : [];
@@ -117,14 +150,16 @@ $success = $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $productos_json = $_POST['productos_json'] ?? '';
     $productos = json_decode($productos_json, true);
+    $servicios_json = $_POST['servicios_json'] ?? '';
+    $servicios = json_decode($servicios_json, true);
     $cliente_id = $_POST['cliente_id'] ?? '';
     $cliente_nombre = trim($_POST['cliente_nombre'] ?? '');
     $cliente_telefono = trim($_POST['cliente_telefono'] ?? '');
     $cliente_ubicacion = trim($_POST['cliente_ubicacion'] ?? '');
     $cliente_email = trim($_POST['cliente_email'] ?? '');
     
-    if (!$productos || !is_array($productos) || count($productos) == 0) {
-        $error = 'Debes agregar al menos un producto a la cotización.';
+    if ((!$productos || !is_array($productos) || count($productos) == 0) && (!$servicios || !is_array($servicios) || count($servicios) == 0)) {
+        $error = 'Debes agregar al menos un producto o servicio a la cotización.';
     }
     if (!$cliente_id && !$cliente_nombre) {
         $error = 'Debes seleccionar o registrar un cliente.';
@@ -208,6 +243,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt_cp->bind_param('iiddd', $cotizacion_id, $product_id, $prod['cantidad'], $prod['precio'], $precio_total);
                 $stmt_cp->execute();
                 $stmt_cp->close();
+            }
+
+            // Eliminar servicios anteriores
+            $stmt = $mysqli->prepare("DELETE FROM cotizaciones_servicios WHERE cotizacion_id = ?");
+            $stmt->bind_param('i', $cotizacion_id);
+            $stmt->execute();
+            $stmt->close();
+            // Insertar nuevos servicios
+            foreach ($servicios as $serv) {
+                $servicio_id = $serv['servicio_id'] ?? null;
+                $nombre_servicio = $serv['nombre'];
+                $descripcion = $serv['descripcion'] ?? '';
+                $cantidad = intval($serv['cantidad']);
+                $precio_unitario = floatval($serv['precio']);
+                $precio_total = $cantidad * $precio_unitario;
+                $imagen = $serv['imagen'] ?? null;
+                $categoria = $serv['categoria'] ?? '';
+                $stmt_cs = $mysqli->prepare("INSERT INTO cotizaciones_servicios (cotizacion_id, servicio_id, nombre_servicio, descripcion, cantidad, precio_unitario, precio_total, imagen) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt_cs->bind_param('iissddds', $cotizacion_id, $servicio_id, $nombre_servicio, $descripcion, $cantidad, $precio_unitario, $precio_total, $imagen);
+                $stmt_cs->execute();
+                $stmt_cs->close();
             }
             
             header("Location: ver.php?id=$cotizacion_id");
@@ -365,6 +421,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
 
+        <!-- Sección Servicios -->
+        <div class="form-section">
+            <div class="section-title"><i class="bi bi-tools"></i> Servicios</div>
+            <div class="mb-3">
+                <label for="servicio_select" class="form-label">Agregar servicio</label>
+                <select class="form-select" id="servicio_select">
+                    <option value="">Seleccionar servicio...</option>
+                    <?php foreach ($servicios_array as $serv): ?>
+                        <option value="<?= $serv['servicio_id'] ?>"
+                                data-nombre="<?= htmlspecialchars($serv['nombre']) ?>"
+                                data-categoria="<?= htmlspecialchars($serv['categoria']) ?>"
+                                data-descripcion="<?= htmlspecialchars($serv['descripcion']) ?>"
+                                data-precio="<?= $serv['precio'] ?>"
+                                data-imagen="<?= htmlspecialchars($serv['imagen']) ?>">
+                            <?= htmlspecialchars($serv['nombre']) ?> (<?= htmlspecialchars($serv['categoria']) ?>)
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped" id="tablaServicios">
+                    <thead>
+                        <tr>
+                            <th>Servicio</th>
+                            <th>Categoría</th>
+                            <th>Descripción</th>
+                            <th>Cantidad</th>
+                            <th>Precio Unit.</th>
+                            <th>Total</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Los servicios se cargarán dinámicamente con JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- Sección Detalles -->
         <div class="form-section">
             <div class="section-title"><i class="bi bi-gear"></i> Detalles de la Cotización</div>
@@ -431,6 +526,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
 
         <input type="hidden" name="productos_json" id="productos_json" value="">
+        <input type="hidden" name="servicios_json" id="servicios_json" value="">
         
         <div class="d-flex justify-content-between">
             <a href="index.php" class="btn btn-secondary">
@@ -597,6 +693,115 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         document.getElementById('productos_json').value = JSON.stringify(productos);
+    });
+
+    // Servicios existentes de PHP
+    const serviciosExistentes = <?= json_encode($servicios_existentes) ?>;
+    const serviciosArray = <?= json_encode($servicios_array) ?>;
+    // Inicializar servicios existentes
+    $(document).ready(function() {
+        serviciosExistentes.forEach(servicio => {
+            agregarServicio(servicio);
+        });
+    });
+    // Manejo de servicios
+    $('#servicio_select').on('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        if (this.value) {
+            agregarServicio({
+                servicio_id: this.value,
+                nombre: selectedOption.dataset.nombre,
+                categoria: selectedOption.dataset.categoria,
+                descripcion: selectedOption.dataset.descripcion,
+                precio: selectedOption.dataset.precio,
+                cantidad: 1,
+                imagen: selectedOption.dataset.imagen
+            });
+            this.value = '';
+            $('#servicio_select').val('').trigger('change');
+        }
+    });
+    function agregarServicio(servicio) {
+        const tbody = document.querySelector('#tablaServicios tbody');
+        const cantidad = Math.max(1, Math.round(parseFloat(servicio.cantidad) || 1));
+        const row = document.createElement('tr');
+        row.dataset.servicioId = servicio.servicio_id;
+        row.innerHTML = `
+            <td>${servicio.imagen ? `<img src="../uploads/services/${servicio.imagen}" alt="Imagen" style="height:32px;max-width:40px;margin-right:6px;vertical-align:middle;">` : ''}${servicio.nombre}</td>
+            <td>${servicio.categoria || ''}</td>
+            <td>${servicio.descripcion || ''}</td>
+            <td><input type="number" class="form-control form-control-sm cantidad-servicio-input" value="${cantidad}" min="1" step="1" style="width: 80px;"></td>
+            <td><input type="number" class="form-control form-control-sm precio-servicio-input" value="${servicio.precio}" min="0" step="0.01" style="width: 100px;"></td>
+            <td class="total-fila-servicio">$${(servicio.precio * cantidad).toFixed(2)}</td>
+            <td><button type="button" class="btn btn-sm btn-outline-danger btn-remove-servicio"><i class="bi bi-trash"></i></button></td>
+        `;
+        tbody.appendChild(row);
+        actualizarTotalesServicios();
+    }
+    // Eventos para cantidad y precio de servicios
+    $(document).on('input', '.cantidad-servicio-input, .precio-servicio-input', function() {
+        const row = $(this).closest('tr');
+        let cantidad = Math.max(1, Math.round(parseFloat(row.find('.cantidad-servicio-input').val()) || 1));
+        row.find('.cantidad-servicio-input').val(cantidad);
+        const precio = parseFloat(row.find('.precio-servicio-input').val()) || 0;
+        row.find('.total-fila-servicio').text('$' + (precio * cantidad).toFixed(2));
+        actualizarTotalesServicios();
+    });
+    // Eliminar servicio
+    $(document).on('click', '.btn-remove-servicio', function() {
+        $(this).closest('tr').remove();
+        actualizarTotalesServicios();
+    });
+    // Actualizar totales de servicios
+    function actualizarTotalesServicios() {
+        let subtotal = 0;
+        $('#tablaServicios tbody tr').each(function() {
+            const cantidad = parseFloat($(this).find('.cantidad-servicio-input').val()) || 0;
+            const precio = parseFloat($(this).find('.precio-servicio-input').val()) || 0;
+            subtotal += cantidad * precio;
+        });
+        // Suma al subtotal de productos
+        let subtotalProductos = 0;
+        $('#tablaProductos tbody tr').each(function() {
+            const cantidad = parseFloat($(this).find('.cantidad-input').val()) || 0;
+            const precio = parseFloat($(this).find('.precio-input').val()) || 0;
+            subtotalProductos += cantidad * precio;
+        });
+        const descuentoPorcentaje = parseFloat($('#descuento_porcentaje').val()) || 0;
+        const descuento = (subtotal + subtotalProductos) * descuentoPorcentaje / 100;
+        const total = subtotal + subtotalProductos - descuento;
+        $('#subtotal').text('$' + (subtotal + subtotalProductos).toFixed(2));
+        $('#descuento').text('$' + descuento.toFixed(2));
+        $('#total').text('$' + total.toFixed(2));
+    }
+    // Guardar servicios al enviar
+    $('#formEditarCotizacion').on('submit', function(e) {
+        const servicios = [];
+        $('#tablaServicios tbody tr').each(function() {
+            const servicioId = $(this).data('servicioid');
+            const nombre = $(this).find('td').eq(0).text().trim();
+            const categoria = $(this).find('td').eq(1).text().trim();
+            const descripcion = $(this).find('td').eq(2).text().trim();
+            const cantidad = Math.max(1, Math.round(parseFloat($(this).find('.cantidad-servicio-input').val()) || 1));
+            const precio = parseFloat($(this).find('.precio-servicio-input').val()) || 0;
+            let imagen = '';
+            const imgTag = $(this).find('img');
+            if (imgTag.length) {
+                imagen = imgTag.attr('src').replace('../uploads/services/', '');
+            }
+            if (nombre && cantidad > 0 && precio > 0) {
+                servicios.push({
+                    servicio_id: servicioId,
+                    nombre: nombre,
+                    categoria: categoria,
+                    descripcion: descripcion,
+                    cantidad: cantidad,
+                    precio: precio,
+                    imagen: imagen
+                });
+            }
+        });
+        $('#servicios_json').val(JSON.stringify(servicios));
     });
 </script>
 </body>

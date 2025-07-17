@@ -31,10 +31,6 @@ $productos_array = $productos ? $productos->fetch_all(MYSQLI_ASSOC) : [];
 $categorias = $mysqli->query("SELECT category_id, name FROM categories ORDER BY name ASC");
 $proveedores = $mysqli->query("SELECT supplier_id, name FROM suppliers ORDER BY name ASC");
 
-// Obtener servicios disponibles
-$servicios = $mysqli->query("SELECT servicio_id, nombre, descripcion, categoria, precio, imagen FROM servicios WHERE is_active = 1 ORDER BY categoria, nombre ASC");
-$servicios_array = $servicios ? $servicios->fetch_all(MYSQLI_ASSOC) : [];
-
 // Verificar si existen estados de cotización, si no, crearlos
 $estados = $mysqli->query("SELECT est_cot_id, nombre_estado FROM est_cotizacion ORDER BY est_cot_id ASC");
 if ($estados && $estados->num_rows == 0) {
@@ -63,16 +59,14 @@ $estados_array = $estados ? $estados->fetch_all(MYSQLI_ASSOC) : [];
 $success = $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $productos_json = $_POST['productos_json'] ?? '';
-    $servicios_json = $_POST['servicios_json'] ?? '';
     $productos = json_decode($productos_json, true);
-    $servicios = json_decode($servicios_json, true);
     $cliente_id = $_POST['cliente_id'] ?? '';
     $cliente_nombre = trim($_POST['cliente_nombre'] ?? '');
     $cliente_telefono = trim($_POST['cliente_telefono'] ?? '');
     $cliente_ubicacion = trim($_POST['cliente_ubicacion'] ?? '');
     $cliente_email = trim($_POST['cliente_email'] ?? '');
-    if ((!$productos || !is_array($productos) || count($productos) == 0) && (!$servicios || !is_array($servicios) || count($servicios) == 0)) {
-        $error = 'Debes agregar al menos un producto o servicio a la cotización.';
+    if (!$productos || !is_array($productos) || count($productos) == 0) {
+        $error = 'Debes agregar al menos un producto a la cotización.';
     }
     if (!$cliente_id && !$cliente_nombre) {
         $error = 'Debes seleccionar o registrar un cliente.';
@@ -115,18 +109,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Calcular totales
         $subtotal = 0;
         $total_productos = count($productos);
-        $total_servicios = count($servicios);
-        
-        // Sumar productos
         foreach ($productos as $prod) {
             $subtotal += floatval($prod['precio']) * intval($prod['cantidad']);
         }
-        
-        // Sumar servicios
-        foreach ($servicios as $serv) {
-            $subtotal += floatval($serv['precio']) * floatval($serv['cantidad']);
-        }
-        
         $descuento_monto = $subtotal * $descuento_porcentaje / 100;
         $total = $subtotal - $descuento_monto;
         
@@ -210,23 +195,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $mysqli->query("UPDATE products SET quantity = quantity - " . intval($prod['cantidad']) . " WHERE product_id = " . intval($product_id));
                 }
             }
-            
-            // Procesar servicios
-            foreach ($servicios as $serv) {
-                $servicio_id = $serv['servicio_id'] ?? null;
-                $nombre_servicio = $serv['nombre'];
-                $descripcion = $serv['descripcion'] ?? '';
-                $cantidad = floatval($serv['cantidad']);
-                $precio_unitario = floatval($serv['precio']);
-                $precio_total = $cantidad * $precio_unitario;
-                $imagen = $serv['imagen'] ?? null;
-
-                $stmt_cs = $mysqli->prepare("INSERT INTO cotizaciones_servicios (cotizacion_id, servicio_id, nombre_servicio, descripcion, cantidad, precio_unitario, precio_total, imagen) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt_cs->bind_param('iissddds', $cotizacion_id, $servicio_id, $nombre_servicio, $descripcion, $cantidad, $precio_unitario, $precio_total, $imagen);
-                $stmt_cs->execute();
-                $stmt_cs->close();
-            }
-            
             header("Location: ver.php?id=$cotizacion_id");
             exit;
         } else {
@@ -270,19 +238,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .select2-selection__arrow { height: 38px !important; }
         .table thead th { background: #121866; color: #fff; }
         .badge-stock { font-size: 0.85rem; }
-        /* Icono de búsqueda discreto en la tabla */
-        .icon-buscar-google {
-            color: #888;
-            font-size: 1.05em;
-            margin-left: 6px;
-            opacity: 0;
-            cursor: pointer;
-            transition: opacity 0.15s;
-            vertical-align: middle;
-        }
-        #tablaProductosCotizacion td:hover .icon-buscar-google {
-            opacity: 1;
-        }
     </style>
 </head>
 <body>
@@ -417,68 +372,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </table>
             </div>
         </div>
-
-        <!-- Sección Servicios -->
-        <div class="form-section">
-            <div class="section-title"><i class="bi bi-tools"></i> Servicios</div>
-            <div class="mb-3">
-                <label for="buscador_servicio" class="form-label">Buscar servicio</label>
-                <input type="text" class="form-control" id="buscador_servicio" placeholder="Nombre del servicio...">
-                <div id="sugerencias_servicios" class="list-group mt-1"></div>
-            </div>
-            <div class="mb-3">
-                <button type="button" class="btn btn-outline-success" id="btnAltaRapidaServicio"><i class="bi bi-plus-circle"></i> Alta rápida de servicio</button>
-            </div>
-            <div id="altaRapidaServicioForm" style="display:none;">
-                <div class="row g-3 align-items-end">
-                    <div class="col-md-4">
-                        <label class="form-label">Nombre del servicio</label>
-                        <input type="text" class="form-control" id="nuevo_nombre_servicio">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Categoría</label>
-                        <input type="text" class="form-control" id="nuevo_categoria_servicio" placeholder="ej: Instalación">
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Precio</label>
-                        <input type="number" class="form-control" id="nuevo_precio_servicio" min="0" step="0.01">
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Cantidad</label>
-                        <input type="number" class="form-control" id="nuevo_cantidad_servicio" min="0.01" step="0.01" value="1">
-                    </div>
-                    <div class="col-md-1">
-                        <label class="form-label">Unidad</label>
-                        <input type="text" class="form-control" id="nuevo_unidad_servicio" placeholder="ej: hora">
-                    </div>
-                </div>
-                <div class="row g-3 mt-2">
-                    <div class="col-md-12">
-                        <label class="form-label">Descripción</label>
-                        <textarea class="form-control" id="nuevo_descripcion_servicio" rows="2" placeholder="Descripción del servicio..."></textarea>
-                    </div>
-                </div>
-                <div class="mt-2">
-                    <button type="button" class="btn btn-success" id="btnAgregarServicioRapido"><i class="bi bi-check-circle"></i> Agregar servicio</button>
-                </div>
-            </div>
-            <div class="table-responsive mt-4">
-                <table class="table table-striped align-middle" id="tablaServiciosCotizacion">
-                    <thead class="table-dark">
-                        <tr>
-                            <th>Servicio</th>
-                            <th>Categoría</th>
-                            <th>Descripción</th>
-                            <th>Cantidad</th>
-                            <th>Precio</th>
-                            <th>Subtotal</th>
-                            <th>Acción</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </div>
         <!-- Sección Estado y Condiciones -->
         <div class="form-section">
             <div class="section-title"><i class="bi bi-info-circle"></i> Estado y Condiciones</div>
@@ -546,7 +439,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-<script src="paquetes.js?v=999"></script>
+<script src="paquetes.js"></script>
 <script>
 // --- CLIENTES ---
 const clientesArray = <?= json_encode($clientes_array) ?>;
@@ -618,12 +511,6 @@ const productosArray = <?= json_encode($productos_array) ?>.map(p => ({
     tipo_gestion: p.tipo_gestion || 'pieza'
 }));
 let productosCotizacion = [];
-
-// --- SERVICIOS ---
-const serviciosArray = <?= json_encode($servicios_array) ?>;
-let serviciosCotizacion = [];
-// Hacer serviciosArray global INMEDIATAMENTE para que paquetes.js pueda acceder
-window.serviciosArray = serviciosArray;
 
 // Función para normalizar texto (quitar acentos y convertir a minúsculas)
 function normalizarTexto(texto) {
@@ -718,24 +605,13 @@ function renderTablaProductos() {
         const step = esBobina ? '0.01' : '1';
         const min = esBobina ? '0.01' : '1';
         const unidad = esBobina ? ' m' : '';
-        const nombreGoogle = encodeURIComponent(p.nombre || '');
-        const skuGoogle = encodeURIComponent(p.sku || '');
-        // Mostrar stock según tipo
-        let stockStr = '';
-        if (typeof p.stock !== 'undefined' && p.stock !== null && p.stock !== '') {
-            stockStr = esBobina ? parseFloat(p.stock).toFixed(2) : parseInt(p.stock);
-        }
         html += `
             <tr>
-                <td>${p.nombre}
-                    ${p.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google"><i class="bi bi-search"></i></a>` : ''}
-                </td>
-                <td>${p.sku || ''}
-                    ${p.sku ? `<a href="https://www.google.com/search?q=${skuGoogle}" target="_blank" title="Buscar SKU en Google" class="icon-buscar-google"><i class="bi bi-search"></i></a>` : ''}
-                </td>
+                <td>${p.nombre}</td>
+                <td>${p.sku || ''}</td>
                 <td>${p.categoria || ''}</td>
                 <td>${p.proveedor || ''}</td>
-                <td>${stockStr}</td>
+                <td>${p.stock}</td>
                 <td>
                     <input type="number" 
                            min="${min}" 
@@ -837,183 +713,8 @@ $(document).on('blur', '.precio-input', function() {
 $(document).on('focus', '.precio-input', function() {
     $(this).select();
 });
-
-// --- SERVICIOS ---
-$('#buscador_servicio').on('input', function() {
-    const query = normalizarTexto($(this).val());
-    let sugerencias = '';
-    if (query.length > 0) {
-        const filtrados = serviciosArray.filter(s => {
-            const nombreNormalizado = normalizarTexto(s.nombre || '');
-            const categoriaNormalizada = normalizarTexto(s.categoria || '');
-            const descripcionNormalizada = normalizarTexto(s.descripcion || '');
-            
-            return nombreNormalizado.includes(query) || 
-                   categoriaNormalizada.includes(query) || 
-                   descripcionNormalizada.includes(query);
-        });
-        
-        filtrados.forEach(s => {
-            sugerencias += `<button type='button' class='list-group-item list-group-item-action' data-id='${s.servicio_id}' data-nombre='${s.nombre}' data-categoria='${s.categoria||''}' data-descripcion='${s.descripcion||''}' data-precio='${s.precio}' data-imagen='${s.imagen||''}'>
-                <b>${s.nombre}</b> <span class='badge bg-info ms-2'>${s.categoria || 'Sin categoría'}</span><br>
-                <small>$${parseFloat(s.precio).toFixed(2)}</small>
-            </button>`;
-        });
-    }
-    $('#sugerencias_servicios').html(sugerencias).show();
-});
-
-$('#sugerencias_servicios').on('click', 'button', function() {
-    const servicio = serviciosArray.find(s => s.servicio_id == $(this).data('id'));
-    agregarServicioATabla({
-        servicio_id: $(this).data('id'),
-        nombre: $(this).data('nombre'),
-        categoria: $(this).data('categoria'),
-        descripcion: $(this).data('descripcion'),
-        precio: $(this).data('precio'),
-        cantidad: 1,
-        imagen: $(this).data('imagen')
-    });
-    $('#buscador_servicio').val('');
-    $('#sugerencias_servicios').hide();
-});
-
-$('#btnAltaRapidaServicio').on('click', function() {
-    $('#altaRapidaServicioForm').toggle();
-});
-
-$('#btnAgregarServicioRapido').on('click', function() {
-    const nombre = $('#nuevo_nombre_servicio').val();
-    const precio = parseFloat($('#nuevo_precio_servicio').val()) || 0;
-    const cantidad = parseFloat($('#nuevo_cantidad_servicio').val()) || 1;
-    if (!nombre || !precio || !cantidad) {
-        mostrarNotificacion('Completa nombre, precio y cantidad para el servicio.', 'warning');
-        return;
-    }
-    agregarServicioATabla({
-        servicio_id: null,
-        nombre: nombre,
-        categoria: $('#nuevo_categoria_servicio').val(),
-        descripcion: $('#nuevo_descripcion_servicio').val(),
-        precio: precio,
-        cantidad: cantidad,
-        unidad_medida: $('#nuevo_unidad_servicio').val()
-    });
-    $('#nuevo_nombre_servicio, #nuevo_precio_servicio, #nuevo_cantidad_servicio, #nuevo_unidad_servicio, #nuevo_categoria_servicio, #nuevo_descripcion_servicio').val('');
-    $('#altaRapidaServicioForm').hide();
-    mostrarNotificacion('Servicio agregado correctamente.', 'success');
-});
-
-function agregarServicioATabla(servicio) {
-    serviciosCotizacion.push(servicio);
-    renderTablaServicios();
-}
-
-$(document).on('click', '.btn-eliminar-servicio', function() {
-    const idx = $(this).data('idx');
-    serviciosCotizacion.splice(idx, 1);
-    renderTablaServicios();
-});
-
-function renderTablaServicios() {
-    let html = '';
-    serviciosCotizacion.forEach((s, i) => {
-        const sub = (parseFloat(s.precio) || 0) * (parseFloat(s.cantidad) || 1);
-        html += `
-            <tr>
-                <td>
-                    <strong>${s.nombre}</strong>
-                    ${s.tiempo_estimado ? `<br><small class="text-muted">Tiempo estimado: ${s.tiempo_estimado}h</small>` : ''}
-                </td>
-                <td>${s.categoria || ''}</td>
-                <td>${s.descripcion || ''}</td>
-                <td>
-                    <input type="number" 
-                           min="1" 
-                           step="1" 
-                           value="${Math.round(s.cantidad)}" 
-                           class="form-control form-control-sm cantidad-servicio-input" 
-                           data-index="${i}" 
-                           style="width: 80px; display:inline-block;">
-                    ${s.unidad_medida ? ` ${s.unidad_medida}` : ''}
-                </td>
-                <td>
-                    <input type="number" 
-                           min="0" 
-                           step="0.01" 
-                           value="${s.precio}" 
-                           class="form-control form-control-sm precio-servicio-input" 
-                           data-index="${i}" 
-                           style="width: 110px;">
-                </td>
-                <td>$${sub.toFixed(2)}</td>
-                <td>
-                    <button type="button" class="btn btn-danger btn-sm btn-eliminar-servicio" data-idx="${i}">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </td>
-            </tr>
-        `;
-    });
-    $('#tablaServiciosCotizacion tbody').html(html);
-    recalcularTotales();
-}
-
-// Eventos para cantidad de servicios
-$(document).on('input', '.cantidad-servicio-input', function() {
-    const index = parseInt($(this).data('index'));
-    let value = Math.max(1, Math.round($(this).val()));
-    serviciosCotizacion[index].cantidad = value;
-    if (!value || isNaN(value) || value <= 0) {
-        $(this).addClass('is-invalid');
-    } else {
-        $(this).removeClass('is-invalid');
-    }
-    recalcularTotales();
-});
-
-$(document).on('blur', '.cantidad-servicio-input', function() {
-    const index = parseInt($(this).data('index'));
-    let value = Math.max(1, Math.round($(this).val()));
-    serviciosCotizacion[index].cantidad = value;
-    $(this).val(value);
-    renderTablaServicios();
-});
-
-$(document).on('focus', '.cantidad-servicio-input', function() {
-    $(this).select();
-});
-
-// Eventos para precio de servicios
-$(document).on('input', '.precio-servicio-input', function() {
-    const index = parseInt($(this).data('index'));
-    let value = $(this).val();
-    serviciosCotizacion[index].precio = value;
-    if (!value || isNaN(value) || value < 0) {
-        $(this).addClass('is-invalid');
-    } else {
-        $(this).removeClass('is-invalid');
-    }
-    recalcularTotales();
-});
-
-$(document).on('blur', '.precio-servicio-input', function() {
-    const index = parseInt($(this).data('index'));
-    let value = parseFloat($(this).val()) || 0;
-    if (value < 0) value = 0;
-    serviciosCotizacion[index].precio = value;
-    $(this).val(value);
-    renderTablaServicios();
-});
-
-$(document).on('focus', '.precio-servicio-input', function() {
-    $(this).select();
-});
-
 function recalcularTotales() {
-    const subtotalProductos = productosCotizacion.reduce((sum, p) => sum + ((parseFloat(p.precio)||0)*(parseFloat(p.cantidad)||1)), 0);
-    const subtotalServicios = serviciosCotizacion.reduce((sum, s) => sum + ((parseFloat(s.precio)||0)*(parseFloat(s.cantidad)||1)), 0);
-    const subtotal = subtotalProductos + subtotalServicios;
+    const subtotal = productosCotizacion.reduce((sum, p) => sum + ((parseFloat(p.precio)||0)*(parseFloat(p.cantidad)||1)), 0);
     const descuentoPorcentaje = parseFloat($('#descuento_porcentaje').val()) || 0;
     const descuentoMonto = subtotal * descuentoPorcentaje / 100;
     const total = subtotal - descuentoMonto;
@@ -1035,8 +736,8 @@ $('#formCrearCotizacion').on('submit', function(e) {
         error = 'Debes seleccionar un cliente existente o registrar uno nuevo con al menos el nombre.';
     }
     
-    if (productosCotizacion.length === 0 && serviciosCotizacion.length === 0) {
-        error = 'Debes agregar al menos un producto o servicio a la cotización.';
+    if (productosCotizacion.length === 0) {
+        error = 'Debes agregar al menos un producto a la cotización.';
     }
     
     // Validar cantidades según tipo
@@ -1055,20 +756,7 @@ $('#formCrearCotizacion').on('submit', function(e) {
     }
     
     $('<input>').attr({type:'hidden', name:'productos_json', value: JSON.stringify(productosCotizacion)}).appendTo(this);
-    $('<input>').attr({type:'hidden', name:'servicios_json', value: JSON.stringify(serviciosCotizacion)}).appendTo(this);
     $(this).find('button[type=submit]').prop('disabled', true).text('Guardando...');
-});
-
-// Prevenir submit por Enter accidental
-$('#formCrearCotizacion').on('keydown', function(e) {
-    if (e.key === 'Enter') {
-        // Permitir Enter solo si el foco está en el botón de submit
-        const isSubmitBtn = document.activeElement && document.activeElement.type === 'submit';
-        if (!isSubmitBtn) {
-            e.preventDefault();
-            return false;
-        }
-    }
 });
 
 document.getElementById('btnGestionarPaquetes').addEventListener('click', function() {
@@ -1077,7 +765,6 @@ document.getElementById('btnGestionarPaquetes').addEventListener('click', functi
     modal.show();
 });
 
-// --- NUEVO GESTOR DE PAQUETES VISUAL ---
 function renderPaquetesPanel() {
     const panel = document.getElementById('paquetesPanel');
     const paquetes = window.PaquetesCotizacion.getPaquetes();
@@ -1085,49 +772,28 @@ function renderPaquetesPanel() {
     if (paquetes.length === 0) {
         html += '<div class="alert alert-info">No hay paquetes definidos. Crea uno nuevo para empezar.</div>';
     } else {
-        html += '<div class="row g-3">';
+        html += '<ul class="list-group mb-3">';
         paquetes.forEach((paq, idx) => {
-            html += `<div class="col-md-6 col-lg-4">
-                <div class="card shadow-sm h-100">
-                    <div class="card-body d-flex flex-column">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h5 class="card-title mb-0" style="font-size:1.1rem;">${paq.nombre}</h5>
-                            <span class="badge bg-primary">${paq.items.length} productos</span>
-                        </div>
-                        <ul class="list-group list-group-flush mb-2" style="font-size:0.97rem;">
-                            ${paq.items.map(item => `<li class="list-group-item py-1 px-2 d-flex justify-content-between align-items-center">
-                                <span>${item.nombre || 'Producto'} <span class="text-muted">x${item.factor || 1}</span></span>
-                                <span class="badge bg-light text-dark">${item.tipo === 'principal' ? 'Principal' : 'Relacionado'}</span>
-                            </li>`).join('')}
-                        </ul>
-                        <div class="mt-auto d-flex gap-2 justify-content-end">
-                            <button class="btn btn-sm btn-success" onclick="aplicarPaqueteCotizacion(${idx});"><i class="bi bi-play"></i></button>
-                            <button class="btn btn-sm btn-outline-primary" onclick="editarPaquete(${idx});"><i class="bi bi-pencil"></i></button>
-                            <button class="btn btn-sm btn-outline-secondary" onclick="duplicarPaquete(${idx});"><i class="bi bi-files"></i></button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="eliminarPaquete(${idx});"><i class="bi bi-trash"></i></button>
-                        </div>
-                    </div>
-                </div>
-            </div>`;
+            html += `<li class="list-group-item d-flex justify-content-between align-items-center">
+                <span><b>${paq.nombre}</b> (${paq.items.length} productos)</span>
+                <span>
+                    <button class="btn btn-sm btn-outline-primary me-2" onclick="aplicarPaqueteCotizacion(${idx}); return false;" type="button">
+                        <i class="bi bi-play"></i> Aplicar
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary me-2" onclick="editarPaquete(${idx}); return false;" type="button">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="eliminarPaquete(${idx}); return false;" type="button">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </span>
+            </li>`;
         });
-        html += '</div>';
+        html += '</ul>';
     }
-    html += '<div class="mt-4"><button class="btn btn-success" onclick="nuevoPaquete(); return false;" type="button"><i class="bi bi-plus-circle"></i> Nuevo paquete</button></div>';
+    html += '<button class="btn btn-success" onclick="nuevoPaquete(); return false;" type="button"><i class="bi bi-plus-circle"></i> Nuevo paquete</button>';
     panel.innerHTML = html;
 }
-
-// Duplicar paquete
-function duplicarPaquete(idx) {
-    const paquetes = window.PaquetesCotizacion.getPaquetes();
-    const paq = paquetes[idx];
-    if (!paq) return;
-    const copia = JSON.parse(JSON.stringify(paq));
-    copia.nombre = paq.nombre + ' (Copia)';
-    window.PaquetesCotizacion.addPaquete(copia);
-    renderPaquetesPanel();
-    mostrarNotificacion('Paquete duplicado correctamente.', 'success');
-}
-
 // --- PAQUETES INTELIGENTES ---
 function aplicarPaqueteCotizacion(idx) {
     const paquetes = window.PaquetesCotizacion.getPaquetes();
@@ -1148,65 +814,27 @@ function aplicarPaqueteCotizacion(idx) {
     };
     
     productosCotizacion = [];
-    serviciosCotizacion = [];
     const paqueteId = 'paq_' + Date.now();
     paquete.items.forEach(item => {
-        if (item.product_id) {
-            // PRODUCTO (soporta viejo y nuevo formato)
-            const prod = productosArray.find(p => p.product_id == item.product_id);
-            if (prod) {
-                productosCotizacion.push({
-                    product_id: prod.product_id,
-                    nombre: prod.product_name,
-                    sku: prod.sku,
-                    categoria: prod.categoria,
-                    proveedor: prod.proveedor,
-                    stock: prod.tipo_gestion === 'bobina' ? (prod.stock_disponible || 0) : prod.stock_disponible,
-                    cantidad: prod.tipo_gestion === 'bobina' ? (item.factor || 1.00) : (item.factor || 1),
-                    precio: prod.price,
-                    tipo_gestion: prod.tipo_gestion,
-                    paquete_id: paqueteId,
-                    tipo_paquete: item.tipo,
-                    factor_paquete: item.factor
-                });
-            }
-        } else if (item.servicio_id) {
-            // SERVICIO (igual que productos, pero para servicios)
-            // Buscar en serviciosArray global
-            let serv = null;
-            if (window.serviciosArray && Array.isArray(window.serviciosArray)) {
-                serv = window.serviciosArray.find(s => s.servicio_id == item.servicio_id);
-            }
-            // Si no se encuentra, usar los datos del item
-            if (!serv && item.nombre) {
-                serv = item;
-            }
-            if (serv) {
-                serviciosCotizacion.push({
-                    servicio_id: serv.servicio_id,
-                    nombre: serv.nombre,
-                    categoria: serv.categoria || '',
-                    descripcion: serv.descripcion || '',
-                    precio: serv.precio || item.precio || 0,
-                    cantidad: item.factor || serv.cantidad || 1,
-                    imagen: serv.imagen || '',
-                    paquete_id: paqueteId,
-                    tipo_paquete: item.tipo,
-                    factor_paquete: item.factor
-                });
-            }
+        const prod = productosArray.find(p => p.product_id == item.product_id);
+        if (prod) {
+            productosCotizacion.push({
+                product_id: prod.product_id,
+                nombre: prod.product_name,
+                sku: prod.sku,
+                categoria: prod.categoria,
+                proveedor: prod.proveedor,
+                stock: prod.tipo_gestion === 'bobina' ? (prod.stock_disponible || 0) : prod.stock_disponible,
+                cantidad: prod.tipo_gestion === 'bobina' ? (item.factor || 1.00) : (item.factor || 1),
+                precio: prod.price,
+                tipo_gestion: prod.tipo_gestion,
+                paquete_id: paqueteId,
+                tipo_paquete: item.tipo,
+                factor_paquete: item.factor
+            });
         }
     });
-    // --- DEPURACIÓN ---
-    console.log('Productos del paquete:', productosCotizacion);
-    console.log('Servicios del paquete:', serviciosCotizacion);
-    if (typeof renderTablaProductos !== 'function') {
-        console.error('renderTablaProductos no existe');
-    }
-    if (typeof renderTablaServicios !== 'function') {
-        console.error('renderTablaServicios no existe');
-    }
-    // --- FIN DEPURACIÓN ---
+    
     // Restaurar datos del cliente INMEDIATAMENTE después de aplicar paquete
     $('#cliente_select').val(clienteSeleccionado.cliente_id).trigger('change');
     $('#cliente_nombre').val(clienteSeleccionado.cliente_nombre);
@@ -1221,9 +849,8 @@ function aplicarPaqueteCotizacion(idx) {
         $('#cliente_nombre, #cliente_telefono, #cliente_ubicacion, #cliente_email').prop('readonly', false);
     }
     
-    // Ahora renderizar las tablas
+    // Ahora renderizar la tabla
     renderTablaProductos();
-    renderTablaServicios();
     
     // Configurar sincronización de cantidades
     setTimeout(() => {
@@ -1247,7 +874,6 @@ function sincronizarCantidadesPaqueteV2(paqueteId) {
     const principal = productosCotizacion.find(p => p.paquete_id === paqueteId && p.tipo_paquete === 'principal');
     if (!principal) return;
     const cantidadPrincipal = parseFloat(principal.cantidad) || 1;
-    // Sincroniza productos relacionados
     productosCotizacion.forEach((p, idx) => {
         if (p.paquete_id === paqueteId && p.tipo_paquete === 'relacionado') {
             const factor = parseFloat(p.factor_paquete) || 1;
@@ -1257,18 +883,7 @@ function sincronizarCantidadesPaqueteV2(paqueteId) {
             if (input) input.value = p.cantidad;
         }
     });
-    // Sincroniza servicios relacionados (ahora como enteros)
-    serviciosCotizacion.forEach((s, idx) => {
-        if (s.paquete_id === paqueteId && s.tipo_paquete === 'relacionado') {
-            const factor = parseFloat(s.factor_paquete) || 1;
-            s.cantidad = Math.round(cantidadPrincipal * factor);
-            // Actualizar input visual
-            const input = document.querySelector(`.cantidad-servicio-input[data-index='${idx}']`);
-            if (input) input.value = s.cantidad;
-        }
-    });
     renderTablaProductos();
-    renderTablaServicios();
 }
 function eliminarPaquete(idx) {
     // Prevenir que se dispare el submit del formulario
@@ -1370,24 +985,10 @@ function editarPaquete(idx) {
             const prod = productosArray.find(p => p.product_id == pid);
             if (!prod) return;
             // Prevenir duplicados
-            if (window._paqEdit.items.some(i => i.tipo_item === 'producto' && i.product_id == prod.product_id)) return;
-            window._paqEdit.items.push({ tipo_item: 'producto', product_id: prod.product_id, nombre: prod.product_name, tipo: 'relacionado', factor: 1 });
+            if (window._paqEdit.items.some(i => i.product_id == prod.product_id)) return;
+            window._paqEdit.items.push({ product_id: prod.product_id, nombre: prod.product_name, tipo: 'relacionado', factor: 1 });
             window._paqRender();
         };
-        // --- CORRECCIÓN: Agregar servicio al paquete ---
-        const paqServicioSelect = document.getElementById('paqServicioSelect');
-        if (paqServicioSelect) {
-            paqServicioSelect.onchange = function() {
-                const sid = this.value;
-                if (!sid) return;
-                const serv = (window.serviciosArray || []).find(s => s.servicio_id == sid);
-                if (!serv) return;
-                // Prevenir duplicados
-                if (window._paqEdit.items.some(i => i.tipo_item === 'servicio' && i.servicio_id == serv.servicio_id)) return;
-                window._paqEdit.items.push({ tipo_item: 'servicio', servicio_id: serv.servicio_id, nombre: serv.nombre, tipo: 'relacionado', factor: 1 });
-                window._paqRender();
-            };
-        }
         document.getElementById('btnGuardarPaquete').onclick = guardarPaqueteEditado;
         document.getElementById('btnCancelarPaquete').onclick = renderPaquetesPanel;
         document.querySelectorAll('.paq-tipo').forEach(sel => {
@@ -1437,24 +1038,10 @@ function nuevoPaquete() {
             const prod = productosArray.find(p => p.product_id == pid);
             if (!prod) return;
             // Prevenir duplicados
-            if (window._paqEdit.items.some(i => i.tipo_item === 'producto' && i.product_id == prod.product_id)) return;
-            window._paqEdit.items.push({ tipo_item: 'producto', product_id: prod.product_id, nombre: prod.product_name, tipo: 'relacionado', factor: 1 });
+            if (window._paqEdit.items.some(i => i.product_id == prod.product_id)) return;
+            window._paqEdit.items.push({ product_id: prod.product_id, nombre: prod.product_name, tipo: 'relacionado', factor: 1 });
             window._paqRender();
         };
-        // --- CORRECCIÓN: Agregar servicio al paquete ---
-        const paqServicioSelect = document.getElementById('paqServicioSelect');
-        if (paqServicioSelect) {
-            paqServicioSelect.onchange = function() {
-                const sid = this.value;
-                if (!sid) return;
-                const serv = (window.serviciosArray || []).find(s => s.servicio_id == sid);
-                if (!serv) return;
-                // Prevenir duplicados
-                if (window._paqEdit.items.some(i => i.tipo_item === 'servicio' && i.servicio_id == serv.servicio_id)) return;
-                window._paqEdit.items.push({ tipo_item: 'servicio', servicio_id: serv.servicio_id, nombre: serv.nombre, tipo: 'relacionado', factor: 1 });
-                window._paqRender();
-            };
-        }
         document.getElementById('btnGuardarPaquete').onclick = guardarPaquete;
         document.getElementById('btnCancelarPaquete').onclick = renderPaquetesPanel;
         document.querySelectorAll('.paq-tipo').forEach(sel => {
@@ -1526,115 +1113,6 @@ function mostrarNotificacion(mensaje, tipo = 'info') {
         toastElement.remove();
     });
 }
-
-// --- GUARDADO AUTOMÁTICO DE BORRADOR EN LOCALSTORAGE ---
-const BORRADOR_KEY = 'borrador_cotizacion';
-
-function guardarBorrador() {
-    const datos = {
-        cliente_id: $('#cliente_select').val(),
-        cliente_nombre: $('#cliente_nombre').val(),
-        cliente_telefono: $('#cliente_telefono').val(),
-        cliente_ubicacion: $('#cliente_ubicacion').val(),
-        cliente_email: $('#cliente_email').val(),
-        productos: productosCotizacion,
-        servicios: serviciosCotizacion,
-        fecha_cotizacion: $('input[name="fecha_cotizacion"]').val(),
-        validez_dias: $('input[name="validez_dias"]').val(),
-        estado_id: $('#estado_id').val(),
-        condiciones_pago: $('input[name="condiciones_pago"]').val(),
-        observaciones: $('textarea[name="observaciones"]').val(),
-        descuento_porcentaje: $('#descuento_porcentaje').val()
-    };
-    localStorage.setItem(BORRADOR_KEY, JSON.stringify(datos));
-}
-
-function limpiarBorrador() {
-    localStorage.removeItem(BORRADOR_KEY);
-}
-
-function restaurarBorrador() {
-    const datos = JSON.parse(localStorage.getItem(BORRADOR_KEY));
-    if (!datos) return;
-    if (datos.cliente_id) $('#cliente_select').val(datos.cliente_id).trigger('change');
-    $('#cliente_nombre').val(datos.cliente_nombre || '');
-    $('#cliente_telefono').val(datos.cliente_telefono || '');
-    $('#cliente_ubicacion').val(datos.cliente_ubicacion || '');
-    $('#cliente_email').val(datos.cliente_email || '');
-    productosCotizacion = datos.productos || [];
-    serviciosCotizacion = datos.servicios || [];
-    renderTablaProductos();
-    renderTablaServicios();
-    $('input[name="fecha_cotizacion"]').val(datos.fecha_cotizacion || '');
-    $('input[name="validez_dias"]').val(datos.validez_dias || '');
-    $('#estado_id').val(datos.estado_id || '');
-    $('input[name="condiciones_pago"]').val(datos.condiciones_pago || '');
-    $('textarea[name="observaciones"]').val(datos.observaciones || '');
-    $('#descuento_porcentaje').val(datos.descuento_porcentaje || 0);
-    recalcularTotales();
-}
-
-// Guardar borrador al cambiar datos relevantes
-$(document).on('input change', '#cliente_select, #cliente_nombre, #cliente_telefono, #cliente_ubicacion, #cliente_email, #estado_id, input[name="fecha_cotizacion"], input[name="validez_dias"], input[name="condiciones_pago"], textarea[name="observaciones"], #descuento_porcentaje', function() {
-    guardarBorrador();
-});
-$(document).on('input change', '.cantidad-input, .precio-input, .cantidad-servicio-input, .precio-servicio-input', function() {
-    guardarBorrador();
-});
-// Guardar también al agregar/eliminar productos
-$('#btnAgregarProductoRapido, #btnAltaRapidaProducto').on('click', function() { setTimeout(guardarBorrador, 300); });
-$(document).on('click', '.btn-eliminar-producto', function() { setTimeout(guardarBorrador, 300); });
-
-// Guardar también al agregar/eliminar servicios
-$('#btnAgregarServicioRapido, #btnAltaRapidaServicio').on('click', function() { setTimeout(guardarBorrador, 300); });
-$(document).on('click', '.btn-eliminar-servicio', function() { setTimeout(guardarBorrador, 300); });
-
-// Al cargar la página, preguntar si hay borrador
-$(document).ready(function() {
-    if (localStorage.getItem(BORRADOR_KEY)) {
-        // Crear modal si no existe
-        if (!document.getElementById('modalRestaurarBorrador')) {
-            const modalHtml = `
-            <div class="modal fade" id="modalRestaurarBorrador" tabindex="-1" aria-labelledby="modalRestaurarBorradorLabel" aria-hidden="true">
-              <div class="modal-dialog">
-                <div class="modal-content">
-                  <div class="modal-header">
-                    <h5 class="modal-title" id="modalRestaurarBorradorLabel"><i class="bi bi-exclamation-triangle text-warning"></i> Borrador de cotización encontrado</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-                  </div>
-                  <div class="modal-body">
-                    <p>Se detectó un borrador de cotización sin guardar. ¿Deseas restaurar tu avance anterior o descartarlo?</p>
-                    <ul>
-                      <li><b>Restaurar:</b> Recupera todos los datos y productos que tenías antes de salir.</li>
-                      <li><b>Descartar:</b> Elimina el borrador y comienza una nueva cotización.</li>
-                    </ul>
-                  </div>
-                  <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" id="btnDescartarBorrador" data-bs-dismiss="modal">Descartar</button>
-                    <button type="button" class="btn btn-primary" id="btnRestaurarBorrador">Restaurar borrador</button>
-                  </div>
-                </div>
-              </div>
-            </div>`;
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
-        }
-        const modal = new bootstrap.Modal(document.getElementById('modalRestaurarBorrador'));
-        modal.show();
-        document.getElementById('btnRestaurarBorrador').onclick = function() {
-            restaurarBorrador();
-            mostrarNotificacion('Borrador restaurado correctamente.', 'info');
-            modal.hide();
-        };
-        document.getElementById('btnDescartarBorrador').onclick = function() {
-            limpiarBorrador();
-            modal.hide();
-        };
-    }
-});
-// Al guardar exitosamente, limpiar el borrador (esto se hace al hacer submit y redirigir)
-$('#formCrearCotizacion').on('submit', function() {
-    limpiarBorrador();
-});
 </script>
 </body>
 </html> 

@@ -46,6 +46,18 @@ $stmt = $mysqli->prepare("
 $stmt->bind_param('i', $cotizacion_id);
 $stmt->execute();
 $productos = $stmt->get_result();
+
+// Obtener servicios de la cotización
+$stmt = $mysqli->prepare("
+    SELECT cs.*, s.nombre as servicio_nombre, s.descripcion as servicio_descripcion, s.categoria as servicio_categoria, s.imagen as servicio_imagen
+    FROM cotizaciones_servicios cs
+    LEFT JOIN servicios s ON cs.servicio_id = s.servicio_id
+    WHERE cs.cotizacion_id = ?
+    ORDER BY cs.cotizacion_servicio_id
+");
+$stmt->bind_param('i', $cotizacion_id);
+$stmt->execute();
+$servicios = $stmt->get_result();
 ?>
 
 <!DOCTYPE html>
@@ -381,6 +393,40 @@ $productos = $stmt->get_result();
                             }
                             ?>
                         </td>
+                    </tr>
+                <?php endwhile; ?>
+                
+                <?php while ($servicio = $servicios->fetch_assoc()): ?>
+                    <tr>
+                        <td><?= $i++ ?></td>
+                        <td class="descripcion">
+                            <strong><?= htmlspecialchars($servicio['nombre_servicio']) ?></strong>
+                            <?php if ($servicio['descripcion']): ?>
+                                <br><small class="text-muted"><?= htmlspecialchars($servicio['descripcion']) ?></small>
+                            <?php endif; ?>
+                            <?php if ($servicio['servicio_categoria']): ?>
+                                <br><span class="badge bg-info" style="font-size: 0.75rem;"><?= htmlspecialchars($servicio['servicio_categoria']) ?></span>
+                            <?php endif; ?>
+                        </td>
+                        <td class="imagen">
+                            <?php
+                            $img = $servicio['imagen'] ?? $servicio['servicio_imagen'] ?? '';
+                            if ($img) {
+                                if (strpos($img, 'uploads/services/') === false) {
+                                    $img = 'uploads/services/' . $img;
+                                }
+                            }
+                            ?>
+                            <?php if ($img): ?>
+                                <img src="../<?= htmlspecialchars($img) ?>" alt="Imagen" style="height:38px;">
+                            <?php else: ?>
+                                <span style="color:#ccc;"><i class="bi bi-tools"></i> Servicio</span>
+                            <?php endif; ?>
+                        </td>
+                        <td><?= $servicio['cantidad'] ?></td>
+                        <td>$<?= number_format($servicio['precio_unitario'], 2) ?></td>
+                        <td class="precio-total">$<?= number_format($servicio['precio_total'], 2) ?></td>
+                        <td class="costo-total">N/A</td>
                     </tr>
                 <?php endwhile; ?>
             </tbody>
