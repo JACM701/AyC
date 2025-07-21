@@ -1,4 +1,12 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+error_log('Iniciando insumos.php');
+error_log('REQUEST_METHOD: ' . $_SERVER['REQUEST_METHOD']);
+error_log('POST: ' . print_r($_POST, true));
+error_log('REQUEST: ' . print_r($_REQUEST, true));
+error_log('php://input: ' . file_get_contents('php://input'));
 require_once '../auth/middleware.php';
 require_once '../connection.php';
 
@@ -349,80 +357,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         echo json_encode(['success'=>false,'message'=>$e->getMessage()]);
     }
     
-    exit;
-}
-
-// --- Endpoint para obtener reporte de insumo (AJAX) ---
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'obtener_reporte') {
-    header('Content-Type: application/json');
-    $insumo_id = intval($_POST['insumo_id'] ?? 0);
-    
-    if (!$insumo_id) {
-        echo json_encode(['success'=>false,'message'=>'ID de insumo requerido.']);
-        exit;
-    }
-    
-    // Obtener datos del insumo
-    $stmt = $mysqli->prepare("SELECT i.*, c.name as categoria_nombre, s.name as proveedor_nombre FROM insumos i 
-                              LEFT JOIN categories c ON i.category_id = c.category_id
-                              LEFT JOIN suppliers s ON i.supplier_id = s.supplier_id
-                              WHERE i.insumo_id = ?");
-    $stmt->bind_param('i', $insumo_id);
-    $stmt->execute();
-    $insumo = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    
-    if (!$insumo) {
-        echo json_encode(['success'=>false,'message'=>'Insumo no encontrado.']);
-        exit;
-    }
-    
-    // Obtener todos los movimientos (sin filtro de fecha para debug)
-    $stmt = $mysqli->prepare("SELECT m.insumo_movement_id, m.tipo_movimiento, m.cantidad, m.piezas_movidas, m.motivo, m.fecha_movimiento, u.username as usuario 
-                              FROM insumos_movements m 
-                              LEFT JOIN users u ON m.user_id = u.user_id 
-                              WHERE m.insumo_id = ? 
-                              ORDER BY m.fecha_movimiento DESC");
-    $stmt->bind_param('i', $insumo_id);
-    $stmt->execute();
-    $movimientos = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    $stmt->close();
-    
-    // Debug: Mostrar información de movimientos
-    error_log("Insumo ID para reporte: " . $insumo_id);
-    error_log("Número de movimientos encontrados: " . count($movimientos));
-    
-    // Calcular estadísticas
-    $total_entradas = 0;
-    $total_salidas = 0;
-    $consumo_semanal = 0;
-    
-    foreach ($movimientos as $mov) {
-        if ($mov['tipo_movimiento'] === 'entrada') {
-            $total_entradas += $mov['cantidad'];
-        } else {
-            $total_salidas += $mov['cantidad'];
-        }
-    }
-    
-    // Calcular consumo semanal promedio
-    if (count($movimientos) > 0) {
-        $consumo_semanal = $total_salidas / 4; // Promedio de 4 semanas
-    }
-    
-    $reporte = [
-        'insumo' => $insumo,
-        'movimientos' => $movimientos,
-        'estadisticas' => [
-            'total_entradas' => $total_entradas,
-            'total_salidas' => $total_salidas,
-            'consumo_semanal' => $consumo_semanal,
-            'stock_actual' => $insumo['cantidad'],
-            'stock_minimo' => $insumo['minimo']
-        ]
-    ];
-    
-    echo json_encode(['success'=>true,'data'=>$reporte]);
     exit;
 }
 
@@ -786,6 +720,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             color: #fff !important;
         }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
     <?php include '../includes/sidebar.php'; ?>
@@ -1118,15 +1054,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                 <label class="form-label">Unidad de medida</label>
                                                 <select class="form-select" id="unidadInsumo">
                                                     <option value="pieza">Pieza</option>
-                                                    <option value="metro">Metro</option>
-                                                    <option value="kg">Kilogramo</option>
-                                                    <option value="litro">Litro</option>
                                                     <option value="bolsa">Bolsa</option>
-                                                    <option value="paquete">Paquete</option>
-                                                    <option value="caja">Caja</option>
-                                                    <option value="rollo">Rollo</option>
-                                                    <option value="unidad">Unidad</option>
-                                                    <option value="otro">Otro</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -1158,10 +1086,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                         <input type="file" class="form-control" id="imagenInsumo" accept="image/*">
                                     </div>
                                     
-                                    <div class="mb-3" id="divEquivalencia">
+                                    <div class="mb-3" id="divEquivalencia" style="display: none;">
                                         <label class="form-label">Equivalencia (ej: piezas por bolsa)</label>
                                         <input type="number" class="form-control" id="equivalenciaInsumo" min="1" step="1" placeholder="Ej: 1000">
-                                        <small class="text-muted">¿Cuántas piezas contiene una bolsa, caja, etc.? (Opcional, solo para ayuda en movimientos)</small>
+                                        <small class="text-muted">¿Cuántas piezas contiene una bolsa? (Opcional, solo para ayuda en movimientos)</small>
                                     </div>
                                     
                                     <div class="mb-3" id="divUnidadPersonalizada" style="display: none;">
@@ -1169,10 +1097,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                         <input type="text" class="form-control" id="unidadPersonalizada" placeholder="Ej: bolsa de 1000 piezas, caja de 50 unidades">
                                     </div>
                                     
-                                    <div class="alert alert-info">
+                                    <div class="alert alert-info" id="infoUnidadInsumo">
                                         <i class="bi bi-info-circle"></i>
-                                        <strong>Información:</strong> Los insumos son materiales independientes para gestión de stock.
-                                        <br><small>Ejemplo: Si tienes una bolsa de 1000 conectores, selecciona "Bolsa" como unidad y registra 1 bolsa.</small>
+                                        <strong>Información:</strong> Los insumos son materiales independientes para gestión de stock.<br>
+                                        <span id="ejemploUnidadInsumo">Ejemplo: Si tienes 100 conectores, selecciona "Pieza" como unidad y registra 100 piezas.</span>
                                     </div>
                                 </form>
                             </div>
@@ -1202,13 +1130,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             
             // Manejar unidad personalizada
             document.getElementById('unidadInsumo').addEventListener('change', function() {
-                const unidadPersonalizada = document.getElementById('divUnidadPersonalizada');
-                if (this.value === 'otro') {
-                    unidadPersonalizada.style.display = 'block';
-                    document.getElementById('unidadPersonalizada').focus();
+                const divEquivalencia = document.getElementById('divEquivalencia');
+                const ejemploUnidad = document.getElementById('ejemploUnidadInsumo');
+                if (this.value === 'bolsa') {
+                    divEquivalencia.style.display = 'block';
+                    ejemploUnidad.innerHTML = 'Ejemplo: Si tienes una bolsa de 1000 conectores, selecciona "Bolsa" como unidad, registra 1 bolsa y especifica la equivalencia.';
                 } else {
-                    unidadPersonalizada.style.display = 'none';
-                    document.getElementById('unidadPersonalizada').value = '';
+                    divEquivalencia.style.display = 'none';
+                    document.getElementById('equivalenciaInsumo').value = '';
+                    ejemploUnidad.innerHTML = 'Ejemplo: Si tienes 100 conectores, selecciona "Pieza" como unidad y registra 100 piezas.';
                 }
             });
         }
@@ -1561,6 +1491,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
         
         function verReporteSemanal(id) {
+            console.log('Enviando reporte para insumo_id:', id);
             // Mostrar loading
             Swal.fire({
                 title: 'Cargando reporte...',
@@ -1569,163 +1500,238 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     Swal.showLoading();
                 }
             });
-            
             // Obtener datos del reporte desde el backend
-            fetch('', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({
-                    action: 'obtener_reporte',
-                    insumo_id: id
-                })
-            })
-            .then(res => res.json())
-            .then(data => {
-                Swal.close();
-                
-                if (!data.success) {
-                    Swal.fire({ icon: 'error', title: 'Error', text: data.message });
-                    return;
-                }
-                
-                const reporte = data.data;
-                const insumo = reporte.insumo;
-                const estadisticas = reporte.estadisticas;
-                const movimientos = reporte.movimientos;
-                
-                // Generar tabla de movimientos
-                let tablaMovimientos = '';
-                if (movimientos.length > 0) {
-                    movimientos.forEach(mov => {
-                        const fecha = new Date(mov.fecha_movimiento).toLocaleDateString('es-ES');
-                        const tipo = mov.tipo_movimiento === 'entrada' ? 'Entrada' : 'Salida';
-                        const clase = mov.tipo_movimiento === 'entrada' ? 'success' : 'danger';
-                        const motivo = mov.motivo || 'Sin motivo especificado';
-                        
-                        let cantidadMostrada = `${parseFloat(mov.cantidad).toFixed(4)} ${insumo.unidad.split('(')[0].trim()}`;
-                        if (mov.piezas_movidas && parseFloat(mov.piezas_movidas) > 0) {
-                            cantidadMostrada += `<br><small class="text-muted">(${parseInt(mov.piezas_movidas)} piezas)</small>`;
-                        }
-
-                        tablaMovimientos += `
-                            <tr>
-                                <td>${fecha}</td>
-                                <td><span class="badge bg-${clase}">${tipo}</span></td>
-                                <td>${cantidadMostrada}</td>
-                                <td>${motivo}</td>
-                                <td>${mov.usuario || 'Sistema'}</td>
-                            </tr>
-                        `;
-                    });
-                } else {
-                    tablaMovimientos = '<tr><td colspan="5" class="text-center">No hay movimientos registrados</td></tr>';
-                }
-                
-                // Generar reporte dinámico
-                const modal = `
-                    <div class="modal fade" id="modalReporteSemanal" tabindex="-1">
-                        <div class="modal-dialog modal-lg">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h5 class="modal-title"><i class="bi bi-graph-up"></i> Reporte de Movimientos - ${insumo.nombre}</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                </div>
-                                <div class="modal-body">
-                                    <div class="row">
-                                        <div class="col-md-3">
-                                            <div class="card text-center">
-                                                <div class="card-body">
-                                                    <h3 class="text-primary">${estadisticas.stock_actual}</h3>
-                                                    <p class="text-muted">Stock Actual</p>
+            fetch(`/inventory-management-system-main/insumos/reporte_ajax.php?action=obtener_reporte&insumo_id=${id}`)
+                .then(r => r.json())
+                .then(data => {
+                    Swal.close();
+                    if (!data.success) {
+                        Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+                        return;
+                    }
+                    const reporte = data.data;
+                    const insumo = reporte.insumo;
+                    const estadisticas = reporte.estadisticas;
+                    const movimientos = reporte.movimientos;
+                    // Generar tabla de movimientos
+                    let tablaMovimientos = '';
+                    if (movimientos.length > 0) {
+                        movimientos.forEach(mov => {
+                            const fecha = new Date(mov.fecha_movimiento).toLocaleDateString('es-ES');
+                            const tipo = mov.tipo_movimiento === 'entrada' ? 'Entrada' : 'Salida';
+                            const clase = mov.tipo_movimiento === 'entrada' ? 'success' : 'danger';
+                            const motivo = mov.motivo || 'Sin motivo especificado';
+                            let cantidadMostrada = '';
+                            let equivalencia = 1;
+                            const match = /\((\d+) piezas\)/.exec(insumo.unidad);
+                            if (match) equivalencia = parseInt(match[1]);
+                            if (mov.piezas_movidas && parseFloat(mov.piezas_movidas) > 0) {
+                                cantidadMostrada = `<b>${parseInt(mov.piezas_movidas)} piezas</b>`;
+                                if (equivalencia > 1) {
+                                    const fraccion = (parseFloat(mov.piezas_movidas) / equivalencia).toFixed(4);
+                                    cantidadMostrada += `<br><small class='text-muted'>(${fraccion} bolsas)</small>`;
+                                }
+                            } else if (equivalencia > 1) {
+                                const bolsas = parseFloat(mov.cantidad);
+                                cantidadMostrada = `<b>${bolsas % 1 === 0 ? bolsas : bolsas.toFixed(4)} bolsas</b>`;
+                                if (equivalencia > 1) {
+                                    const piezas = Math.round(bolsas * equivalencia);
+                                    cantidadMostrada += `<br><small class='text-muted'>(${piezas} piezas)</small>`;
+                                }
+                            } else {
+                                cantidadMostrada = `<b>${parseFloat(mov.cantidad)} ${insumo.unidad}</b>`;
+                            }
+                            tablaMovimientos += `
+                                <tr>
+                                    <td>${fecha}</td>
+                                    <td><span class="badge bg-${clase}">${tipo}</span></td>
+                                    <td>${cantidadMostrada}</td>
+                                    <td>${motivo}</td>
+                                    <td>${mov.usuario || 'Sistema'}</td>
+                                </tr>
+                            `;
+                        });
+                    } else {
+                        tablaMovimientos = '<tr><td colspan="5" class="text-center">No hay movimientos registrados</td></tr>';
+                    }
+                    // Generar reporte dinámico
+                    const modal = `
+                        <div class="modal fade" id="modalReporteSemanal" tabindex="-1">
+                            <div class="modal-dialog modal-lg">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title"><i class="bi bi-graph-up"></i> Reporte de Movimientos - ${insumo.nombre}</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div class="row">
+                                            <div class="col-md-3">
+                                                <div class="card text-center">
+                                                    <div class="card-body">
+                                                        <h3 class="text-primary">${estadisticas.stock_actual}</h3>
+                                                        <p class="text-muted">Stock Actual</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="card text-center">
+                                                    <div class="card-body">
+                                                        <h3 class="text-success">${estadisticas.total_entradas}</h3>
+                                                        <p class="text-muted">Total Entradas</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="card text-center">
+                                                    <div class="card-body">
+                                                        <h3 class="text-danger">${estadisticas.total_salidas}</h3>
+                                                        <p class="text-muted">Total Salidas</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="card text-center">
+                                                    <div class="card-body">
+                                                        <h3 class="text-warning">${estadisticas.consumo_semanal.toFixed(1)}</h3>
+                                                        <p class="text-muted">Consumo Sem.</p>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
-                                        <div class="col-md-3">
-                                            <div class="card text-center">
-                                                <div class="card-body">
-                                                    <h3 class="text-success">${estadisticas.total_entradas}</h3>
-                                                    <p class="text-muted">Total Entradas</p>
-                                                </div>
+                                        <div class="mt-4">
+                                            <h6>Historial de Movimientos (Últimas 4 semanas)</h6>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Fecha</th>
+                                                            <th>Tipo</th>
+                                                            <th>Cantidad</th>
+                                                            <th>Motivo</th>
+                                                            <th>Usuario</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody id="tbodyMovimientos">
+                                                        ${tablaMovimientos}
+                                                    </tbody>
+                                                </table>
                                             </div>
                                         </div>
-                                        <div class="col-md-3">
-                                            <div class="card text-center">
-                                                <div class="card-body">
-                                                    <h3 class="text-danger">${estadisticas.total_salidas}</h3>
-                                                    <p class="text-muted">Total Salidas</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-3">
-                                            <div class="card text-center">
-                                                <div class="card-body">
-                                                    <h3 class="text-warning">${estadisticas.consumo_semanal.toFixed(1)}</h3>
-                                                    <p class="text-muted">Consumo Sem.</p>
-                                                </div>
+                                        <div class="mt-3">
+                                            <div class="alert alert-info">
+                                                <i class="bi bi-info-circle"></i>
+                                                <strong>Información del insumo:</strong><br>
+                                                <strong>Categoría:</strong> ${insumo.categoria_nombre || 'N/A'}<br>
+                                                <strong>Proveedor:</strong> ${insumo.proveedor_nombre || 'N/A'}<br>
+                                                <strong>Stock mínimo:</strong> ${insumo.minimo} ${insumo.unidad}<br>
+                                                <strong>Precio unitario:</strong> $${insumo.precio_unitario}/${insumo.unidad}<br>
+                                                <strong>Estado:</strong> <span class="badge bg-${insumo.estado === 'disponible' ? 'success' : insumo.estado === 'bajo_stock' ? 'warning' : 'danger'}">${insumo.estado}</span>
                                             </div>
                                         </div>
                                     </div>
-                                    
-                                    <div class="mt-4">
-                                        <h6>Historial de Movimientos (Últimas 4 semanas)</h6>
-                                        <div class="table-responsive">
-                                            <table class="table table-sm">
-                                                <thead>
-                                                    <tr>
-                                                        <th>Fecha</th>
-                                                        <th>Tipo</th>
-                                                        <th>Cantidad</th>
-                                                        <th>Motivo</th>
-                                                        <th>Usuario</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    ${tablaMovimientos}
-                                                </tbody>
-                                            </table>
-                                        </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                                        <button type="button" class="btn btn-success" id="btnExportarXLSX">
+                                            <i class="bi bi-file-earmark-excel"></i> Exportar a Excel
+                                        </button>
+                                        <button type="button" class="btn btn-primary" id="btnExportarPDF">
+                                            <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
+                                        </button>
                                     </div>
-                                    
-                                    <div class="mt-3">
-                                        <div class="alert alert-info">
-                                            <i class="bi bi-info-circle"></i>
-                                            <strong>Información del insumo:</strong><br>
-                                            <strong>Categoría:</strong> ${insumo.categoria_nombre || 'N/A'}<br>
-                                            <strong>Proveedor:</strong> ${insumo.proveedor_nombre || 'N/A'}<br>
-                                            <strong>Stock mínimo:</strong> ${insumo.minimo} ${insumo.unidad}<br>
-                                            <strong>Precio unitario:</strong> $${insumo.precio_unitario}/${insumo.unidad}<br>
-                                            <strong>Estado:</strong> <span class="badge bg-${insumo.estado === 'disponible' ? 'success' : insumo.estado === 'bajo_stock' ? 'warning' : 'danger'}">${insumo.estado}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                                    <button type="button" class="btn btn-primary">
-                                        <i class="bi bi-download"></i> Exportar PDF
-                                    </button>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                `;
-                
-                // Agregar modal al DOM
-                document.body.insertAdjacentHTML('beforeend', modal);
-                
-                // Mostrar modal
-                const modalElement = document.getElementById('modalReporteSemanal');
-                const bootstrapModal = new bootstrap.Modal(modalElement);
-                bootstrapModal.show();
-                
-                // Limpiar modal al cerrar
-                modalElement.addEventListener('hidden.bs.modal', function() {
-                    modalElement.remove();
+                    `;
+                    // Agregar modal al DOM
+                    document.body.insertAdjacentHTML('beforeend', modal);
+                    // Dentro de la función verReporteSemanal, después de agregar el modal al DOM y antes de mostrar el modal:
+                    // Asignar el onclick al botón Exportar XLSX (Excel profesional)
+                    if (document.getElementById('btnExportarXLSX')) {
+                        document.getElementById('btnExportarXLSX').onclick = function() {
+                            // Construir los datos para SheetJS
+                            const fechaExport = new Date();
+                            const datosClave = [
+                                ['Reporte de Movimientos de Insumo', ''],
+                                ['Nombre', insumo.nombre],
+                                ['Categoría', insumo.categoria_nombre || ''],
+                                ['Proveedor', insumo.proveedor_nombre || ''],
+                                ['Stock actual', estadisticas.stock_actual + ' ' + insumo.unidad],
+                                ['Stock mínimo', insumo.minimo + ' ' + insumo.unidad],
+                                ['Precio unitario', '$' + insumo.precio_unitario + '/' + insumo.unidad],
+                                ['Estado', insumo.estado],
+                                ['Exportado por', window.usuarioActual || 'Usuario'],
+                                ['Fecha y hora de exportación', fechaExport.toLocaleDateString('es-ES') + ' ' + fechaExport.toLocaleTimeString('es-ES')],
+                                ['', ''] // Fila vacía
+                            ];
+                            const encabezados = ['Fecha', 'Tipo', 'Cantidad', 'Motivo', 'Usuario'];
+                            const movimientosRows = movimientos.length > 0 ? movimientos.map(mov => {
+                                const fecha = new Date(mov.fecha_movimiento).toLocaleDateString('es-ES');
+                                let cantidadMostrada = '';
+                                let equivalencia = 1;
+                                const match = /\((\d+) piezas\)/.exec(insumo.unidad);
+                                if (match) equivalencia = parseInt(match[1]);
+                                if (mov.piezas_movidas && parseFloat(mov.piezas_movidas) > 0) {
+                                    cantidadMostrada = parseInt(mov.piezas_movidas) + ' piezas';
+                                    if (equivalencia > 1) {
+                                        const fraccion = (parseFloat(mov.piezas_movidas) / equivalencia).toFixed(4);
+                                        cantidadMostrada += ' (' + fraccion + ' bolsas)';
+                                    }
+                                } else if (equivalencia > 1) {
+                                    const bolsas = parseFloat(mov.cantidad);
+                                    cantidadMostrada = (bolsas % 1 === 0 ? bolsas : bolsas.toFixed(4)) + ' bolsas';
+                                    if (equivalencia > 1) {
+                                        const piezas = Math.round(bolsas * equivalencia);
+                                        cantidadMostrada += ' (' + piezas + ' piezas)';
+                                    }
+                                } else {
+                                    cantidadMostrada = parseFloat(mov.cantidad) + ' ' + insumo.unidad;
+                                }
+                                return [
+                                    fecha,
+                                    mov.tipo_movimiento === 'entrada' ? 'Entrada' : 'Salida',
+                                    cantidadMostrada,
+                                    mov.motivo || 'Sin motivo',
+                                    mov.usuario || 'Sistema'
+                                ];
+                            }) : [['No hay movimientos registrados', '', '', '', '']];
+                            // Unir todo
+                            const sheetData = [...datosClave, encabezados, ...movimientosRows];
+                            // Crear el libro y la hoja
+                            const wb = XLSX.utils.book_new();
+                            const ws = XLSX.utils.aoa_to_sheet(sheetData);
+                            // Solo negritas para título y encabezados (compatibilidad SheetJS Community)
+                            ws['A1'].s = { font: { bold: true, sz: 14 } };
+                            ws['B1'].s = ws['A1'].s;
+                            const encabezadoRow = datosClave.length + 1;
+                            ['A','B','C','D','E'].forEach(col => {
+                                ws[col + encabezadoRow].s = { font: { bold: true } };
+                            });
+                            // Ajustar ancho de columnas
+                            ws['!cols'] = [ { wch: 18 }, { wch: 18 }, { wch: 22 }, { wch: 22 }, { wch: 18 } ];
+                            XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
+                            // Descargar
+                            XLSX.writeFile(wb, `reporte_insumo_${insumo.nombre.replace(/\s+/g,'_')}_${fechaExport.toISOString().slice(0,10)}.xlsx`);
+                        };
+                    }
+                    // Asignar el onclick al botón Exportar PDF (abre nueva pestaña con el endpoint HTML)
+                    if (document.getElementById('btnExportarPDF')) {
+                        document.getElementById('btnExportarPDF').onclick = function() {
+                            window.open(`/inventory-management-system-main/insumos/reporte_html.php?insumo_id=${insumo.insumo_id}`, '_blank');
+                        };
+                    }
+                    // Mostrar modal
+                    const modalElement = document.getElementById('modalReporteSemanal');
+                    const bootstrapModal = new bootstrap.Modal(modalElement);
+                    bootstrapModal.show();
+                    // Limpiar modal al cerrar
+                    modalElement.addEventListener('hidden.bs.modal', function() {
+                        modalElement.remove();
+                    });
+                })
+                .catch(() => {
+                    Swal.close();
+                    Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar el reporte. Intenta de nuevo.' });
                 });
-            })
-            .catch(() => {
-                Swal.close();
-                Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar el reporte. Intenta de nuevo.' });
-            });
         }
 
         function eliminarInsumo(id, cantidad) {
