@@ -68,6 +68,15 @@ try {
             continue;
         }
         $is_entrada = $movtype['is_entry'] == 1;
+        // Lógica especial para Ajuste
+        $nombre_mov = strtolower(trim($movtype['name']));
+        if ($nombre_mov === 'ajuste' && isset($mov['ajuste_direccion'])) {
+            if ($mov['ajuste_direccion'] === 'restar') {
+                $is_entrada = false;
+            } else {
+                $is_entrada = true;
+            }
+        }
 
         if ($tipo_gestion === 'bobina') {
             if (

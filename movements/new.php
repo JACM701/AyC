@@ -152,7 +152,27 @@ function crearFilaMovimiento() {
         selectTipo.appendChild(optAjuste);
     }
     tdTipo.appendChild(selectTipo);
+
+    // Selector de dirección para ajuste
+    const ajusteDirDiv = document.createElement('div');
+    ajusteDirDiv.style.display = 'none';
+    ajusteDirDiv.innerHTML = `
+        <select class="form-select mt-2 ajuste-direccion-select" name="ajuste_direccion[]">
+            <option value="sumar">Sumar stock</option>
+            <option value="restar">Restar stock</option>
+        </select>
+    `;
+    tdTipo.appendChild(ajusteDirDiv);
     tr.appendChild(tdTipo);
+
+    selectTipo.addEventListener('change', function() {
+        if (selectTipo.options[selectTipo.selectedIndex].text.toLowerCase().includes('ajuste')) {
+            ajusteDirDiv.style.display = 'block';
+        } else {
+            ajusteDirDiv.style.display = 'none';
+        }
+        actualizarOpcionesBobina();
+    });
     // Cantidad
     const tdCant = document.createElement('td');
     const inputCant = document.createElement('input');
@@ -347,10 +367,15 @@ document.getElementById('movimientosForm').onsubmit = function(e) {
         const tipo = tr.querySelector('select[name="tipo[]"]').value;
         const cantidad = tr.querySelector('input[name="cantidad[]"]').value;
         const bobina = tr.querySelector('select[name="bobina[]"]').value;
+        let ajuste_direccion = null;
+        const ajusteDirSelect = tr.querySelector('.ajuste-direccion-select');
+        if (ajusteDirSelect && ajusteDirSelect.parentElement.style.display !== 'none') {
+            ajuste_direccion = ajusteDirSelect.value;
+        }
         if (!producto || !tipo || !cantidad || (tr.querySelector('select[name="bobina[]"]').disabled === false && !bobina && tr.querySelector('select[name="bobina[]"]').options.length > 1)) {
             valido = false;
         }
-        datos.push({ producto, tipo, cantidad, bobina });
+        datos.push({ producto, tipo, cantidad, bobina, ajuste_direccion });
     });
     if (!valido) {
         showToast('Completa todos los campos de cada fila.', 'danger');
