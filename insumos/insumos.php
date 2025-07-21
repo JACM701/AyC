@@ -1631,9 +1631,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     </div>
                                     <div class="modal-footer">
                                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                                        <button type="button" class="btn btn-success" id="btnExportarXLSX">
-                                            <i class="bi bi-file-earmark-excel"></i> Exportar a Excel
-                                        </button>
                                         <button type="button" class="btn btn-primary" id="btnExportarPDF">
                                             <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
                                         </button>
@@ -1645,74 +1642,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     // Agregar modal al DOM
                     document.body.insertAdjacentHTML('beforeend', modal);
                     // Dentro de la función verReporteSemanal, después de agregar el modal al DOM y antes de mostrar el modal:
-                    // Asignar el onclick al botón Exportar XLSX (Excel profesional)
-                    if (document.getElementById('btnExportarXLSX')) {
-                        document.getElementById('btnExportarXLSX').onclick = function() {
-                            // Construir los datos para SheetJS
-                            const fechaExport = new Date();
-                            const datosClave = [
-                                ['Reporte de Movimientos de Insumo', ''],
-                                ['Nombre', insumo.nombre],
-                                ['Categoría', insumo.categoria_nombre || ''],
-                                ['Proveedor', insumo.proveedor_nombre || ''],
-                                ['Stock actual', estadisticas.stock_actual + ' ' + insumo.unidad],
-                                ['Stock mínimo', insumo.minimo + ' ' + insumo.unidad],
-                                ['Precio unitario', '$' + insumo.precio_unitario + '/' + insumo.unidad],
-                                ['Estado', insumo.estado],
-                                ['Exportado por', window.usuarioActual || 'Usuario'],
-                                ['Fecha y hora de exportación', fechaExport.toLocaleDateString('es-ES') + ' ' + fechaExport.toLocaleTimeString('es-ES')],
-                                ['', ''] // Fila vacía
-                            ];
-                            const encabezados = ['Fecha', 'Tipo', 'Cantidad', 'Motivo', 'Usuario'];
-                            const movimientosRows = movimientos.length > 0 ? movimientos.map(mov => {
-                                const fecha = new Date(mov.fecha_movimiento).toLocaleDateString('es-ES');
-                                let cantidadMostrada = '';
-                                let equivalencia = 1;
-                                const match = /\((\d+) piezas\)/.exec(insumo.unidad);
-                                if (match) equivalencia = parseInt(match[1]);
-                                if (mov.piezas_movidas && parseFloat(mov.piezas_movidas) > 0) {
-                                    cantidadMostrada = parseInt(mov.piezas_movidas) + ' piezas';
-                                    if (equivalencia > 1) {
-                                        const fraccion = (parseFloat(mov.piezas_movidas) / equivalencia).toFixed(4);
-                                        cantidadMostrada += ' (' + fraccion + ' bolsas)';
-                                    }
-                                } else if (equivalencia > 1) {
-                                    const bolsas = parseFloat(mov.cantidad);
-                                    cantidadMostrada = (bolsas % 1 === 0 ? bolsas : bolsas.toFixed(4)) + ' bolsas';
-                                    if (equivalencia > 1) {
-                                        const piezas = Math.round(bolsas * equivalencia);
-                                        cantidadMostrada += ' (' + piezas + ' piezas)';
-                                    }
-                                } else {
-                                    cantidadMostrada = parseFloat(mov.cantidad) + ' ' + insumo.unidad;
-                                }
-                                return [
-                                    fecha,
-                                    mov.tipo_movimiento === 'entrada' ? 'Entrada' : 'Salida',
-                                    cantidadMostrada,
-                                    mov.motivo || 'Sin motivo',
-                                    mov.usuario || 'Sistema'
-                                ];
-                            }) : [['No hay movimientos registrados', '', '', '', '']];
-                            // Unir todo
-                            const sheetData = [...datosClave, encabezados, ...movimientosRows];
-                            // Crear el libro y la hoja
-                            const wb = XLSX.utils.book_new();
-                            const ws = XLSX.utils.aoa_to_sheet(sheetData);
-                            // Solo negritas para título y encabezados (compatibilidad SheetJS Community)
-                            ws['A1'].s = { font: { bold: true, sz: 14 } };
-                            ws['B1'].s = ws['A1'].s;
-                            const encabezadoRow = datosClave.length + 1;
-                            ['A','B','C','D','E'].forEach(col => {
-                                ws[col + encabezadoRow].s = { font: { bold: true } };
-                            });
-                            // Ajustar ancho de columnas
-                            ws['!cols'] = [ { wch: 18 }, { wch: 18 }, { wch: 22 }, { wch: 22 }, { wch: 18 } ];
-                            XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
-                            // Descargar
-                            XLSX.writeFile(wb, `reporte_insumo_${insumo.nombre.replace(/\s+/g,'_')}_${fechaExport.toISOString().slice(0,10)}.xlsx`);
-                        };
-                    }
                     // Asignar el onclick al botón Exportar PDF (abre nueva pestaña con el endpoint HTML)
                     if (document.getElementById('btnExportarPDF')) {
                         document.getElementById('btnExportarPDF').onclick = function() {

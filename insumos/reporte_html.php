@@ -26,8 +26,9 @@ $logo = '../assets/img/LogoWeb.png';
     <style>
         body { font-family: Arial, sans-serif; color: #232a7c; background: #f4f6fb; }
         .reporte-container { background: #fff; max-width: 900px; margin: 40px auto; border-radius: 16px; box-shadow: 0 4px 24px rgba(18,24,102,0.10); padding: 32px; }
-        .titulo { background: #232a7c; color: #fff; text-align: center; font-size: 1.5em; font-weight: bold; padding: 10px 0; border-radius: 8px; }
-        .logo { height: 50px; float: right; margin-top: -10px; }
+        .header-row { display: flex; align-items: center; justify-content: space-between; background: #232a7c; border-radius: 8px; padding: 10px 24px 10px 24px; margin-bottom: 24px; }
+        .titulo { color: #fff; font-size: 1.5em; font-weight: bold; text-align: left; margin: 0; }
+        .logo { height: 48px; margin-left: 16px; }
         .tabla-datos { margin: 24px 0 32px 0; width: 100%; }
         .tabla-datos td { padding: 4px 8px; }
         .tabla-movs { border-collapse: collapse; width: 100%; font-size: 0.98em; }
@@ -39,8 +40,10 @@ $logo = '../assets/img/LogoWeb.png';
 </head>
 <body>
     <div class="reporte-container" id="reportePDF">
-        <img src="<?= $logo ?>" class="logo" alt="Logo">
-        <div class="titulo">Reporte de Movimientos de Insumo</div>
+        <div class="header-row">
+            <div class="titulo">Reporte de Movimientos de Insumo</div>
+            <img src="<?= $logo ?>" class="logo" alt="Logo">
+        </div>
         <table class="tabla-datos">
             <tr><td><b>Nombre:</b></td><td><?= htmlspecialchars($insumo['nombre']) ?></td></tr>
             <tr><td><b>Categoría:</b></td><td><?= htmlspecialchars($insumo['categoria_nombre']) ?></td></tr>
