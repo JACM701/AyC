@@ -2,34 +2,32 @@
 require_once '../auth/middleware.php';
 require_once '../connection.php';
 
-// Función para obtener productos del inventario
-function getProductosInventario() {
+// Función para obtener categorías disponibles para insumos
+function getCategoriasInsumos() {
     global $mysqli;
-    $productos = [];
+    $categorias = [];
     
-    $query = "SELECT p.product_id as id, p.product_name as nombre, 
-                     CASE 
-                         WHEN p.tipo_gestion = 'bobina' THEN 
-                             COALESCE(SUM(b.metros_actuales), 0)
-                         ELSE 
-                             p.quantity
-                     END as stock,
-                     p.price as precio, p.tipo_gestion, c.name as categoria, s.name as proveedor
-              FROM products p 
-              LEFT JOIN categories c ON p.category_id = c.category_id 
-              LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id 
-              LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
-              WHERE (p.quantity > 0 OR p.tipo_gestion = 'bobina')
-              GROUP BY p.product_id, p.product_name, p.price, p.tipo_gestion, c.name, s.name, p.quantity
-              HAVING stock > 0
-              ORDER BY p.product_name";
-    
+    $query = "SELECT category_id, name FROM categories ORDER BY name";
     $result = $mysqli->query($query);
     while ($row = $result->fetch_assoc()) {
-        $productos[] = $row;
+        $categorias[] = $row;
     }
     
-    return $productos;
+    return $categorias;
+}
+
+// Función para obtener proveedores disponibles
+function getProveedoresInsumos() {
+    global $mysqli;
+    $proveedores = [];
+    
+    $query = "SELECT supplier_id, name FROM suppliers ORDER BY name";
+    $result = $mysqli->query($query);
+    while ($row = $result->fetch_assoc()) {
+        $proveedores[] = $row;
+    }
+    
+    return $proveedores;
 }
 
 // Filtros
@@ -39,21 +37,21 @@ $estado_filtro = isset($_GET['estado']) ? $_GET['estado'] : '';
 $busqueda = isset($_GET['busqueda']) ? $_GET['busqueda'] : '';
 
 // Construir consulta base para insumos
-$query = "SELECT i.*, p.product_name as producto_origen, s.name as proveedor 
+$query = "SELECT i.*, c.name as categoria_nombre, s.name as proveedor 
           FROM insumos i
-          LEFT JOIN products p ON i.product_id = p.product_id
-          LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id 
+          LEFT JOIN categories c ON i.category_id = c.category_id
+          LEFT JOIN suppliers s ON i.supplier_id = s.supplier_id 
           WHERE i.is_active = 1";
 $params = [];
 $types = '';
 
 if ($categoria_filtro) {
-    $query .= " AND p.category_id = ?";
+    $query .= " AND i.category_id = ?";
     $params[] = $categoria_filtro;
     $types .= 'i';
 }
 if ($proveedor_filtro) {
-    $query .= " AND s.supplier_id = ?";
+    $query .= " AND i.supplier_id = ?";
     $params[] = $proveedor_filtro;
     $types .= 'i';
 }
@@ -63,7 +61,7 @@ if ($estado_filtro) {
     $types .= 's';
 }
 if ($busqueda) {
-    $query .= " AND (i.nombre LIKE ? OR p.product_name LIKE ? OR s.name LIKE ?)";
+    $query .= " AND (i.nombre LIKE ? OR i.categoria LIKE ? OR s.name LIKE ?)";
     $like = "%$busqueda%";
     $params[] = $like; $params[] = $like; $params[] = $like;
     $types .= 'sss';
@@ -100,78 +98,108 @@ $consumo_semanal_total = $stats['consumo_semanal_total'] ?? 0;
 
 // --- Endpoint para alta real de insumos (AJAX) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'agregar_insumo') {
+    ob_clean();
     header('Content-Type: application/json');
-    $product_id = intval($_POST['product_id'] ?? 0);
-    $cantidad = floatval($_POST['cantidad'] ?? 0);
-    $minimo = floatval($_POST['minimo'] ?? 0);
-    $unidad = trim($_POST['unidad'] ?? 'pieza');
-    $ubicacion = trim($_POST['ubicacion'] ?? '');
-    $user_id = $_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? null;
-    
-    if (!$product_id || $cantidad <= 0 || $minimo < 0) {
-        echo json_encode(['success'=>false,'message'=>'Datos incompletos o inválidos.']);
+    try {
+        $nombre = trim($_POST['nombre'] ?? '');
+        $categoria_id = intval($_POST['categoria_id'] ?? 0);
+        $proveedor_id = intval($_POST['proveedor_id'] ?? 0);
+        $cantidad = floatval($_POST['cantidad'] ?? 0);
+        $minimo = floatval($_POST['minimo'] ?? 0);
+        $unidad = trim($_POST['unidad'] ?? 'pieza');
+        $precio_unitario = floatval($_POST['precio_unitario'] ?? 0);
+        $user_id = $_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? null;
+        $imagen_ruta = null;
+
+        // Procesar imagen si se envía
+        if (isset($_FILES['imagen']) && $_FILES['imagen']['error'] === UPLOAD_ERR_OK) {
+            $imgTmp = $_FILES['imagen']['tmp_name'];
+            $imgName = basename($_FILES['imagen']['name']);
+            $imgExt = strtolower(pathinfo($imgName, PATHINFO_EXTENSION));
+            $permitidas = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+            if (!in_array($imgExt, $permitidas)) {
+                error_log('Tipo de imagen no permitido: ' . $imgExt);
+                echo json_encode(['success'=>false,'message'=>'Tipo de imagen no permitido. Usa JPG, PNG, GIF o WEBP.']);
+                exit;
+            }
+            if ($_FILES['imagen']['size'] > 2*1024*1024) { // 2MB
+                error_log('Imagen demasiado grande: ' . $_FILES['imagen']['size']);
+                echo json_encode(['success'=>false,'message'=>'La imagen es demasiado grande (máx 2MB).']);
+                exit;
+            }
+            $nombreArchivo = 'insumo_' . time() . '_' . rand(1000,9999) . '.' . $imgExt;
+            $destino = __DIR__ . '/../uploads/insumos/' . $nombreArchivo;
+            if (!move_uploaded_file($imgTmp, $destino)) {
+                error_log('No se pudo mover la imagen a: ' . $destino);
+                echo json_encode(['success'=>false,'message'=>'No se pudo guardar la imagen.']);
+                exit;
+            }
+            $imagen_ruta = 'uploads/insumos/' . $nombreArchivo;
+        }
+
+        if (!$nombre || $categoria_id <= 0 || $proveedor_id <= 0 || $cantidad < 0 || $minimo < 0 || $precio_unitario < 0) {
+            error_log('Datos incompletos o inválidos en alta de insumo');
+            echo json_encode(['success'=>false,'message'=>'Datos incompletos o inválidos.']);
+            exit;
+        }
+        
+        // Obtener información de categoría y proveedor
+        $stmt = $mysqli->prepare("SELECT c.name as categoria_nombre, s.name as proveedor_nombre 
+                                  FROM categories c, suppliers s 
+                                  WHERE c.category_id = ? AND s.supplier_id = ?");
+        if (!$stmt) {
+            error_log('Error en prepare SELECT categoria/proveedor: ' . $mysqli->error);
+            echo json_encode(['success'=>false,'message'=>'Error interno al buscar categoría/proveedor.']);
+            exit;
+        }
+        $stmt->bind_param('ii', $categoria_id, $proveedor_id);
+        $stmt->execute();
+        $info = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        
+        if (!$info) {
+            error_log('No se encontró categoría o proveedor para IDs: ' . $categoria_id . ', ' . $proveedor_id);
+            echo json_encode(['success'=>false,'message'=>'Categoría o proveedor no encontrado.']);
+            exit;
+        }
+        
+        // Determinar estado inicial
+        $estado = 'disponible';
+        if ($cantidad <= $minimo) {
+            $estado = 'bajo_stock';
+        }
+        if ($cantidad == 0) {
+            $estado = 'agotado';
+        }
+        
+        // Insertar insumo como entidad independiente
+        $categoria_nombre = $info['categoria_nombre'];
+        $ubicacion = '';
+        $consumo_semanal = 0.0;
+        $is_active = 1;
+        $sql = "INSERT INTO insumos (nombre, category_id, supplier_id, categoria, unidad, imagen, cantidad, minimo, precio_unitario, ubicacion, estado, consumo_semanal, ultima_actualizacion, is_active)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)";
+        $stmt = $mysqli->prepare($sql);
+        if (!$stmt) {
+            error_log('Error en prepare INSERT insumo: ' . $mysqli->error);
+            echo json_encode(['success'=>false,'message'=>'Error interno al guardar el insumo.']);
+            exit;
+        }
+        $stmt->bind_param('siisssddsssdi', $nombre, $categoria_id, $proveedor_id, $categoria_nombre, $unidad, $imagen_ruta, $cantidad, $minimo, $precio_unitario, $ubicacion, $estado, $consumo_semanal, $is_active);
+
+        if ($stmt->execute()) {
+            echo json_encode(['success'=>true,'message'=>'Insumo registrado correctamente.']);
+        } else {
+            error_log('Error al ejecutar INSERT insumo: ' . $stmt->error);
+            echo json_encode(['success'=>false,'message'=>'Error al registrar el insumo: ' . $stmt->error]);
+        }
+        $stmt->close();
+        exit;
+    } catch (Exception $e) {
+        error_log('Excepción en alta de insumo: ' . $e->getMessage());
+        echo json_encode(['success'=>false,'message'=>'Error inesperado: ' . $e->getMessage()]);
         exit;
     }
-    
-    // Obtener producto de origen
-    $stmt = $mysqli->prepare("SELECT p.product_id, p.product_name, p.quantity, p.price, p.category_id, p.supplier_id, p.tipo_gestion, c.name as categoria_nombre,
-                                     CASE 
-                                         WHEN p.tipo_gestion = 'bobina' THEN 
-                                             COALESCE(SUM(b.metros_actuales), 0)
-                                         ELSE 
-                                             p.quantity
-                                     END as stock_disponible
-                              FROM products p 
-                              LEFT JOIN categories c ON p.category_id = c.category_id 
-                              LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
-                              WHERE p.product_id = ?
-                              GROUP BY p.product_id, p.product_name, p.quantity, p.price, p.category_id, p.supplier_id, p.tipo_gestion, c.name");
-    $stmt->bind_param('i', $product_id);
-    $stmt->execute();
-    $producto = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    
-    if (!$producto) {
-        echo json_encode(['success'=>false,'message'=>'Producto de origen no encontrado.']);
-        exit;
-    }
-    
-    if ($producto['stock_disponible'] < $cantidad) {
-        echo json_encode(['success'=>false,'message'=>'No hay suficiente stock disponible en el producto de origen. Stock actual: ' . $producto['stock_disponible']]);
-        exit;
-    }
-    
-    // Calcular precio unitario basado en el tipo de gestión
-    $precio_unitario = 0;
-    if ($producto['tipo_gestion'] === 'bobina') {
-        $precio_unitario = floatval($producto['price']) / 305; // 305 metros por bobina
-    } else {
-        $precio_unitario = floatval($producto['price']);
-    }
-    
-    // Determinar estado inicial
-    $estado = 'disponible';
-    if ($cantidad <= $minimo) {
-        $estado = 'bajo_stock';
-    }
-    if ($cantidad == 0) {
-        $estado = 'agotado';
-    }
-    
-    // Insertar insumo (SIN descontar del inventario)
-    $stmt = $mysqli->prepare("INSERT INTO insumos (product_id, nombre, categoria, unidad, cantidad, minimo, precio_unitario, ubicacion, estado, consumo_semanal, ultima_actualizacion, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW(), 1)");
-    $nombre_insumo = $producto['product_name'];
-    $categoria = $producto['categoria_nombre'] ?? '';
-    
-    $stmt->bind_param('isssddsss', $product_id, $nombre_insumo, $categoria, $unidad, $cantidad, $minimo, $precio_unitario, $ubicacion, $estado);
-    
-    if ($stmt->execute()) {
-        echo json_encode(['success'=>true,'message'=>'Insumo registrado correctamente. Stock disponible: ' . $producto['stock_disponible']]);
-    } else {
-        echo json_encode(['success'=>false,'message'=>'Error al registrar el insumo: ' . $stmt->error]);
-    }
-    $stmt->close();
-    exit;
 }
 
 // --- Endpoint para edición real de insumos (AJAX) ---
@@ -234,19 +262,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         exit;
     }
     
-    // Obtener datos del insumo con información del producto origen
-    $stmt = $mysqli->prepare("SELECT i.*, p.product_name as producto_origen, p.tipo_gestion,
-                                     CASE 
-                                         WHEN p.tipo_gestion = 'bobina' THEN 
-                                             COALESCE(SUM(b.metros_actuales), 0)
-                                         ELSE 
-                                             p.quantity
-                                     END as product_stock
+    // Obtener datos del insumo
+    $stmt = $mysqli->prepare("SELECT i.*, c.name as categoria_nombre, s.name as proveedor_nombre
                               FROM insumos i 
-                              LEFT JOIN products p ON i.product_id = p.product_id 
-                              LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
-                              WHERE i.insumo_id = ?
-                              GROUP BY i.insumo_id, i.product_id, i.nombre, i.categoria, i.unidad, i.cantidad, i.minimo, i.precio_unitario, i.ubicacion, i.estado, i.consumo_semanal, i.ultima_actualizacion, i.is_active, i.created_at, i.updated_at, p.product_id, p.product_name, p.tipo_gestion, p.quantity");
+                              LEFT JOIN categories c ON i.category_id = c.category_id
+                              LEFT JOIN suppliers s ON i.supplier_id = s.supplier_id
+                              WHERE i.insumo_id = ?");
     $stmt->bind_param('i', $insumo_id);
     $stmt->execute();
     $insumo = $stmt->get_result()->fetch_assoc();
@@ -262,19 +283,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     error_log("Tipo movimiento: " . $tipo_movimiento);
     error_log("Cantidad: " . $cantidad);
     error_log("Stock actual insumo: " . $insumo['cantidad']);
-    error_log("Stock producto origen: " . $insumo['product_stock']);
     
     // Verificar stock según el tipo de movimiento
     if ($tipo_movimiento === 'entrada') {
-        // Para entradas, verificar que hay stock disponible en el producto origen
-        if (!$insumo['product_id']) {
-            echo json_encode(['success'=>false,'message'=>'Este insumo no tiene un producto origen válido.']);
-            exit;
-        }
-        
-        // Verificar que hay stock disponible (sin descontar)
-        if ($insumo['product_stock'] < $cantidad) {
-            echo json_encode(['success'=>false,'message'=>'No hay suficiente stock disponible en el inventario. Stock disponible: ' . $insumo['product_stock'] . ' ' . $insumo['unidad']]);
+        // Para entradas, no hay restricciones - se puede agregar stock libremente
+        // Solo verificar que la cantidad sea positiva
+        if ($cantidad <= 0) {
+            echo json_encode(['success'=>false,'message'=>'La cantidad de entrada debe ser mayor a 0.']);
             exit;
         }
     } else {
@@ -307,8 +322,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     
     try {
         // Registrar movimiento
-        $stmt = $mysqli->prepare("INSERT INTO insumos_movements (insumo_id, user_id, tipo_movimiento, motivo, cantidad, fecha_movimiento) VALUES (?, ?, ?, ?, ?, NOW())");
-        $stmt->bind_param('iissd', $insumo_id, $user_id, $tipo_movimiento, $motivo, $cantidad);
+        $piezas_movidas = isset($_POST['piezas_movidas']) && !empty($_POST['piezas_movidas']) ? floatval($_POST['piezas_movidas']) : null;
+        $stmt = $mysqli->prepare("INSERT INTO insumos_movements (insumo_id, user_id, tipo_movimiento, motivo, cantidad, piezas_movidas, fecha_movimiento) VALUES (?, ?, ?, ?, ?, ?, NOW())");
+        $stmt->bind_param('iissdd', $insumo_id, $user_id, $tipo_movimiento, $motivo, $cantidad, $piezas_movidas);
         
         if (!$stmt->execute()) {
             throw new Exception('Error al registrar el movimiento: ' . $stmt->error);
@@ -347,8 +363,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
     
     // Obtener datos del insumo
-    $stmt = $mysqli->prepare("SELECT i.*, p.product_name as producto_origen FROM insumos i 
-                              LEFT JOIN products p ON i.product_id = p.product_id 
+    $stmt = $mysqli->prepare("SELECT i.*, c.name as categoria_nombre, s.name as proveedor_nombre FROM insumos i 
+                              LEFT JOIN categories c ON i.category_id = c.category_id
+                              LEFT JOIN suppliers s ON i.supplier_id = s.supplier_id
                               WHERE i.insumo_id = ?");
     $stmt->bind_param('i', $insumo_id);
     $stmt->execute();
@@ -361,7 +378,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
     
     // Obtener todos los movimientos (sin filtro de fecha para debug)
-    $stmt = $mysqli->prepare("SELECT m.insumo_movement_id, m.tipo_movimiento, m.cantidad, m.motivo, m.fecha_movimiento, u.username as usuario 
+    $stmt = $mysqli->prepare("SELECT m.insumo_movement_id, m.tipo_movimiento, m.cantidad, m.piezas_movidas, m.motivo, m.fecha_movimiento, u.username as usuario 
                               FROM insumos_movements m 
                               LEFT JOIN users u ON m.user_id = u.user_id 
                               WHERE m.insumo_id = ? 
@@ -406,6 +423,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     ];
     
     echo json_encode(['success'=>true,'data'=>$reporte]);
+    exit;
+}
+
+// --- Endpoint para eliminar insumo (lógico) ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'eliminar_insumo') {
+    header('Content-Type: application/json');
+    $insumo_id = intval($_POST['insumo_id'] ?? 0);
+
+    if (!$insumo_id) {
+        echo json_encode(['success' => false, 'message' => 'ID de insumo no válido.']);
+        exit;
+    }
+
+    // Doble validación en el servidor para el stock
+    $check_stmt = $mysqli->prepare("SELECT cantidad FROM insumos WHERE insumo_id = ?");
+    $check_stmt->bind_param('i', $insumo_id);
+    $check_stmt->execute();
+    $insumo_stock = $check_stmt->get_result()->fetch_assoc();
+    $check_stmt->close();
+
+    if (!$insumo_stock) {
+        echo json_encode(['success' => false, 'message' => 'Insumo no encontrado.']);
+        exit;
+    }
+
+    if (floatval($insumo_stock['cantidad']) > 0) {
+        echo json_encode(['success' => false, 'message' => 'Acción no permitida: El insumo todavía tiene stock.']);
+        exit;
+    }
+
+    $stmt = $mysqli->prepare("UPDATE insumos SET is_active = 0 WHERE insumo_id = ?");
+    $stmt->bind_param('i', $insumo_id);
+
+    if ($stmt->execute()) {
+        if ($stmt->affected_rows > 0) {
+            echo json_encode(['success' => true, 'message' => 'Insumo eliminado correctamente.']);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'No se encontró el insumo.']);
+        }
+    } else {
+        error_log("Error al eliminar insumo: " . $stmt->error);
+        echo json_encode(['success' => false, 'message' => 'Error al procesar la solicitud.']);
+    }
+    $stmt->close();
     exit;
 }
 ?>
@@ -582,6 +643,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         .insumo-actions {
             display: flex;
             gap: 8px;
+            justify-content: stretch;
         }
         .btn-action {
             flex: 1;
@@ -595,6 +657,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             align-items: center;
             justify-content: center;
             gap: 4px;
+            min-width: 40px;
+            max-width: 100%;
         }
         .btn-edit {
             background: #e3f2fd;
@@ -681,6 +745,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 grid-template-columns: 1fr;
             }
         }
+        .btn-delete {
+            background: #ffeaea !important;
+            color: #c62828 !important;
+            border: none;
+            transition: background 0.2s, color 0.2s;
+        }
+        .btn-delete:hover {
+            background: #c62828 !important;
+            color: #fff !important;
+        }
+        .insumo-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: stretch;
+        }
+        .btn-action {
+            flex: 1;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            min-width: 40px;
+            max-width: 100%;
+        }
+        .btn-delete {
+            background: #ffeaea !important;
+            color: #c62828 !important;
+            border: none;
+            transition: background 0.2s, color 0.2s;
+        }
+        .btn-delete:hover {
+            background: #c62828 !important;
+            color: #fff !important;
+        }
     </style>
 </head>
 <body>
@@ -691,7 +795,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 <h1 class="insumos-title">
                     <i class="bi bi-box2"></i> Insumos y Materiales
                 </h1>
-                <p class="text-muted mb-0">Materiales de trabajo derivados de productos del catálogo</p>
+                <p class="text-muted mb-0">Materiales de trabajo independientes para gestión de stock</p>
             </div>
             <div class="insumos-stats">
                 <div class="stat-item">
@@ -834,10 +938,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <div class="insumo-card">
                         <div class="insumo-header">
                             <div>
+                                <?php if (!empty($insumo['imagen'])): ?>
+                                    <div style="text-align:center;">
+                                        <img src="../<?= htmlspecialchars($insumo['imagen']) ?>" alt="Imagen insumo" style="max-width:80px;max-height:80px;border-radius:8px;margin-bottom:8px;object-fit:contain;">
+                                    </div>
+                                <?php else: ?>
+                                    <div style="text-align:center;">
+                                        <i class="bi bi-image" style="font-size:2.5rem;color:#ccc;margin-bottom:8px;"></i>
+                                    </div>
+                                <?php endif; ?>
                                 <h5 class="insumo-title"><?= htmlspecialchars($insumo['nombre']) ?></h5>
                                 <div class="insumo-category"><?= htmlspecialchars($insumo['categoria']) ?></div>
                                 <div class="producto-origen">
-                                    <i class="bi bi-arrow-right"></i> Derivado de: <?= htmlspecialchars($insumo['producto_origen'] ?? 'Producto no encontrado') ?>
+                                    <i class="bi bi-tag"></i> Categoría: <?= htmlspecialchars($insumo['categoria_nombre'] ?? 'Sin categoría') ?>
                                 </div>
                             </div>
                         </div>
@@ -859,11 +972,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         
                         <div class="insumo-details">
                             <div class="detail-item">
-                                <span class="detail-number"><?= $insumo['cantidad'] ?></span>
-                                <span class="detail-label">Stock (<?= $insumo['unidad'] ?>)</span>
+                                <?php
+                                $stock_bolsas = (float)$insumo['cantidad'];
+                                $unidad = $insumo['unidad'];
+                                $equivalencia = 1;
+                                if (preg_match('/\((\d+) piezas\)/', $unidad, $m)) {
+                                    $equivalencia = (int)$m[1];
+                                }
+
+                                if ($equivalencia > 1) {
+                                    $stock_piezas = floor($stock_bolsas * $equivalencia);
+                                    $stock_bolsas_redondeado = ceil($stock_bolsas);
+                                    echo "<span class='detail-number' style='font-size: 1.5rem;'>{$stock_bolsas_redondeado} bolsas</span>";
+                                    echo "<small class='text-muted d-block' style='font-size: 0.85em;'>Cada bolsa = {$equivalencia} piezas</small>";
+                                    echo "<small class='text-muted d-block' style='font-size: 0.75rem;'>{$stock_piezas} piezas aprox.</small>";
+                                } else {
+                                    echo "<span class='detail-number'>".number_format($stock_bolsas, 2)."</span>
+                                          <span class='detail-label'>Stock ({$unidad})</span>";
+                                }
+                                ?>
                             </div>
                             <div class="detail-item">
-                                <span class="detail-number"><?= $insumo['minimo'] ?></span>
+                                <span class="detail-number"><?= number_format($insumo['minimo'], 2) ?></span>
                                 <span class="detail-label">Mínimo</span>
                             </div>
                             <div class="detail-item">
@@ -894,6 +1024,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <button class="btn-action btn-report" onclick="verReporteSemanal(<?= $insumo['insumo_id'] ?>)">
                                 <i class="bi bi-graph-up"></i> Reporte Sem.
                             </button>
+                            <button class="btn-action btn-delete" title="Eliminar" onclick="eliminarInsumo(<?= $insumo['insumo_id'] ?>, <?= $insumo['cantidad'] ?>)">
+                                <i class="bi bi-trash"></i>
+                            </button>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -910,52 +1043,138 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     <script>
         
         function agregarInsumo() {
-            // Obtener productos del catálogo desde PHP
-            const productos = <?= json_encode(getProductosInventario()) ?>;
+            // Obtener categorías y proveedores desde PHP
+            const categorias = <?= json_encode(getCategoriasInsumos()) ?>;
+            const proveedores = <?= json_encode(getProveedoresInsumos()) ?>;
             
-            // Generar opciones del select dinámicamente
-            let opcionesProductos = '<option value="">-- Selecciona un producto --</option>';
-            productos.forEach(producto => {
-                const precioUnitario = producto.tipo_gestion === 'bobina' ? 
-                    (producto.precio / 305).toFixed(2) : 
-                    producto.precio;
-                const unidad = producto.tipo_gestion === 'bobina' ? 'metros' : 'piezas';
-                opcionesProductos += `<option value="${producto.id}" data-stock="${producto.stock}" data-tipo="${producto.tipo_gestion}" data-precio="${precioUnitario}">${producto.nombre} - $${precioUnitario}/${unidad} (Stock: ${producto.stock})</option>`;
+            // Verificar que hay datos disponibles
+            if (!categorias || categorias.length === 0) {
+                Swal.fire({ 
+                    icon: 'warning', 
+                    title: 'No hay categorías disponibles', 
+                    text: 'Primero debes crear algunas categorías en el sistema.' 
+                });
+                return;
+            }
+            
+            if (!proveedores || proveedores.length === 0) {
+                Swal.fire({ 
+                    icon: 'warning', 
+                    title: 'No hay proveedores disponibles', 
+                    text: 'Primero debes crear algunos proveedores en el sistema.' 
+                });
+                return;
+            }
+            
+            // Generar opciones de categorías y proveedores
+            let opcionesCategorias = '<option value="">-- Selecciona una categoría --</option>';
+            categorias.forEach(cat => {
+                opcionesCategorias += `<option value="${cat.category_id}">${cat.name}</option>`;
             });
             
-            // Mostrar modal para seleccionar producto del catálogo
+            let opcionesProveedores = '<option value="">-- Selecciona un proveedor --</option>';
+            proveedores.forEach(prov => {
+                opcionesProveedores += `<option value="${prov.supplier_id}">${prov.name}</option>`;
+            });
+            
+            // Mostrar modal simplificado
             const modal = `
                 <div class="modal fade" id="modalAgregarInsumo" tabindex="-1">
-                    <div class="modal-dialog modal-lg">
+                    <div class="modal-dialog">
                         <div class="modal-content">
                             <div class="modal-header">
-                                <h5 class="modal-title"><i class="bi bi-plus-circle"></i> Agregar Insumo</h5>
+                                <h5 class="modal-title"><i class="bi bi-plus-circle"></i> Crear Nuevo Insumo</h5>
                                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                             </div>
                             <div class="modal-body">
-                                <div class="mb-3">
-                                    <label class="form-label">Seleccionar producto del catálogo:</label>
-                                    <select class="form-select" id="productoOrigen" onchange="actualizarInfoProducto()">
-                                        ${opcionesProductos}
-                                    </select>
-                                </div>
-                                <div id="infoProducto" class="alert alert-info" style="display:none;">
-                                    <i class="bi bi-info-circle"></i>
-                                    <span id="infoProductoText"></span>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Cantidad a extraer:</label>
-                                    <input type="number" class="form-control" id="cantidadExtraer" min="1" placeholder="Ej: 50 metros, 10 piezas">
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Stock mínimo para alertas:</label>
-                                    <input type="number" class="form-control" id="stockMinimo" min="0" placeholder="Ej: 20">
-                                </div>
-                                <div class="alert alert-warning">
-                                    <i class="bi bi-exclamation-triangle"></i>
-                                    <strong>Nota:</strong> Los insumos se crean extrayendo cantidades de productos del catálogo. 
-                                    Esto permite rastrear el consumo de materiales por proyecto y mantener control del stock.
-                                </div>
+                                <form id="formAgregarInsumo">
+                                    <div class="mb-3">
+                                        <label class="form-label">Nombre del insumo *</label>
+                                        <input type="text" class="form-control" id="nombreInsumo" required placeholder="Ej: Cable UTP Cat6">
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Categoría *</label>
+                                                <select class="form-select" id="categoriaInsumo" required>
+                                                    ${opcionesCategorias}
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Proveedor *</label>
+                                                <select class="form-select" id="proveedorInsumo" required>
+                                                    ${opcionesProveedores}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Unidad de medida</label>
+                                                <select class="form-select" id="unidadInsumo">
+                                                    <option value="pieza">Pieza</option>
+                                                    <option value="metro">Metro</option>
+                                                    <option value="kg">Kilogramo</option>
+                                                    <option value="litro">Litro</option>
+                                                    <option value="bolsa">Bolsa</option>
+                                                    <option value="paquete">Paquete</option>
+                                                    <option value="caja">Caja</option>
+                                                    <option value="rollo">Rollo</option>
+                                                    <option value="unidad">Unidad</option>
+                                                    <option value="otro">Otro</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Precio unitario</label>
+                                                <input type="number" class="form-control" id="precioInsumo" min="0" step="0.01" placeholder="0.00">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Cantidad inicial</label>
+                                                <input type="number" class="form-control" id="cantidadInsumo" min="0" step="0.01" value="0">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Stock mínimo</label>
+                                                <input type="number" class="form-control" id="minimoInsumo" min="0" step="0.01" placeholder="10">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Imagen del insumo</label>
+                                        <input type="file" class="form-control" id="imagenInsumo" accept="image/*">
+                                    </div>
+                                    
+                                    <div class="mb-3" id="divEquivalencia">
+                                        <label class="form-label">Equivalencia (ej: piezas por bolsa)</label>
+                                        <input type="number" class="form-control" id="equivalenciaInsumo" min="1" step="1" placeholder="Ej: 1000">
+                                        <small class="text-muted">¿Cuántas piezas contiene una bolsa, caja, etc.? (Opcional, solo para ayuda en movimientos)</small>
+                                    </div>
+                                    
+                                    <div class="mb-3" id="divUnidadPersonalizada" style="display: none;">
+                                        <label class="form-label">Especificar unidad personalizada</label>
+                                        <input type="text" class="form-control" id="unidadPersonalizada" placeholder="Ej: bolsa de 1000 piezas, caja de 50 unidades">
+                                    </div>
+                                    
+                                    <div class="alert alert-info">
+                                        <i class="bi bi-info-circle"></i>
+                                        <strong>Información:</strong> Los insumos son materiales independientes para gestión de stock.
+                                        <br><small>Ejemplo: Si tienes una bolsa de 1000 conectores, selecciona "Bolsa" como unidad y registra 1 bolsa.</small>
+                                    </div>
+                                </form>
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -980,75 +1199,94 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             modalElement.addEventListener('hidden.bs.modal', function() {
                 modalElement.remove();
             });
-        }
-        
-        function actualizarInfoProducto() {
-            const select = document.getElementById('productoOrigen');
-            const infoDiv = document.getElementById('infoProducto');
-            const infoText = document.getElementById('infoProductoText');
             
-            if (select.value) {
-                const option = select.options[select.selectedIndex];
-                const stock = option.dataset.stock;
-                const tipo = option.dataset.tipo;
-                const precio = option.dataset.precio;
-                const unidad = tipo === 'bobina' ? 'metros' : 'piezas';
-                
-                infoText.innerHTML = `<strong>Stock disponible:</strong> ${stock} ${unidad} | <strong>Precio unitario:</strong> $${precio}/${unidad} | <strong>Tipo:</strong> ${tipo}`;
-                infoDiv.style.display = 'block';
-            } else {
-                infoDiv.style.display = 'none';
-            }
+            // Manejar unidad personalizada
+            document.getElementById('unidadInsumo').addEventListener('change', function() {
+                const unidadPersonalizada = document.getElementById('divUnidadPersonalizada');
+                if (this.value === 'otro') {
+                    unidadPersonalizada.style.display = 'block';
+                    document.getElementById('unidadPersonalizada').focus();
+                } else {
+                    unidadPersonalizada.style.display = 'none';
+                    document.getElementById('unidadPersonalizada').value = '';
+                }
+            });
         }
         
         function confirmarAgregarInsumo() {
-            const producto = document.getElementById('productoOrigen').value;
-            const cantidad = document.getElementById('cantidadExtraer').value;
-            const minimo = document.getElementById('stockMinimo').value;
-            const unidad = document.getElementById('productoOrigen').selectedOptions[0]?.dataset.tipo === 'bobina' ? 'metros' : 'piezas';
-            const ubicacion = '';
+            // Obtener valores del formulario
+            const nombre = document.getElementById('nombreInsumo').value.trim();
+            const categoria = document.getElementById('categoriaInsumo').value;
+            const proveedor = document.getElementById('proveedorInsumo').value;
+            const cantidad = parseFloat(document.getElementById('cantidadInsumo').value) || 0;
+            const minimo = parseFloat(document.getElementById('minimoInsumo').value) || 0;
+            let unidad = document.getElementById('unidadInsumo').value;
+            const precio = parseFloat(document.getElementById('precioInsumo').value) || 0;
+            const imagenFile = document.getElementById('imagenInsumo').files[0];
+            const equivalencia = document.getElementById('equivalenciaInsumo').value;
             
-            if (!producto || !cantidad || !minimo) {
-                Swal.fire({ icon: 'warning', title: 'Campos incompletos', text: 'Por favor completa todos los campos.' });
-                return;
+            // Manejar unidad personalizada
+            if (unidad === 'otro') {
+                const unidadPersonalizada = document.getElementById('unidadPersonalizada').value.trim();
+                if (!unidadPersonalizada) {
+                    Swal.fire({ icon: 'warning', title: 'Unidad requerida', text: 'Por favor especifica la unidad personalizada.' });
+                    document.getElementById('unidadPersonalizada').focus();
+                    return;
+                }
+                unidad = unidadPersonalizada;
+            }
+
+            // Manejar equivalencia
+            if (equivalencia && parseInt(equivalencia) > 0) {
+                unidad = `${unidad} (${equivalencia} piezas)`;
             }
             
-            const select = document.getElementById('productoOrigen');
-            const option = select.options[select.selectedIndex];
-            const stockDisponible = parseFloat(option.dataset.stock);
-            const cantidadExtraer = parseFloat(cantidad);
+            // Validaciones (igual que antes)
+            if (!nombre) { Swal.fire({ icon: 'warning', title: 'Nombre requerido', text: 'Por favor ingresa el nombre del insumo.' }); document.getElementById('nombreInsumo').focus(); return; }
+            if (!categoria) { Swal.fire({ icon: 'warning', title: 'Categoría requerida', text: 'Por favor selecciona una categoría.' }); document.getElementById('categoriaInsumo').focus(); return; }
+            if (!proveedor) { Swal.fire({ icon: 'warning', title: 'Proveedor requerido', text: 'Por favor selecciona un proveedor.' }); document.getElementById('proveedorInsumo').focus(); return; }
+            if (minimo < 0) { Swal.fire({ icon: 'warning', title: 'Stock mínimo inválido', text: 'El stock mínimo debe ser un valor positivo.' }); document.getElementById('minimoInsumo').focus(); return; }
+            if (precio < 0) { Swal.fire({ icon: 'warning', title: 'Precio inválido', text: 'El precio unitario debe ser un valor positivo.' }); document.getElementById('precioInsumo').focus(); return; }
             
-            if (cantidadExtraer > stockDisponible) {
-                Swal.fire({ icon: 'error', title: 'Stock insuficiente', text: 'No hay suficiente stock disponible. Stock actual: ' + stockDisponible });
-                return;
+            Swal.fire({ title: 'Creando insumo...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+            
+            // Usar FormData para enviar archivos
+            const formData = new FormData();
+            formData.append('action', 'agregar_insumo');
+            formData.append('nombre', nombre);
+            formData.append('categoria_id', categoria);
+            formData.append('proveedor_id', proveedor);
+            formData.append('cantidad', cantidad);
+            formData.append('minimo', minimo);
+            formData.append('unidad', unidad);
+            formData.append('precio_unitario', precio);
+            if (imagenFile) {
+                formData.append('imagen', imagenFile);
             }
             
-            // Enviar datos al backend vía AJAX
             fetch('', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({
-                    action: 'agregar_insumo',
-                    product_id: producto,
-                    cantidad: cantidad,
-                    minimo: minimo,
-                    unidad: unidad,
-                    ubicacion: ubicacion
-                })
+                body: formData
             })
-            .then(res => res.json())
+            .then(response => {
+                if (!response.ok) throw new Error('Error en la respuesta del servidor');
+                return response.json();
+            })
             .then(data => {
+                Swal.close();
                 if (data.success) {
-                    Swal.fire({ icon: 'success', title: '¡Insumo registrado!', text: data.message, timer: 1800, showConfirmButton: false });
-            const modal = bootstrap.Modal.getInstance(document.getElementById('modalAgregarInsumo'));
-            modal.hide();
-                    setTimeout(() => { window.location.reload(); }, 1200);
+                    Swal.fire({ icon: 'success', title: '¡Insumo creado exitosamente!', text: data.message, timer: 2000, showConfirmButton: false });
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('modalAgregarInsumo'));
+                    if (modal) modal.hide();
+                    setTimeout(() => { window.location.reload(); }, 1500);
                 } else {
-                    Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+                    Swal.fire({ icon: 'error', title: 'Error al crear insumo', text: data.message || 'No se pudo crear el insumo. Verifica los datos e intenta de nuevo.' });
                 }
             })
-            .catch(() => {
-                Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo registrar el insumo. Intenta de nuevo.' });
+            .catch(error => {
+                Swal.close();
+                console.error('Error:', error);
+                Swal.fire({ icon: 'error', title: 'Error de conexión', text: 'No se pudo conectar con el servidor. Verifica tu conexión e intenta de nuevo.' });
             });
         }
         
@@ -1059,6 +1297,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if (!insumo) {
                 Swal.fire({ icon: 'error', title: 'Insumo no encontrado', text: 'No se pudo cargar la información del insumo.' });
                 return;
+            }
+            // En la función editarInsumo, antes de mostrar el modal:
+            // Buscar si el insumo tiene movimientos
+            let tieneMovimientos = false;
+            if (insumo.movimientos && insumo.movimientos > 0) {
+                tieneMovimientos = true;
             }
             // Modal de edición real
             const modal = `
@@ -1085,8 +1329,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Unidad</label>
-                                    <input type="text" class="form-control" id="editUnidad" value="${insumo.unidad}">
+                                    <input type="text" class="form-control" id="editUnidad" value="${insumo.unidad}" readonly style="background:#f8f9fa;cursor:not-allowed;">
                                 </div>
+                                ${tieneMovimientos ? `<div class='alert alert-warning mt-2'><i class='bi bi-exclamation-triangle'></i> No se puede cambiar la unidad de medida porque este insumo ya tiene movimientos registrados.</div>` : ''}
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -1149,6 +1394,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 return;
             }
             
+            // Buscar la equivalencia en la unidad del insumo (ej: Bolsa (1000 piezas))
+            let equivalencia = 1;
+            const match = /\((\d+) piezas\)/.exec(insumo.unidad);
+            if (match) equivalencia = parseInt(match[1]);
+
+            let ayudaEquivalencia = '';
+            if (equivalencia > 1) {
+                ayudaEquivalencia = `<div class='alert alert-info mt-2'>
+                    <b>Equivalencia:</b> 1 ${insumo.unidad.split('(')[0].trim()} = ${equivalencia} piezas.<br>
+                    Puedes registrar la salida en piezas y el sistema calculará la fracción de bolsa/caja a descontar.
+                    <div class='input-group mt-2'>
+                        <span class='input-group-text'>Piezas a sacar</span>
+                        <input type='number' min='1' class='form-control' id='piezasMovimiento' placeholder='Ej: 25' oninput='calcularFraccionUnidad()'>
+                        <button class='btn btn-outline-primary' type='button' onclick='calcularFraccionUnidad()'>Calcular</button>
+                    </div>
+                    <div id='resultadoFraccion' class='mt-2'></div>
+                </div>`;
+            }
+
+            // Dentro de la función registrarMovimiento, antes de generar el modal:
+            let equivalenciaInversaHtml = '';
+            if (equivalencia > 1) {
+                equivalenciaInversaHtml = `<div style='font-size:1em;color:#333;margin-bottom:8px;'><b>Equivalente:</b> 1 ${insumo.unidad.split('(')[0].trim()} = ${equivalencia} piezas</div>`;
+            }
+
             // Modal para registrar movimiento
             const modal = `
                 <div class="modal fade" id="modalRegistrarMovimiento" tabindex="-1">
@@ -1165,7 +1435,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Tipo de movimiento</label>
-                                    <select class="form-select" id="tipoMovimiento" onchange="actualizarInfoMovimiento()">
+                                    <select class="form-select" id="tipoMovimiento" onchange="actualizarInfoMovimiento()" data-equivalencia="${equivalencia}">
                                         <option value="entrada">Entrada (Desde inventario)</option>
                                         <option value="salida">Salida (Uso/Consumo)</option>
                                     </select>
@@ -1176,12 +1446,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Cantidad</label>
-                                    <input type="number" class="form-control" id="cantidadMovimiento" min="0.01" step="0.01" placeholder="Ej: 10">
+                                    <input type="number" class="form-control" id="cantidadMovimiento" min="0.0001" step="0.0001" placeholder="Ej: 0.0250">
+                                    <input type="hidden" id="piezasMovidasInput">
                                 </div>
+                                ${ayudaEquivalencia}
                                 <div class="mb-3">
                                     <label class="form-label">Motivo</label>
                                     <textarea class="form-control" id="motivoMovimiento" rows="3" placeholder="Ej: Uso en proyecto, Reabastecimiento, etc."></textarea>
                                 </div>
+                                ${equivalenciaInversaHtml}
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -1209,10 +1482,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             const infoText = document.getElementById('infoStockText');
             
             if (tipo === 'entrada') {
-                infoText.innerHTML = '<strong>Nota:</strong> Las entradas se toman del stock del producto origen en el inventario principal.';
+                infoText.innerHTML = '<strong>Nota:</strong> Las entradas agregan stock al insumo de forma independiente.';
                 infoDiv.style.display = 'block';
             } else {
-                infoDiv.style.display = 'none';
+                infoText.innerHTML = '<strong>Nota:</strong> Las salidas registran el consumo o uso del insumo.';
+                infoDiv.style.display = 'block';
             }
         }
         
@@ -1220,6 +1494,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             const tipo = document.getElementById('tipoMovimiento').value;
             const cantidad = parseFloat(document.getElementById('cantidadMovimiento').value);
             const motivo = document.getElementById('motivoMovimiento').value;
+            const piezas_movidas = document.getElementById('piezasMovidasInput').value;
             
             if (!cantidad || cantidad <= 0) {
                 Swal.fire({ icon: 'warning', title: 'Cantidad inválida', text: 'Por favor ingresa una cantidad válida.' });
@@ -1232,16 +1507,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
             
             // Enviar datos al backend
+            const bodyParams = new URLSearchParams({
+                action: 'registrar_movimiento',
+                insumo_id: id,
+                tipo_movimiento: tipo,
+                cantidad: cantidad,
+                motivo: motivo
+            });
+
+            if (piezas_movidas) {
+                bodyParams.append('piezas_movidas', piezas_movidas);
+            }
+
             fetch('', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({
-                    action: 'registrar_movimiento',
-                    insumo_id: id,
-                    tipo_movimiento: tipo,
-                    cantidad: cantidad,
-                    motivo: motivo
-                })
+                body: bodyParams
             })
             .then(res => res.json())
             .then(data => {
@@ -1257,6 +1538,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             .catch(() => {
                 Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo registrar el movimiento. Intenta de nuevo.' });
             });
+        }
+
+        function calcularFraccionUnidad() {
+            const piezasInput = document.getElementById('piezasMovimiento');
+            const piezas = parseFloat(piezasInput.value);
+            const equivalencia = parseInt(document.getElementById('tipoMovimiento').getAttribute('data-equivalencia'));
+            const resultadoDiv = document.getElementById('resultadoFraccion');
+            const cantidadInput = document.getElementById('cantidadMovimiento');
+            const piezasMovidasInput = document.getElementById('piezasMovidasInput');
+
+            if (!piezas || piezas <= 0 || !equivalencia || equivalencia <= 0) {
+                resultadoDiv.innerHTML = '<span class="text-danger">Ingresa una cantidad válida de piezas.</span>';
+                cantidadInput.value = '';
+                piezasMovidasInput.value = '';
+                return;
+            }
+            const fraccion = piezas / equivalencia;
+            cantidadInput.value = fraccion.toFixed(4);
+            piezasMovidasInput.value = piezas;
+            resultadoDiv.innerHTML = `Eso equivale a <b>${fraccion.toFixed(4)}</b> unidades (${equivalencia} piezas por unidad).`;
         }
         
         function verReporteSemanal(id) {
@@ -1300,11 +1601,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         const tipo = mov.tipo_movimiento === 'entrada' ? 'Entrada' : 'Salida';
                         const clase = mov.tipo_movimiento === 'entrada' ? 'success' : 'danger';
                         const motivo = mov.motivo || 'Sin motivo especificado';
+                        
+                        let cantidadMostrada = `${parseFloat(mov.cantidad).toFixed(4)} ${insumo.unidad.split('(')[0].trim()}`;
+                        if (mov.piezas_movidas && parseFloat(mov.piezas_movidas) > 0) {
+                            cantidadMostrada += `<br><small class="text-muted">(${parseInt(mov.piezas_movidas)} piezas)</small>`;
+                        }
+
                         tablaMovimientos += `
                             <tr>
                                 <td>${fecha}</td>
                                 <td><span class="badge bg-${clase}">${tipo}</span></td>
-                                <td>${mov.cantidad} ${insumo.unidad}</td>
+                                <td>${cantidadMostrada}</td>
                                 <td>${motivo}</td>
                                 <td>${mov.usuario || 'Sistema'}</td>
                             </tr>
@@ -1383,7 +1690,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                         <div class="alert alert-info">
                                             <i class="bi bi-info-circle"></i>
                                             <strong>Información del insumo:</strong><br>
-                                            <strong>Producto origen:</strong> ${insumo.producto_origen || 'N/A'}<br>
+                                            <strong>Categoría:</strong> ${insumo.categoria_nombre || 'N/A'}<br>
+                                            <strong>Proveedor:</strong> ${insumo.proveedor_nombre || 'N/A'}<br>
                                             <strong>Stock mínimo:</strong> ${insumo.minimo} ${insumo.unidad}<br>
                                             <strong>Precio unitario:</strong> $${insumo.precio_unitario}/${insumo.unidad}<br>
                                             <strong>Estado:</strong> <span class="badge bg-${insumo.estado === 'disponible' ? 'success' : insumo.estado === 'bajo_stock' ? 'warning' : 'danger'}">${insumo.estado}</span>
@@ -1417,6 +1725,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             .catch(() => {
                 Swal.close();
                 Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar el reporte. Intenta de nuevo.' });
+            });
+        }
+
+        function eliminarInsumo(id, cantidad) {
+            console.log('Intentando eliminar insumo ID:', id, 'con cantidad:', cantidad);
+            if (parseFloat(cantidad) > 0) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Acción no permitida',
+                    text: 'No es posible eliminar un insumo con stock (' + cantidad + '). Para poder eliminarlo, el stock debe ser cero.'
+                });
+                return;
+            }
+
+            Swal.fire({
+                title: '¿Está seguro de que desea eliminar este insumo?',
+                text: "Esta acción marcará el insumo como inactivo y no podrá ser utilizado en nuevos movimientos. La eliminación es definitiva.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, eliminar',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6'
+            }).then(function(result) {
+                if (result.isConfirmed) {
+                    fetch('', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
+                            action: 'eliminar_insumo',
+                            insumo_id: id
+                        })
+                    })
+                    .then(function(res) { return res.json(); })
+                    .then(function(data) {
+                        if (data.success) {
+                            Swal.fire({ icon: 'success', title: 'Eliminado', text: data.message, timer: 1500, showConfirmButton: false });
+                            setTimeout(function() { window.location.reload(); }, 1000);
+                        } else {
+                            Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+                        }
+                    })
+                    .catch(function() {
+                        Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo eliminar el insumo. Intenta de nuevo.' });
+                    });
+                }
             });
         }
     </script>

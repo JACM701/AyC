@@ -9,21 +9,21 @@ $proveedor = isset($_GET['proveedor']) ? trim($_GET['proveedor']) : '';
 $estado = isset($_GET['estado']) ? trim($_GET['estado']) : '';
 
 // Construir consulta base
-$query = "SELECT i.*, p.product_name as producto_origen, s.name as proveedor 
+$query = "SELECT i.*, c.name as categoria_nombre, s.name as proveedor 
           FROM insumos i
-          LEFT JOIN products p ON i.product_id = p.product_id
-          LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id 
+          LEFT JOIN categories c ON i.category_id = c.category_id
+          LEFT JOIN suppliers s ON i.supplier_id = s.supplier_id 
           WHERE i.is_active = 1";
 $params = [];
 $types = '';
 
 if ($categoria) {
-    $query .= " AND p.category_id = ?";
+    $query .= " AND i.category_id = ?";
     $params[] = $categoria;
     $types .= 'i';
 }
 if ($proveedor) {
-    $query .= " AND s.supplier_id = ?";
+    $query .= " AND i.supplier_id = ?";
     $params[] = $proveedor;
     $types .= 'i';
 }

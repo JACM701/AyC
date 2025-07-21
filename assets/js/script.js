@@ -33,14 +33,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Confirmation before deleting items
-    const deleteButtons = document.querySelectorAll('.btn-delete');
-    deleteButtons.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            if (!confirm('¿Estás seguro de que quieres eliminar este producto?')) {
-                e.preventDefault();
-            }
-        });
-    });
+   // const deleteButtons = document.querySelectorAll('.btn-delete');
+   // deleteButtons.forEach(btn => {
+   //     btn.addEventListener('click', (e) => {
+   //         if (!confirm('¿Estás seguro de que quieres eliminar este producto?')) {
+   //             e.preventDefault();
+   //         }
+   //     });
+   // });
 
     // Sidebar dinámico
     // const sidebar = document.getElementById('sidebar');

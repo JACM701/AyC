@@ -80,6 +80,10 @@ if (!isset($total_products)) {
                     <i class="bi bi-tools"></i>
                     <span class="nav-text">Servicios</span>
                 </a>
+                <a href="../insumos/insumos.php" class="sidebar-insumos" title="Insumos">
+                    <i class="bi bi-box2"></i>
+                    <span class="nav-text">Insumos</span>
+                </a>
             </div>
         </div>
 
