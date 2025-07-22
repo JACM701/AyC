@@ -421,7 +421,7 @@ $insumos = $stmt->get_result();
                         <td class="imagen">
                             <span style="color:#ccc;"><i class="bi bi-tools"></i> Insumo</span>
                         </td>
-                        <td><?= $insumo['cantidad'] ?></td>
+                        <td><?= number_format($insumo['cantidad'], 0) ?></td>
                         <td>$<?= number_format($insumo['precio_unitario'], 2) ?></td>
                         <td class="precio-total">$<?= number_format($insumo['precio_total'], 2) ?></td>
                         <td class="costo-total">N/A</td>
@@ -455,7 +455,7 @@ $insumos = $stmt->get_result();
                                 <span style="color:#ccc;"><i class="bi bi-tools"></i> Servicio</span>
                             <?php endif; ?>
                         </td>
-                        <td><?= $servicio['cantidad'] ?></td>
+                        <td><?= number_format($servicio['cantidad'], 0) ?></td>
                         <td>$<?= number_format($servicio['precio_unitario'], 2) ?></td>
                         <td class="precio-total">$<?= number_format($servicio['precio_total'], 2) ?></td>
                         <td class="costo-total">N/A</td>
@@ -516,13 +516,33 @@ $insumos = $stmt->get_result();
                     </tr>
                   </thead>
                   <tbody>
-                    <?php $productos->data_seek(0); while ($prod = $productos->fetch_assoc()): ?>
+                    <?php
+                    $productos->data_seek(0);
+                    while ($prod = $productos->fetch_assoc()):
+                        // Obtener cantidad ya devuelta
+                        $stmt = $mysqli->prepare("SELECT SUM(quantity) FROM movements WHERE product_id = ? AND reference = ? AND movement_type_id = 7");
+                        $referencia = "Devolución por cotización #$cotizacion_id";
+                        $stmt->bind_param('is', $prod['product_id'], $referencia);
+                        $stmt->execute();
+                        $stmt->bind_result($cantidad_devuelta);
+                        $stmt->fetch();
+                        $stmt->close();
+                        if (!$cantidad_devuelta) $cantidad_devuelta = 0;
+                        $max_devolver = $prod['cantidad'] - $cantidad_devuelta;
+                    ?>
                     <tr>
                       <td><?= htmlspecialchars($prod['product_name']) ?></td>
                       <td><?= htmlspecialchars($prod['sku']) ?></td>
-                      <td><?= $prod['cantidad'] ?></td>
+                      <td><?= number_format($prod['cantidad'], 0) ?></td>
                       <td>
-                        <input type="number" class="form-control" name="devolver[<?= $prod['product_id'] ?>]" min="0" max="<?= $prod['cantidad'] ?>" value="0">
+                        <?php if ($max_devolver <= 0): ?>
+                          <div class="alert alert-warning py-1 px-2 mb-0" style="font-size:0.95em;">
+                            <i class="bi bi-exclamation-triangle"></i> Ya se devolvió toda la venta de este producto.
+                          </div>
+                        <?php else: ?>
+                          <input type="number" class="form-control" name="devolver[<?= $prod['product_id'] ?>]" min="0" max="<?= $max_devolver ?>" value="0">
+                          <small class="text-muted">Máx: <?= $max_devolver ?></small>
+                        <?php endif; ?>
                       </td>
                     </tr>
                     <?php endwhile; ?>
@@ -702,4 +722,4 @@ if (window.location.search.includes('imprimir=1')) {
   }, 4000);
 </script>
 </body>
-</html> 
+</html>

@@ -236,4 +236,4 @@ $stats_historial = obtenerStatsHistorialCotizacion($cotizacion_id, $mysqli);
         document.querySelector('.sidebar-cotizaciones').classList.add('active');
     </script>
 </body>
-</html> 
+</html>

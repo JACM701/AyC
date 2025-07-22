@@ -384,6 +384,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input type="number" class="form-control" id="nuevo_precio_producto" min="0" step="0.01">
                     </div>
                     <div class="col-md-2">
+                        <label class="form-label">Costo</label>
+                        <input type="number" class="form-control" id="nuevo_costo_producto" min="0" step="0.01">
+                    </div>
+                    <div class="col-md-1">
                         <label class="form-label">Cantidad</label>
                         <input type="number" class="form-control" id="nuevo_cantidad_producto" min="1" value="1">
                     </div>
@@ -396,7 +400,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <?php endwhile; ?>
                         </select>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-1">
                         <label class="form-label">Proveedor</label>
                         <select class="form-select" id="nuevo_proveedor_producto">
                             <option value="">-</option>
@@ -498,7 +502,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Categoría</label>
-                        <input type="text" class="form-control" id="nuevo_categoria_servicio" placeholder="ej: Instalación">
+                        <input type="text" class="form-control" id="nuevo_categoria_servicio" placeholder="Ej: Instalación">
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">Precio</label>
@@ -506,11 +510,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">Cantidad</label>
-                        <input type="number" class="form-control" id="nuevo_cantidad_servicio" min="0.01" step="0.01" value="1">
+                        <input type="number" class="form-control" id="nuevo_cantidad_servicio" min="1" step="1" value="1">
                     </div>
                     <div class="col-md-1">
                         <label class="form-label">Unidad</label>
-                        <input type="text" class="form-control" id="nuevo_unidad_servicio" placeholder="ej: hora">
+                        <input type="text" class="form-control" id="nuevo_unidad_servicio" placeholder="Ej: hora">
                     </div>
                 </div>
                 <div class="row g-3 mt-2">
@@ -1921,4 +1925,4 @@ $(document).on('change', '.sync-checkbox-insumo', function() {
 });
 </script>
 </body>
-</html> 
+</html>
