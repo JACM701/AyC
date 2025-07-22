@@ -77,6 +77,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt_upd->close();
             }
         }
+        // Descontar stock y registrar movimientos para cada insumo
+        $stmt = $mysqli->prepare("
+            SELECT ci.*, i.nombre as insumo_nombre, i.unidad
+            FROM cotizaciones_insumos ci
+            LEFT JOIN insumos i ON ci.insumo_id = i.insumo_id
+            WHERE ci.cotizacion_id = ?
+        ");
+        $stmt->bind_param('i', $cotizacion_id);
+        $stmt->execute();
+        $insumos_convertir = $stmt->get_result();
+        $stmt->close();
+        while ($insumo = $insumos_convertir->fetch_assoc()) {
+            if ($insumo['insumo_id']) {
+                $equivalencia = 1;
+                if (preg_match('/\((\d+)\s*piezas\)/i', $insumo['unidad'], $m)) {
+                    $equivalencia = (int)$m[1];
+                }
+                $cantidad_piezas = $insumo['cantidad']; // SIEMPRE piezas
+                // Si la unidad es bolsa/caja, descontar fracción
+                $cantidad_fraccion = $cantidad_piezas / $equivalencia;
+                // Descontar del stock (que está en bolsas/cajas)
+                $stmt_upd = $mysqli->prepare("UPDATE insumos SET cantidad = cantidad - ? WHERE insumo_id = ?");
+                $stmt_upd->bind_param('di', $cantidad_fraccion, $insumo['insumo_id']);
+                $stmt_upd->execute();
+                $stmt_upd->close();
+            }
+        }
         // Actualizar estado a 'Convertida'
         $stmt = $mysqli->prepare("
             UPDATE cotizaciones 
@@ -115,6 +142,18 @@ $stmt = $mysqli->prepare("
 $stmt->bind_param('i', $cotizacion_id);
 $stmt->execute();
 $productos = $stmt->get_result();
+
+// Obtener insumos de la cotización para mostrar
+$stmt = $mysqli->prepare("
+    SELECT ci.*, i.nombre as insumo_nombre, i.cantidad as stock_actual, i.unidad
+    FROM cotizaciones_insumos ci
+    LEFT JOIN insumos i ON ci.insumo_id = i.insumo_id
+    WHERE ci.cotizacion_id = ?
+    ORDER BY ci.cotizacion_insumo_id
+");
+$stmt->bind_param('i', $cotizacion_id);
+$stmt->execute();
+$insumos = $stmt->get_result();
 ?>
 
 <!DOCTYPE html>
@@ -268,6 +307,71 @@ $productos = $stmt->get_result();
         </div>
 
         <div class="conversion-card">
+            <h5 class="mb-3"><i class="bi bi-tools"></i> Insumos y Stock Disponible</h5>
+            <p class="text-muted mb-3">Se descontarán insumos del inventario.</p>
+            <?php 
+            $todos_insumos_con_stock = true;
+            while ($insumo = $insumos->fetch_assoc()):
+                // Detectar equivalencia en unidad (ej: "bolsa (1000 piezas)")
+                $equivalencia = 1;
+                if (preg_match('/\((\d+)\s*piezas\)/i', $insumo['unidad'], $m)) {
+                    $equivalencia = (int)$m[1];
+                }
+                // La cantidad en la cotización SIEMPRE debe estar en piezas
+                $cantidad_piezas = $insumo['cantidad'];
+                $cantidad_bolsas = $cantidad_piezas / $equivalencia;
+                $stock_bolsas = $insumo['stock_actual'];
+                $stock_piezas = $stock_bolsas * $equivalencia;
+                $stock_suficiente = $stock_piezas >= $cantidad_piezas;
+                if ($insumo['insumo_id'] && !$stock_suficiente) {
+                    $todos_insumos_con_stock = false;
+                }
+            ?>
+                <div class="producto-item">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <h6 class="mb-1"><?= htmlspecialchars($insumo['insumo_nombre'] ?? 'Sin nombre') ?></h6>
+                        </div>
+                        <div class="col-md-3">
+                            <strong>
+                                <?= number_format($cantidad_piezas) ?> piezas
+                                <?php if ($equivalencia > 1): ?>
+                                    <br>
+                                    <small class="text-muted">
+                                        (<?= number_format($cantidad_bolsas, 4) ?> <?= htmlspecialchars(explode('(', $insumo['unidad'])[0]) ?>)
+                                    </small>
+                                <?php endif; ?>
+                            </strong>
+                        </div>
+                        <div class="col-md-3">
+                            <?php if ($insumo['insumo_id']): ?>
+                                <?php if ($stock_suficiente): ?>
+                                    <div class="stock-ok">
+                                        <i class="bi bi-check-circle"></i> Stock: <?= number_format($stock_piezas) ?> piezas
+                                        <?php if ($equivalencia > 1): ?>
+                                            <br><small class="text-muted">(<?= number_format($stock_bolsas, 2) ?> <?= htmlspecialchars(explode('(', $insumo['unidad'])[0]) ?>)</small>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="stock-warning">
+                                        <i class="bi bi-exclamation-triangle"></i> Stock: <?= number_format($stock_piezas) ?> piezas
+                                        <?php if ($equivalencia > 1): ?>
+                                            <br><small class="text-muted">(<?= number_format($stock_bolsas, 2) ?> <?= htmlspecialchars(explode('(', $insumo['unidad'])[0]) ?>)</small>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <div class="text-muted">
+                                    <i class="bi bi-info-circle"></i> Sin stock
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            <?php endwhile; ?>
+        </div>
+
+        <div class="conversion-card">
             <h5 class="mb-3"><i class="bi bi-check-circle"></i> Confirmar Conversión</h5>
             <?php if (!$todos_con_stock): ?>
                 <div class="alert alert-warning" role="alert">
@@ -314,4 +418,4 @@ $productos = $stmt->get_result();
         });
     </script>
 </body>
-</html> 
+</html>
