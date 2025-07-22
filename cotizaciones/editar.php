@@ -92,6 +92,32 @@ while ($serv = $servicios_cotizacion->fetch_assoc()) {
 $servicios = $mysqli->query("SELECT servicio_id, nombre, categoria, descripcion, precio, imagen FROM servicios WHERE is_active = 1 ORDER BY categoria, nombre ASC");
 $servicios_array = $servicios ? $servicios->fetch_all(MYSQLI_ASSOC) : [];
 
+// Obtener insumos de la cotización
+$stmt = $mysqli->prepare("
+    SELECT ci.*, i.nombre as insumo_nombre, i.categoria as insumo_categoria, i.cantidad as insumo_stock, i.precio_unitario as insumo_precio, c.name as categoria_nombre, s.name as proveedor_nombre
+    FROM cotizaciones_insumos ci
+    LEFT JOIN insumos i ON ci.insumo_id = i.insumo_id
+    LEFT JOIN categories c ON i.category_id = c.category_id
+    LEFT JOIN suppliers s ON i.supplier_id = s.supplier_id
+    WHERE ci.cotizacion_id = ?
+    ORDER BY ci.cotizacion_insumo_id
+");
+$stmt->bind_param('i', $cotizacion_id);
+$stmt->execute();
+$insumos_cotizacion = $stmt->get_result();
+$insumos_existentes = [];
+while ($ins = $insumos_cotizacion->fetch_assoc()) {
+    $insumos_existentes[] = [
+        'insumo_id' => $ins['insumo_id'],
+        'nombre' => $ins['nombre_insumo'] ?? $ins['insumo_nombre'],
+        'categoria' => $ins['categoria'] ?? $ins['categoria_nombre'],
+        'proveedor' => $ins['proveedor'] ?? $ins['proveedor_nombre'],
+        'stock' => $ins['stock_disponible'] ?? $ins['insumo_stock'],
+        'cantidad' => $ins['cantidad'],
+        'precio' => $ins['precio_unitario'],
+    ];
+}
+
 // --- Preparar datos para selects ---
 $clientes = $mysqli->query("SELECT cliente_id, nombre, telefono, ubicacion, email FROM clientes ORDER BY nombre ASC");
 $clientes_array = $clientes ? $clientes->fetch_all(MYSQLI_ASSOC) : [];
@@ -152,14 +178,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $productos = json_decode($productos_json, true);
     $servicios_json = $_POST['servicios_json'] ?? '';
     $servicios = json_decode($servicios_json, true);
+    $insumos_json = $_POST['insumos_json'] ?? '';
+    $insumos = json_decode($insumos_json, true);
     $cliente_id = $_POST['cliente_id'] ?? '';
     $cliente_nombre = trim($_POST['cliente_nombre'] ?? '');
     $cliente_telefono = trim($_POST['cliente_telefono'] ?? '');
     $cliente_ubicacion = trim($_POST['cliente_ubicacion'] ?? '');
     $cliente_email = trim($_POST['cliente_email'] ?? '');
     
-    if ((!$productos || !is_array($productos) || count($productos) == 0) && (!$servicios || !is_array($servicios) || count($servicios) == 0)) {
-        $error = 'Debes agregar al menos un producto o servicio a la cotización.';
+    if ((!$productos || !is_array($productos) || count($productos) == 0) && (!$servicios || !is_array($servicios) || count($servicios) == 0) && (!$insumos || !is_array($insumos) || count($insumos) == 0)) {
+        $error = 'Debes agregar al menos un producto, servicio o insumo a la cotización.';
     }
     if (!$cliente_id && !$cliente_nombre) {
         $error = 'Debes seleccionar o registrar un cliente.';
@@ -264,6 +292,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt_cs->bind_param('iissddds', $cotizacion_id, $servicio_id, $nombre_servicio, $descripcion, $cantidad, $precio_unitario, $precio_total, $imagen);
                 $stmt_cs->execute();
                 $stmt_cs->close();
+            }
+
+            // Eliminar insumos anteriores
+            $stmt = $mysqli->prepare("DELETE FROM cotizaciones_insumos WHERE cotizacion_id = ?");
+            $stmt->bind_param('i', $cotizacion_id);
+            $stmt->execute();
+            $stmt->close();
+            // Insertar nuevos insumos
+            foreach ($insumos as $ins) {
+                $insumo_id = $ins['insumo_id'] ?? null;
+                $nombre_insumo = $ins['nombre'];
+                $categoria = $ins['categoria'] ?? '';
+                $proveedor = $ins['proveedor'] ?? '';
+                $cantidad = intval($ins['cantidad']);
+                $precio_unitario = floatval($ins['precio']);
+                $precio_total = $cantidad * $precio_unitario;
+                $imagen = $ins['imagen'] ?? null;
+                $stock_disponible = $ins['stock'] ?? 0; // Assuming 'stock' is the correct key for stock_disponible
+                $stmt_ci = $mysqli->prepare("INSERT INTO cotizaciones_insumos (cotizacion_id, insumo_id, nombre_insumo, categoria, proveedor, cantidad, precio_unitario, precio_total, stock_disponible, imagen) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt_ci->bind_param('iissddddds', $cotizacion_id, $insumo_id, $nombre_insumo, $categoria, $proveedor, $cantidad, $precio_unitario, $precio_total, $stock_disponible, $imagen);
+                $stmt_ci->execute();
+                $stmt_ci->close();
             }
             
             header("Location: ver.php?id=$cotizacion_id");
@@ -421,6 +471,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
 
+        <!-- Sección Insumos -->
+        <div class="form-section">
+            <div class="section-title"><i class="bi bi-tools"></i> Insumos</div>
+            <div class="mb-3">
+                <label for="buscador_insumo" class="form-label">Buscar insumo</label>
+                <input type="text" class="form-control" id="buscador_insumo" placeholder="Nombre, categoría o proveedor...">
+                <div id="sugerencias_insumos" class="list-group mt-1"></div>
+            </div>
+            <div class="table-responsive mt-4">
+                <table class="table table-striped align-middle" id="tablaInsumosCotizacion">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Categoría</th>
+                            <th>Proveedor</th>
+                            <th>Stock</th>
+                            <th>Cantidad</th>
+                            <th>Precio</th>
+                            <th>Subtotal</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- Sección Servicios -->
         <div class="form-section">
             <div class="section-title"><i class="bi bi-tools"></i> Servicios</div>
@@ -527,6 +604,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <input type="hidden" name="productos_json" id="productos_json" value="">
         <input type="hidden" name="servicios_json" id="servicios_json" value="">
+        <input type="hidden" name="insumos_json" id="insumos_json" value="">
         
         <div class="d-flex justify-content-between">
             <a href="index.php" class="btn btn-secondary">
@@ -802,6 +880,123 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         });
         $('#servicios_json').val(JSON.stringify(servicios));
+    });
+
+    // INSUMOS
+    const insumosExistentes = <?= json_encode($insumos_existentes) ?>;
+    let insumosCotizacion = [...insumosExistentes];
+    function renderTablaInsumos() {
+        let html = '';
+        insumosCotizacion.forEach((ins, i) => {
+            const sub = (parseFloat(ins.precio) || 0) * (parseFloat(ins.cantidad) || 1);
+            html += `
+                <tr>
+                    <td>${ins.nombre}</td>
+                    <td>${ins.categoria || ''}</td>
+                    <td>${ins.proveedor || ''}</td>
+                    <td>${ins.stock || ''}</td>
+                    <td><input type="number" min="1" step="1" value="${ins.cantidad}" class="form-control form-control-sm cantidad-insumo-input" data-index="${i}" style="width: 80px;"></td>
+                    <td><input type="number" min="0" step="0.0001" value="${ins.precio || ''}" class="form-control form-control-sm precio-insumo-input" data-index="${i}" style="width: 110px;"></td>
+                    <td>$${sub.toFixed(2)}</td>
+                    <td><button type="button" class="btn btn-danger btn-sm btn-eliminar-insumo" data-idx="${i}"><i class="bi bi-trash"></i></button></td>
+                </tr>
+            `;
+        });
+        $('#tablaInsumosCotizacion tbody').html(html);
+        actualizarTotalesGenerales();
+    }
+    $(document).on('input', '.cantidad-insumo-input', function() {
+        const index = parseInt($(this).data('index'));
+        let value = Math.max(1, Math.round($(this).val()));
+        insumosCotizacion[index].cantidad = value;
+        $(this).val(value);
+        renderTablaInsumos();
+    });
+    $(document).on('input', '.precio-insumo-input', function() {
+        const index = parseInt($(this).data('index'));
+        let value = parseFloat($(this).val()) || 0;
+        insumosCotizacion[index].precio = value;
+        $(this).val(value);
+        renderTablaInsumos();
+    });
+    $(document).on('click', '.btn-eliminar-insumo', function() {
+        const idx = $(this).data('idx');
+        insumosCotizacion.splice(idx, 1);
+        renderTablaInsumos();
+    });
+    $('#buscador_insumo').on('input', function() {
+        const query = $(this).val().trim();
+        if (query.length === 0) {
+            $('#sugerencias_insumos').hide();
+            return;
+        }
+        $.getJSON('../insumos/ajax_list.php', { busqueda: query }, function(resp) {
+            let sugerencias = '';
+            if (resp.success && resp.data.length > 0) {
+                resp.data.forEach(ins => {
+                    sugerencias += `<button type='button' class='list-group-item list-group-item-action' data-id='${ins.insumo_id}' data-nombre='${ins.nombre}' data-categoria='${ins.categoria_nombre||''}' data-proveedor='${ins.proveedor||''}' data-stock='${ins.cantidad}' data-precio='${ins.precio_unitario}'>
+                        <b>${ins.nombre}</b> <span class='badge bg-${ins.cantidad > 0 ? 'success' : 'danger'} ms-2'>Stock: ${ins.cantidad}</span><br>
+                        <small>${ins.categoria_nombre || '-'} | ${ins.proveedor || '-'}</small>
+                    </button>`;
+                });
+            } else {
+                sugerencias = '<div class="list-group-item">Sin resultados</div>';
+            }
+            $('#sugerencias_insumos').html(sugerencias).show();
+        });
+    });
+    $('#sugerencias_insumos').on('click', 'button', function() {
+        const insumo = {
+            insumo_id: $(this).data('id'),
+            nombre: $(this).data('nombre'),
+            categoria: $(this).data('categoria'),
+            proveedor: $(this).data('proveedor'),
+            stock: $(this).data('stock'),
+            cantidad: 1,
+            precio: $(this).data('precio')
+        };
+        // Evitar duplicados
+        if (insumosCotizacion.some(i => i.insumo_id == insumo.insumo_id)) {
+            return;
+        }
+        insumosCotizacion.push(insumo);
+        renderTablaInsumos();
+        $('#buscador_insumo').val('');
+        $('#sugerencias_insumos').hide();
+    });
+    // Actualizar totales generales (productos + servicios + insumos)
+    function actualizarTotalesGenerales() {
+        let subtotalProductos = 0;
+        $('#tablaProductos tbody tr').each(function() {
+            const cantidad = parseFloat($(this).find('.cantidad-input').val()) || 0;
+            const precio = parseFloat($(this).find('.precio-input').val()) || 0;
+            subtotalProductos += cantidad * precio;
+        });
+        let subtotalServicios = 0;
+        $('#tablaServicios tbody tr').each(function() {
+            const cantidad = parseFloat($(this).find('.cantidad-servicio-input').val()) || 0;
+            const precio = parseFloat($(this).find('.precio-servicio-input').val()) || 0;
+            subtotalServicios += cantidad * precio;
+        });
+        let subtotalInsumos = 0;
+        insumosCotizacion.forEach(ins => {
+            subtotalInsumos += (parseFloat(ins.precio) || 0) * (parseFloat(ins.cantidad) || 1);
+        });
+        const subtotal = subtotalProductos + subtotalServicios + subtotalInsumos;
+        const descuentoPorcentaje = parseFloat($('#descuento_porcentaje').val()) || 0;
+        const descuento = subtotal * descuentoPorcentaje / 100;
+        const total = subtotal - descuento;
+        $('#subtotal').text('$' + subtotal.toFixed(2));
+        $('#descuento').text('$' + descuento.toFixed(2));
+        $('#total').text('$' + total.toFixed(2));
+    }
+    // Llamar al render al cargar
+    $(document).ready(function() {
+        renderTablaInsumos();
+    });
+    // Guardar insumos al enviar
+    $('#formEditarCotizacion').on('submit', function(e) {
+        $('#insumos_json').val(JSON.stringify(insumosCotizacion));
     });
 </script>
 </body>

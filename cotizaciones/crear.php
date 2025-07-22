@@ -35,6 +35,14 @@ $proveedores = $mysqli->query("SELECT supplier_id, name FROM suppliers ORDER BY 
 $servicios = $mysqli->query("SELECT servicio_id, nombre, descripcion, categoria, precio, imagen FROM servicios WHERE is_active = 1 ORDER BY categoria, nombre ASC");
 $servicios_array = $servicios ? $servicios->fetch_all(MYSQLI_ASSOC) : [];
 
+// Obtener insumos disponibles
+$insumos = $mysqli->query("SELECT i.insumo_id, i.nombre, i.categoria, s.name as proveedor, i.cantidad as stock, i.precio_unitario as precio
+    FROM insumos i
+    LEFT JOIN suppliers s ON i.supplier_id = s.supplier_id
+    WHERE i.is_active = 1
+    ORDER BY i.categoria, i.nombre ASC");
+$insumos_array = $insumos ? $insumos->fetch_all(MYSQLI_ASSOC) : [];
+
 // Verificar si existen estados de cotización, si no, crearlos
 $estados = $mysqli->query("SELECT est_cot_id, nombre_estado FROM est_cotizacion ORDER BY est_cot_id ASC");
 if ($estados && $estados->num_rows == 0) {
@@ -227,6 +235,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt_cs->close();
             }
             
+            // Después de guardar productos y servicios, antes de redirigir:
+            $insumos_json = $_POST['insumos_json'] ?? '';
+            $insumos = json_decode($insumos_json, true);
+            if ($insumos && is_array($insumos)) {
+                foreach ($insumos as $ins) {
+                    $insumo_id = $ins['insumo_id'] ?? null;
+                    $nombre_insumo = $ins['nombre'] ?? '';
+                    $categoria = $ins['categoria'] ?? '';
+                    $proveedor = $ins['proveedor'] ?? '';
+                    $cantidad = floatval($ins['cantidad'] ?? 1);
+                    $precio_unitario = floatval($ins['precio'] ?? 0);
+                    $precio_total = $cantidad * $precio_unitario;
+                    $stock_disponible = isset($ins['stock']) ? floatval($ins['stock']) : null;
+                    if ($insumo_id) {
+                        $stmt_ci = $mysqli->prepare("INSERT INTO cotizaciones_insumos (cotizacion_id, insumo_id, nombre_insumo, categoria, proveedor, cantidad, precio_unitario, precio_total, stock_disponible) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                        $stmt_ci->bind_param('iisssdddd', $cotizacion_id, $insumo_id, $nombre_insumo, $categoria, $proveedor, $cantidad, $precio_unitario, $precio_total, $stock_disponible);
+                        $stmt_ci->execute();
+                        $stmt_ci->close();
+                        // Descontar stock si estado es aprobada (ID 1)
+                        if ($estado_id == 1) {
+                            $mysqli->query("UPDATE insumos SET cantidad = cantidad - $cantidad WHERE insumo_id = $insumo_id");
+                        }
+                    }
+                }
+            }
+            
             header("Location: ver.php?id=$cotizacion_id");
             exit;
         } else {
@@ -404,7 +438,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <tr>
                             <th>Nombre</th>
                             <th>SKU</th>
-                            <th>Categoría</th>
+                            <th>Enlace</th>
+                            <th>Proveedor</th>
+                            <th>Stock</th>
+                            <th>Cantidad</th>
+                            <th>Precio</th>
+                            <th>Subtotal</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Sección Insumos -->
+        <div class="form-section">
+            <div class="section-title"><i class="bi bi-tools"></i> Insumos</div>
+            <div class="mb-3">
+                <label for="buscador_insumo" class="form-label">Buscar insumo</label>
+                <input type="text" class="form-control" id="buscador_insumo" placeholder="Nombre, categoría o proveedor...">
+                <div id="sugerencias_insumos" class="list-group mt-1"></div>
+            </div>
+            <div class="table-responsive mt-4">
+                <table class="table table-striped align-middle" id="tablaInsumosCotizacion">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Enlace</th>
                             <th>Proveedor</th>
                             <th>Stock</th>
                             <th>Cantidad</th>
@@ -467,7 +528,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <thead class="table-dark">
                         <tr>
                             <th>Servicio</th>
-                            <th>Categoría</th>
+                            <th>Enlace</th>
                             <th>Descripción</th>
                             <th>Cantidad</th>
                             <th>Precio</th>
@@ -625,6 +686,12 @@ let serviciosCotizacion = [];
 // Hacer serviciosArray global INMEDIATAMENTE para que paquetes.js pueda acceder
 window.serviciosArray = serviciosArray;
 
+// --- INSUMOS ---
+const insumosArray = <?= json_encode($insumos_array) ?>;
+window.insumosArray = insumosArray;
+let insumosCotizacion = [];
+// ... existing code ...
+
 // Función para normalizar texto (quitar acentos y convertir a minúsculas)
 function normalizarTexto(texto) {
     return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -720,7 +787,6 @@ function renderTablaProductos() {
         const unidad = esBobina ? ' m' : '';
         const nombreGoogle = encodeURIComponent(p.nombre || '');
         const skuGoogle = encodeURIComponent(p.sku || '');
-        // Mostrar stock según tipo
         let stockStr = '';
         if (typeof p.stock !== 'undefined' && p.stock !== null && p.stock !== '') {
             stockStr = esBobina ? parseFloat(p.stock).toFixed(2) : parseInt(p.stock);
@@ -733,7 +799,10 @@ function renderTablaProductos() {
                 <td>${p.sku || ''}
                     ${p.sku ? `<a href="https://www.google.com/search?q=${skuGoogle}" target="_blank" title="Buscar SKU en Google" class="icon-buscar-google"><i class="bi bi-search"></i></a>` : ''}
                 </td>
-                <td>${p.categoria || ''}</td>
+                <td style="text-align:center;">
+                    <input type="checkbox" class="sync-checkbox" data-index="${i}" ${p.sincronizado !== false ? 'checked' : ''} title="Sincronizar con principal">
+                    <i class="bi bi-link-45deg"></i>
+                </td>
                 <td>${p.proveedor || ''}</td>
                 <td>${stockStr}</td>
                 <td>
@@ -925,7 +994,10 @@ function renderTablaServicios() {
                     <strong>${s.nombre}</strong>
                     ${s.tiempo_estimado ? `<br><small class="text-muted">Tiempo estimado: ${s.tiempo_estimado}h</small>` : ''}
                 </td>
-                <td>${s.categoria || ''}</td>
+                <td style="text-align:center;">
+                    <input type="checkbox" class="sync-checkbox-servicio" data-index="${i}" ${s.sincronizado !== false ? 'checked' : ''} title="Sincronizar con principal">
+                    <i class="bi bi-link-45deg"></i>
+                </td>
                 <td>${s.descripcion || ''}</td>
                 <td>
                     <input type="number" 
@@ -933,7 +1005,9 @@ function renderTablaServicios() {
                            step="1" 
                            value="${Math.round(s.cantidad)}" 
                            class="form-control form-control-sm cantidad-servicio-input" 
-                           data-index="${i}" 
+                           data-index="${i}"
+                           data-paquete-id="${s.paquete_id || ''}"
+                           data-tipo-paquete="${s.tipo_paquete || ''}"
                            style="width: 80px; display:inline-block;">
                     ${s.unidad_medida ? ` ${s.unidad_medida}` : ''}
                 </td>
@@ -977,7 +1051,13 @@ $(document).on('blur', '.cantidad-servicio-input', function() {
     let value = Math.max(1, Math.round($(this).val()));
     serviciosCotizacion[index].cantidad = value;
     $(this).val(value);
-    renderTablaServicios();
+    // Si es principal de paquete, sincronizar relacionados
+    const s = serviciosCotizacion[index];
+    if (s && s.paquete_id && s.tipo_paquete === 'principal') {
+        sincronizarCantidadesPaqueteV2(s.paquete_id);
+    } else {
+        renderTablaServicios();
+    }
 });
 
 $(document).on('focus', '.cantidad-servicio-input', function() {
@@ -1056,6 +1136,7 @@ $('#formCrearCotizacion').on('submit', function(e) {
     
     $('<input>').attr({type:'hidden', name:'productos_json', value: JSON.stringify(productosCotizacion)}).appendTo(this);
     $('<input>').attr({type:'hidden', name:'servicios_json', value: JSON.stringify(serviciosCotizacion)}).appendTo(this);
+    $('<input>').attr({type:'hidden', name:'insumos_json', value: JSON.stringify(insumosCotizacion)}).appendTo(this);
     $(this).find('button[type=submit]').prop('disabled', true).text('Guardando...');
 });
 
@@ -1149,10 +1230,17 @@ function aplicarPaqueteCotizacion(idx) {
     
     productosCotizacion = [];
     serviciosCotizacion = [];
+    insumosCotizacion = [];
     const paqueteId = 'paq_' + Date.now();
+    // Determinar principal por tipo
+    let principalProducto = null, principalServicio = null, principalInsumo = null;
+    paquete.items.forEach(item => {
+        if (item.tipo_item === 'producto' && item.tipo === 'principal') principalProducto = item.product_id;
+        if (item.tipo_item === 'servicio' && item.tipo === 'principal') principalServicio = item.servicio_id;
+        if (item.tipo_item === 'insumo' && item.tipo === 'principal') principalInsumo = item.insumo_id;
+    });
     paquete.items.forEach(item => {
         if (item.product_id) {
-            // PRODUCTO (soporta viejo y nuevo formato)
             const prod = productosArray.find(p => p.product_id == item.product_id);
             if (prod) {
                 productosCotizacion.push({
@@ -1166,18 +1254,16 @@ function aplicarPaqueteCotizacion(idx) {
                     precio: prod.price,
                     tipo_gestion: prod.tipo_gestion,
                     paquete_id: paqueteId,
-                    tipo_paquete: item.tipo,
-                    factor_paquete: item.factor
+                    tipo_paquete: (item.tipo_item === 'producto' && item.product_id == principalProducto) ? 'principal' : 'relacionado',
+                    factor_paquete: item.factor,
+                    sincronizado: true
                 });
             }
         } else if (item.servicio_id) {
-            // SERVICIO (igual que productos, pero para servicios)
-            // Buscar en serviciosArray global
             let serv = null;
             if (window.serviciosArray && Array.isArray(window.serviciosArray)) {
                 serv = window.serviciosArray.find(s => s.servicio_id == item.servicio_id);
             }
-            // Si no se encuentra, usar los datos del item
             if (!serv && item.nombre) {
                 serv = item;
             }
@@ -1191,8 +1277,26 @@ function aplicarPaqueteCotizacion(idx) {
                     cantidad: item.factor || serv.cantidad || 1,
                     imagen: serv.imagen || '',
                     paquete_id: paqueteId,
-                    tipo_paquete: item.tipo,
-                    factor_paquete: item.factor
+                    tipo_paquete: (item.tipo_item === 'servicio' && item.servicio_id == principalServicio) ? 'principal' : 'relacionado',
+                    factor_paquete: item.factor,
+                    sincronizado: true
+                });
+            }
+        } else if (item.tipo_item === 'insumo' && item.insumo_id) {
+            const ins = (window.insumosArray || []).find(i => i.insumo_id == item.insumo_id);
+            if (ins) {
+                insumosCotizacion.push({
+                    insumo_id: ins.insumo_id,
+                    nombre: ins.nombre,
+                    categoria: ins.categoria || '',
+                    proveedor: ins.proveedor || '',
+                    stock: ins.stock,
+                    cantidad: item.factor || 1,
+                    precio: ins.precio,
+                    paquete_id: paqueteId,
+                    tipo_paquete: (item.tipo_item === 'insumo' && item.insumo_id == principalInsumo) ? 'principal' : 'relacionado',
+                    factor_paquete: item.factor,
+                    sincronizado: true
                 });
             }
         }
@@ -1200,11 +1304,15 @@ function aplicarPaqueteCotizacion(idx) {
     // --- DEPURACIÓN ---
     console.log('Productos del paquete:', productosCotizacion);
     console.log('Servicios del paquete:', serviciosCotizacion);
+    console.log('Insumos del paquete:', insumosCotizacion);
     if (typeof renderTablaProductos !== 'function') {
         console.error('renderTablaProductos no existe');
     }
     if (typeof renderTablaServicios !== 'function') {
         console.error('renderTablaServicios no existe');
+    }
+    if (typeof renderTablaInsumos !== 'function') {
+        console.error('renderTablaInsumos no existe');
     }
     // --- FIN DEPURACIÓN ---
     // Restaurar datos del cliente INMEDIATAMENTE después de aplicar paquete
@@ -1224,6 +1332,7 @@ function aplicarPaqueteCotizacion(idx) {
     // Ahora renderizar las tablas
     renderTablaProductos();
     renderTablaServicios();
+    renderTablaInsumos();
     
     // Configurar sincronización de cantidades
     setTimeout(() => {
@@ -1243,32 +1352,42 @@ function aplicarPaqueteCotizacion(idx) {
     return false; // Prevenir cualquier comportamiento por defecto
 }
 function sincronizarCantidadesPaqueteV2(paqueteId) {
-    // Encuentra el principal
-    const principal = productosCotizacion.find(p => p.paquete_id === paqueteId && p.tipo_paquete === 'principal');
+    // Encuentra el principal en productos, servicios o insumos
+    let principal = productosCotizacion.find(p => p.paquete_id === paqueteId && p.tipo_paquete === 'principal');
+    if (!principal) principal = serviciosCotizacion.find(s => s.paquete_id === paqueteId && s.tipo_paquete === 'principal');
+    if (!principal) principal = insumosCotizacion.find(i => i.paquete_id === paqueteId && i.tipo_paquete === 'principal');
     if (!principal) return;
     const cantidadPrincipal = parseFloat(principal.cantidad) || 1;
     // Sincroniza productos relacionados
     productosCotizacion.forEach((p, idx) => {
-        if (p.paquete_id === paqueteId && p.tipo_paquete === 'relacionado') {
+        if (p.paquete_id === paqueteId && p.tipo_paquete === 'relacionado' && p.sincronizado !== false) {
             const factor = parseFloat(p.factor_paquete) || 1;
             p.cantidad = p.tipo_gestion === 'bobina' ? (cantidadPrincipal * factor).toFixed(2) : Math.round(cantidadPrincipal * factor);
-            // Actualizar input visual
             const input = document.querySelector(`.cantidad-input[data-index='${idx}']`);
             if (input) input.value = p.cantidad;
         }
     });
-    // Sincroniza servicios relacionados (ahora como enteros)
+    // Sincroniza servicios relacionados
     serviciosCotizacion.forEach((s, idx) => {
-        if (s.paquete_id === paqueteId && s.tipo_paquete === 'relacionado') {
+        if (s.paquete_id === paqueteId && s.tipo_paquete === 'relacionado' && s.sincronizado !== false) {
             const factor = parseFloat(s.factor_paquete) || 1;
             s.cantidad = Math.round(cantidadPrincipal * factor);
-            // Actualizar input visual
             const input = document.querySelector(`.cantidad-servicio-input[data-index='${idx}']`);
             if (input) input.value = s.cantidad;
         }
     });
+    // Sincroniza insumos relacionados
+    insumosCotizacion.forEach((ins, idx) => {
+        if (ins.paquete_id === paqueteId && ins.tipo_paquete === 'relacionado' && ins.sincronizado !== false) {
+            const factor = parseFloat(ins.factor_paquete) || 1;
+            ins.cantidad = Math.round(cantidadPrincipal * factor);
+            const input = document.querySelector(`.cantidad-insumo-input[data-index='${idx}']`);
+            if (input) input.value = ins.cantidad;
+        }
+    });
     renderTablaProductos();
     renderTablaServicios();
+    renderTablaInsumos();
 }
 function eliminarPaquete(idx) {
     // Prevenir que se dispare el submit del formulario
@@ -1539,6 +1658,7 @@ function guardarBorrador() {
         cliente_email: $('#cliente_email').val(),
         productos: productosCotizacion,
         servicios: serviciosCotizacion,
+        insumos: insumosCotizacion,
         fecha_cotizacion: $('input[name="fecha_cotizacion"]').val(),
         validez_dias: $('input[name="validez_dias"]').val(),
         estado_id: $('#estado_id').val(),
@@ -1563,8 +1683,10 @@ function restaurarBorrador() {
     $('#cliente_email').val(datos.cliente_email || '');
     productosCotizacion = datos.productos || [];
     serviciosCotizacion = datos.servicios || [];
+    insumosCotizacion = datos.insumos || [];
     renderTablaProductos();
     renderTablaServicios();
+    renderTablaInsumos();
     $('input[name="fecha_cotizacion"]').val(datos.fecha_cotizacion || '');
     $('input[name="validez_dias"]').val(datos.validez_dias || '');
     $('#estado_id').val(datos.estado_id || '');
@@ -1634,6 +1756,168 @@ $(document).ready(function() {
 // Al guardar exitosamente, limpiar el borrador (esto se hace al hacer submit y redirigir)
 $('#formCrearCotizacion').on('submit', function() {
     limpiarBorrador();
+});
+
+// --- INSUMOS ---
+// let insumosCotizacion = [];
+$('#buscador_insumo').on('input', function() {
+    const query = $(this).val().trim();
+    if (query.length === 0) {
+        $('#sugerencias_insumos').hide();
+        return;
+    }
+    $.getJSON('../insumos/ajax_list.php', { busqueda: query }, function(resp) {
+        let sugerencias = '';
+        if (resp.success && resp.data.length > 0) {
+            resp.data.forEach(ins => {
+                sugerencias += `<button type='button' class='list-group-item list-group-item-action' data-id='${ins.insumo_id}' data-nombre='${ins.nombre}' data-categoria='${ins.categoria_nombre||''}' data-proveedor='${ins.proveedor||''}' data-stock='${ins.cantidad}' data-precio='${ins.precio_unitario}'>
+                    <b>${ins.nombre}</b> <span class='badge bg-${ins.cantidad > 0 ? 'success' : 'danger'} ms-2'>Stock: ${ins.cantidad}</span><br>
+                    <small>${ins.categoria_nombre || '-'} | ${ins.proveedor || '-'}</small>
+                </button>`;
+            });
+        } else {
+            sugerencias = '<div class="list-group-item">Sin resultados</div>';
+        }
+        $('#sugerencias_insumos').html(sugerencias).show();
+    });
+});
+$('#sugerencias_insumos').on('click', 'button', function() {
+    const unidad = $(this).data('unidad') || '';
+    let equivalencia = 1;
+    let equivalenciaStr = '';
+    const match = /\((\d+) piezas\)/.exec(unidad);
+    if (match) {
+        equivalencia = parseInt(match[1]);
+        equivalenciaStr = `1 bolsa = ${equivalencia} piezas`;
+    }
+    const precioBolsa = parseFloat($(this).data('precio')) || 0;
+    let precioPieza = '';
+    if (equivalencia > 1 && precioBolsa > 0) {
+        precioPieza = (precioBolsa / equivalencia).toFixed(4);
+    }
+    const insumo = {
+        insumo_id: $(this).data('id'),
+        nombre: $(this).data('nombre'),
+        categoria: $(this).data('categoria'),
+        proveedor: $(this).data('proveedor'),
+        stock: equivalencia > 1 ? Math.floor($(this).data('stock') * equivalencia) : $(this).data('stock'),
+        cantidad: 1,
+        precio: precioPieza,
+        equivalencia: equivalencia,
+        equivalenciaStr: equivalenciaStr,
+        unidad: unidad
+    };
+    // Evitar duplicados
+    if (insumosCotizacion.some(i => i.insumo_id == insumo.insumo_id)) {
+        mostrarNotificacion('Este insumo ya está agregado.', 'warning');
+        return;
+    }
+    insumosCotizacion.push(insumo);
+    renderTablaInsumos();
+    $('#buscador_insumo').val('');
+    $('#sugerencias_insumos').hide();
+});
+function renderTablaInsumos() {
+    let html = '';
+    let subtotal = 0;
+    insumosCotizacion.forEach((ins, i) => {
+        const sub = (parseFloat(ins.precio) || 0) * (parseFloat(ins.cantidad) || 1);
+        subtotal += sub;
+        html += `
+            <tr>
+                <td>${ins.nombre}${ins.equivalenciaStr ? `<br><small class='text-muted'>${ins.equivalenciaStr}</small>` : ''}</td>
+                <td style="text-align:center;">
+                    <input type="checkbox" class="sync-checkbox-insumo" data-index="${i}" ${ins.sincronizado !== false ? 'checked' : ''} title="Sincronizar con principal">
+                    <i class="bi bi-link-45deg"></i>
+                </td>
+                <td>${ins.proveedor || ''}</td>
+                <td>${ins.stock}</td>
+                <td><input type="number" min="1" step="1" value="${ins.cantidad}" class="form-control form-control-sm cantidad-insumo-input" data-index="${i}" data-paquete-id="${ins.paquete_id || ''}" data-tipo-paquete="${ins.tipo_paquete || ''}" style="width: 80px;"></td>
+                <td><input type="number" min="0" step="0.0001" value="${ins.precio || ''}" class="form-control form-control-sm precio-insumo-input" data-index="${i}" style="width: 110px;"></td>
+                <td>$${sub.toFixed(2)}</td>
+                <td><button type="button" class="btn btn-danger btn-sm btn-eliminar-insumo" data-idx="${i}"><i class="bi bi-trash"></i></button></td>
+            </tr>
+        `;
+    });
+    $('#tablaInsumosCotizacion tbody').html(html);
+    recalcularTotales();
+}
+$(document).on('input', '.cantidad-insumo-input', function() {
+    const index = parseInt($(this).data('index'));
+    let value = Math.max(1, Math.round($(this).val()));
+    insumosCotizacion[index].cantidad = value;
+    if (!value || isNaN(value) || value <= 0) {
+        $(this).addClass('is-invalid');
+    } else {
+        $(this).removeClass('is-invalid');
+    }
+    recalcularTotales();
+});
+$(document).on('blur', '.cantidad-insumo-input', function() {
+    const index = parseInt($(this).data('index'));
+    let value = Math.max(1, Math.round($(this).val()));
+    insumosCotizacion[index].cantidad = value;
+    $(this).val(value);
+    // Si es principal de paquete, sincronizar relacionados
+    const ins = insumosCotizacion[index];
+    if (ins && ins.paquete_id && ins.tipo_paquete === 'principal') {
+        sincronizarCantidadesPaqueteV2(ins.paquete_id);
+    } else {
+        renderTablaInsumos();
+    }
+});
+$(document).on('input', '.precio-insumo-input', function() {
+    const index = parseInt($(this).data('index'));
+    let value = $(this).val();
+    insumosCotizacion[index].precio = value;
+    if (!value || isNaN(value) || value < 0) {
+        $(this).addClass('is-invalid');
+    } else {
+        $(this).removeClass('is-invalid');
+    }
+    recalcularTotales();
+});
+$(document).on('blur', '.precio-insumo-input', function() {
+    const index = parseInt($(this).data('index'));
+    let value = parseFloat($(this).val()) || 0;
+    if (value < 0) value = 0;
+    insumosCotizacion[index].precio = value;
+    $(this).val(value);
+    renderTablaInsumos();
+});
+$(document).on('click', '.btn-eliminar-insumo', function() {
+    const idx = $(this).data('idx');
+    insumosCotizacion.splice(idx, 1);
+    renderTablaInsumos();
+});
+// Incluir insumos en el cálculo de totales
+function recalcularTotales() {
+    const subtotalProductos = productosCotizacion.reduce((sum, p) => sum + ((parseFloat(p.precio)||0)*(parseFloat(p.cantidad)||1)), 0);
+    const subtotalServicios = serviciosCotizacion.reduce((sum, s) => sum + ((parseFloat(s.precio)||0)*(parseFloat(s.cantidad)||1)), 0);
+    const subtotalInsumos = insumosCotizacion.reduce((sum, i) => sum + ((parseFloat(i.precio)||0)*(parseFloat(i.cantidad)||1)), 0);
+    const subtotal = subtotalProductos + subtotalServicios + subtotalInsumos;
+    const descuentoPorcentaje = parseFloat($('#descuento_porcentaje').val()) || 0;
+    const descuentoMonto = subtotal * descuentoPorcentaje / 100;
+    const total = subtotal - descuentoMonto;
+    $('#subtotal').val(`$${subtotal.toFixed(2)}`);
+    $('#descuento_monto').val(`$${descuentoMonto.toFixed(2)}`);
+    $('#total').val(`$${total.toFixed(2)}`);
+}
+
+// Evento para check de sincronización en productos
+$(document).on('change', '.sync-checkbox', function() {
+    const index = parseInt($(this).data('index'));
+    productosCotizacion[index].sincronizado = this.checked;
+});
+// Evento para check de sincronización en servicios
+$(document).on('change', '.sync-checkbox-servicio', function() {
+    const index = parseInt($(this).data('index'));
+    serviciosCotizacion[index].sincronizado = this.checked;
+});
+// Evento para check de sincronización en insumos
+$(document).on('change', '.sync-checkbox-insumo', function() {
+    const index = parseInt($(this).data('index'));
+    insumosCotizacion[index].sincronizado = this.checked;
 });
 </script>
 </body>

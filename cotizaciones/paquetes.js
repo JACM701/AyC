@@ -68,6 +68,7 @@ window.PaquetesCotizacion = {
 window.renderPaqueteForm = function({productos, paquete, onSave, onCancel}) {
     // productos: [{product_id, product_name}]
     // serviciosArray: global
+    // insumosArray: global
     let html = '';
     html += `<div class='mb-3'>
         <label class='form-label'>Nombre del paquete</label>
@@ -77,7 +78,7 @@ window.renderPaqueteForm = function({productos, paquete, onSave, onCancel}) {
     html += `<table class='table table-bordered'><thead><tr><th>Tipo</th><th>Nombre</th><th>Tipo relación</th><th>Factor</th><th></th></tr></thead><tbody id='paqItemsTbody'>`;
     (paquete?.items || []).forEach((item, idx) => {
         html += `<tr>
-            <td>${item.tipo_item === 'servicio' ? 'Servicio' : 'Producto'}</td>
+            <td>${item.tipo_item === 'servicio' ? 'Servicio' : (item.tipo_item === 'insumo' ? 'Insumo' : 'Producto')}</td>
             <td>${item.nombre}</td>
             <td>
                 <select class='form-select paq-tipo' data-idx='${idx}'>
@@ -108,6 +109,17 @@ window.renderPaqueteForm = function({productos, paquete, onSave, onCancel}) {
     (window.serviciosArray || []).forEach(s => {
         if (!(paquete.items || []).some(i => i.tipo_item === 'servicio' && i.servicio_id == s.servicio_id)) {
             html += `<option value='${s.servicio_id}'>${s.nombre}</option>`;
+        }
+    });
+    html += `</select>
+    </div>`;
+    // Select para insumos
+    html += `<div class='mb-2'>
+        <select class='form-select' id='paqInsumoSelect'>
+            <option value=''>Agregar insumo...</option>`;
+    (window.insumosArray || []).forEach(ins => {
+        if (!(paquete.items || []).some(i => i.tipo_item === 'insumo' && i.insumo_id == ins.insumo_id)) {
+            html += `<option value='${ins.insumo_id}'>${ins.nombre}</option>`;
         }
     });
     html += `</select>
@@ -293,3 +305,19 @@ function nuevoPaquete() {
     };
     window._paqRender();
 } 
+
+// --- Agregar insumo al paquete ---
+document.addEventListener('change', function(e) {
+    if (e.target && e.target.id === 'paqInsumoSelect') {
+        const iid = e.target.value;
+        if (!iid) return;
+        const ins = (window.insumosArray || []).find(i => i.insumo_id == iid);
+        if (!ins) return;
+        if (window._paqEdit.items.some(i => i.tipo_item === 'insumo' && i.insumo_id == ins.insumo_id)) return;
+        window._paqEdit.items.push({ tipo_item: 'insumo', insumo_id: ins.insumo_id, nombre: ins.nombre, tipo: 'relacionado', factor: 1 });
+        window._paqRender();
+    }
+});
+
+// --- Al aplicar paquete, agregar insumos a insumosCotizacion ---
+// Elimina cualquier bloque fuera de función que use 'paquete.items.forEach' y asegúrate de que solo se use dentro de aplicarPaqueteCotizacion. 

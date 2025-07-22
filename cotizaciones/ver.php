@@ -58,6 +58,20 @@ $stmt = $mysqli->prepare("
 $stmt->bind_param('i', $cotizacion_id);
 $stmt->execute();
 $servicios = $stmt->get_result();
+
+// Obtener insumos de la cotización
+$stmt = $mysqli->prepare("
+    SELECT ci.*, i.nombre as insumo_nombre, i.categoria as insumo_categoria, i.cantidad as insumo_stock, i.precio_unitario as insumo_precio, c.name as categoria_nombre, s.name as proveedor_nombre
+    FROM cotizaciones_insumos ci
+    LEFT JOIN insumos i ON ci.insumo_id = i.insumo_id
+    LEFT JOIN categories c ON i.category_id = c.category_id
+    LEFT JOIN suppliers s ON i.supplier_id = s.supplier_id
+    WHERE ci.cotizacion_id = ?
+    ORDER BY ci.cotizacion_insumo_id
+");
+$stmt->bind_param('i', $cotizacion_id);
+$stmt->execute();
+$insumos = $stmt->get_result();
 ?>
 
 <!DOCTYPE html>
@@ -393,6 +407,24 @@ $servicios = $stmt->get_result();
                             }
                             ?>
                         </td>
+                    </tr>
+                <?php endwhile; ?>
+                <?php while ($insumo = $insumos->fetch_assoc()): ?>
+                    <tr>
+                        <td><?= $i++ ?></td>
+                        <td class="descripcion" style="max-width:320px;word-break:break-word;white-space:normal;">
+                            <strong><?= htmlspecialchars($insumo['nombre_insumo'] ?? $insumo['insumo_nombre']) ?></strong>
+                            <?php if ($insumo['categoria'] || $insumo['categoria_nombre']): ?>
+                                <br><span class="badge bg-info" style="font-size: 0.75rem;"><?= htmlspecialchars($insumo['categoria'] ?? $insumo['categoria_nombre']) ?></span>
+                            <?php endif; ?>
+                        </td>
+                        <td class="imagen">
+                            <span style="color:#ccc;"><i class="bi bi-tools"></i> Insumo</span>
+                        </td>
+                        <td><?= $insumo['cantidad'] ?></td>
+                        <td>$<?= number_format($insumo['precio_unitario'], 2) ?></td>
+                        <td class="precio-total">$<?= number_format($insumo['precio_total'], 2) ?></td>
+                        <td class="costo-total">N/A</td>
                     </tr>
                 <?php endwhile; ?>
                 
