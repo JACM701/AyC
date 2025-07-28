@@ -768,8 +768,7 @@ function renderTablaProductos() {
                     ${p.sku ? `<a href="https://www.google.com/search?q=${skuGoogle}" target="_blank" title="Buscar SKU en Google" class="icon-buscar-google"><i class="bi bi-search"></i></a>` : ''}
                 </td>
                 <td style="text-align:center;">
-                    <input type="checkbox" class="sync-checkbox" data-index="${i}" ${p.sincronizado !== false ? 'checked' : ''} title="Sincronizar con principal">
-                    <i class="bi bi-link-45deg"></i>
+                    ${p.paquete_id ? `<input type='checkbox' class='sync-checkbox' data-index='${i}' ${p.sincronizado !== false ? 'checked' : ''} title='Sincronizar con principal'> <i class='bi bi-link-45deg'></i>` : ''}
                 </td>
                 <td>${p.proveedor || ''}</td>
                 <td>${stockStr}</td>
@@ -937,8 +936,7 @@ function renderTablaServicios() {
                     ${s.tiempo_estimado ? `<br><small class="text-muted">Tiempo estimado: ${s.tiempo_estimado}h</small>` : ''}
                 </td>
                 <td style="text-align:center;">
-                    <input type="checkbox" class="sync-checkbox-servicio" data-index="${i}" ${s.sincronizado !== false ? 'checked' : ''} title="Sincronizar con principal">
-                    <i class="bi bi-link-45deg"></i>
+                    ${s.paquete_id ? `<input type='checkbox' class='sync-checkbox-servicio' data-index='${i}' ${s.sincronizado !== false ? 'checked' : ''} title='Sincronizar con principal'> <i class='bi bi-link-45deg'></i>` : ''}
                 </td>
                 <td>${s.descripcion || ''}</td>
                 <td>
@@ -1514,7 +1512,7 @@ function nuevoPaquete() {
                 if (window._paqEdit.items.some(i => i.tipo_item === 'servicio' && i.servicio_id == serv.servicio_id)) return;
                 window._paqEdit.items.push({ tipo_item: 'servicio', servicio_id: serv.servicio_id, nombre: serv.nombre, tipo: 'relacionado', factor: 1 });
                 window._paqRender();
-            };
+                       };
         }
         document.getElementById('btnGuardarPaquete').onclick = guardarPaquete;
         document.getElementById('btnCancelarPaquete').onclick = renderPaquetesPanel;
@@ -1771,8 +1769,7 @@ function renderTablaInsumos() {
             <tr>
                 <td>${ins.nombre}${ins.equivalenciaStr ? `<br><small class='text-muted'>${ins.equivalenciaStr}</small>` : ''}</td>
                 <td style="text-align:center;">
-                    <input type="checkbox" class="sync-checkbox-insumo" data-index="${i}" ${ins.sincronizado !== false ? 'checked' : ''} title="Sincronizar con principal">
-                    <i class="bi bi-link-45deg"></i>
+                    ${ins.paquete_id ? `<input type='checkbox' class='sync-checkbox-insumo' data-index='${i}' ${ins.sincronizado !== false ? 'checked' : ''} title='Sincronizar con principal'> <i class='bi bi-link-45deg'></i>` : ''}
                 </td>
                 <td>${ins.proveedor || ''}</td>
                 <td>${ins.stock}</td>
