@@ -491,42 +491,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <input type="text" class="form-control" id="buscador_servicio" placeholder="Nombre del servicio...">
                 <div id="sugerencias_servicios" class="list-group mt-1"></div>
             </div>
-            <div class="mb-3">
-                <button type="button" class="btn btn-outline-success" id="btnAltaRapidaServicio"><i class="bi bi-plus-circle"></i> Alta rápida de servicio</button>
-            </div>
-            <div id="altaRapidaServicioForm" style="display:none;">
-                <div class="row g-3 align-items-end">
-                    <div class="col-md-4">
-                        <label class="form-label">Nombre del servicio</label>
-                        <input type="text" class="form-control" id="nuevo_nombre_servicio">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Categoría</label>
-                        <input type="text" class="form-control" id="nuevo_categoria_servicio" placeholder="Ej: Instalación">
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Precio</label>
-                        <input type="number" class="form-control" id="nuevo_precio_servicio" min="0" step="0.01">
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Cantidad</label>
-                        <input type="number" class="form-control" id="nuevo_cantidad_servicio" min="1" step="1" value="1">
-                    </div>
-                    <div class="col-md-1">
-                        <label class="form-label">Unidad</label>
-                        <input type="text" class="form-control" id="nuevo_unidad_servicio" placeholder="Ej: hora">
-                    </div>
-                </div>
-                <div class="row g-3 mt-2">
-                    <div class="col-md-12">
-                        <label class="form-label">Descripción</label>
-                        <textarea class="form-control" id="nuevo_descripcion_servicio" rows="2" placeholder="Descripción del servicio..."></textarea>
-                    </div>
-                </div>
-                <div class="mt-2">
-                    <button type="button" class="btn btn-success" id="btnAgregarServicioRapido"><i class="bi bi-check-circle"></i> Agregar servicio</button>
-                </div>
-            </div>
             <div class="table-responsive mt-4">
                 <table class="table table-striped align-middle" id="tablaServiciosCotizacion">
                     <thead class="table-dark">
@@ -949,32 +913,6 @@ $('#sugerencias_servicios').on('click', 'button', function() {
     });
     $('#buscador_servicio').val('');
     $('#sugerencias_servicios').hide();
-});
-
-$('#btnAltaRapidaServicio').on('click', function() {
-    $('#altaRapidaServicioForm').toggle();
-});
-
-$('#btnAgregarServicioRapido').on('click', function() {
-    const nombre = $('#nuevo_nombre_servicio').val();
-    const precio = parseFloat($('#nuevo_precio_servicio').val()) || 0;
-    const cantidad = parseFloat($('#nuevo_cantidad_servicio').val()) || 1;
-    if (!nombre || !precio || !cantidad) {
-        mostrarNotificacion('Completa nombre, precio y cantidad para el servicio.', 'warning');
-        return;
-    }
-    agregarServicioATabla({
-        servicio_id: null,
-        nombre: nombre,
-        categoria: $('#nuevo_categoria_servicio').val(),
-        descripcion: $('#nuevo_descripcion_servicio').val(),
-        precio: precio,
-        cantidad: cantidad,
-        unidad_medida: $('#nuevo_unidad_servicio').val()
-    });
-    $('#nuevo_nombre_servicio, #nuevo_precio_servicio, #nuevo_cantidad_servicio, #nuevo_unidad_servicio, #nuevo_categoria_servicio, #nuevo_descripcion_servicio').val('');
-    $('#altaRapidaServicioForm').hide();
-    mostrarNotificacion('Servicio agregado correctamente.', 'success');
 });
 
 function agregarServicioATabla(servicio) {
@@ -1712,7 +1650,6 @@ $('#btnAgregarProductoRapido, #btnAltaRapidaProducto').on('click', function() { 
 $(document).on('click', '.btn-eliminar-producto', function() { setTimeout(guardarBorrador, 300); });
 
 // Guardar también al agregar/eliminar servicios
-$('#btnAgregarServicioRapido, #btnAltaRapidaServicio').on('click', function() { setTimeout(guardarBorrador, 300); });
 $(document).on('click', '.btn-eliminar-servicio', function() { setTimeout(guardarBorrador, 300); });
 
 // Al cargar la página, preguntar si hay borrador
