@@ -807,9 +807,7 @@ function renderTablaProductos() {
                 </td>
                 <td style='vertical-align:middle;'>
                     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
-                        <span style="font-size:1em; font-weight:600; color:${typeof p.cost_price !== 'undefined' && p.cost_price !== null && p.cost_price !== '' && parseFloat(p.precio) > 0 && (parseFloat(p.precio) - parseFloat(p.cost_price)) >= 0 ? '#198754' : '#d63333'};">
-                            ${typeof p.cost_price !== 'undefined' && p.cost_price !== null && p.cost_price !== '' && parseFloat(p.precio) > 0 ? `${(((parseFloat(p.precio) - parseFloat(p.cost_price)) / parseFloat(p.precio)) * 100).toFixed(2)}%` : '--'}
-                        </span>
+                        <input type="number" min="0" max="99" step="0.01" value="${typeof p.cost_price !== 'undefined' && p.cost_price !== null && p.cost_price !== '' && parseFloat(p.precio) > 0 ? (((parseFloat(p.precio) - parseFloat(p.cost_price)) / parseFloat(p.precio)) * 100).toFixed(2) : ''}" class="form-control form-control-sm margen-producto-input" data-index="${i}" style="width:70px; text-align:right; font-size:1em; font-weight:600; color:${typeof p.cost_price !== 'undefined' && p.cost_price !== null && p.cost_price !== '' && parseFloat(p.precio) > 0 && (parseFloat(p.precio) - parseFloat(p.cost_price)) >= 0 ? '#198754' : '#d63333'};" title="Editar margen (%)">
                         <span style="font-size:0.9em; color:#888;">
                             ${typeof p.cost_price !== 'undefined' && p.cost_price !== null && p.cost_price !== '' && parseFloat(p.precio) > 0 ? `Utilidad: $${(parseFloat(p.precio) - parseFloat(p.cost_price)).toFixed(2)}` : ''}
                         </span>
@@ -847,18 +845,52 @@ $(document).on('change', '.iva-toggle-producto', function() {
     $('#tablaProductosCotizacion tbody').html(html);
     $('#subtotal').val(`$${subtotal.toFixed(2)}`);
     recalcularTotales();
+
+    // Evento para margen editable en productos
+    $('.margen-producto-input').off('input').on('input', function() {
+        const index = parseInt($(this).data('index'));
+        let porcentaje = parseFloat($(this).val());
+        const prod = productosCotizacion[index];
+        if (prod && typeof prod.cost_price !== 'undefined' && prod.cost_price !== null && prod.cost_price !== '') {
+            if (!isNaN(porcentaje) && porcentaje >= 0) {
+                // Calcular nuevo precio según margen
+                const costo = parseFloat(prod.cost_price);
+                const nuevoPrecio = costo / (1 - porcentaje / 100);
+                prod.precio = parseFloat(nuevoPrecio.toFixed(4));
+                renderTablaProductos();
+                guardarBorrador();
+            }
+        }
+    });
 }
 
 // Eventos para cantidad
 $(document).on('input', '.cantidad-input', function() {
     const index = parseInt($(this).data('index'));
     let value = $(this).val();
-    productosCotizacion[index].cantidad = value;
-    // Validación visual
-    if (!value || isNaN(value) || value <= 0) {
+    // Validación visual y actualización segura
+    let esBobina = productosCotizacion[index].tipo_gestion === 'bobina';
+    if (!value || isNaN(value) || parseFloat(value) <= 0) {
         $(this).addClass('is-invalid');
+        productosCotizacion[index].cantidad = esBobina ? 0.01 : 1;
+        $(this).val(esBobina ? 0.01 : 1);
     } else {
         $(this).removeClass('is-invalid');
+        if (esBobina) {
+            value = Math.max(0.01, parseFloat(value));
+            value = parseFloat(value.toFixed(2));
+        } else {
+            value = Math.max(1, Math.round(parseFloat(value)));
+        }
+        productosCotizacion[index].cantidad = value;
+        $(this).val(value);
+    }
+    // Si es principal de paquete, sincronizar relacionados
+    const prod = productosCotizacion[index];
+    if (prod && prod.paquete_id && prod.tipo_paquete === 'principal') {
+        sincronizarCantidadesPaqueteV2(prod.paquete_id);
+    } else {
+        renderTablaProductos();
     }
     recalcularTotales();
 });
@@ -868,13 +900,18 @@ $(document).on('blur', '.cantidad-input', function() {
     let value = $(this).val();
     const prod = productosCotizacion[index];
     if (prod) {
-        if (prod.tipo_gestion === 'bobina') {
-            value = parseFloat(value) || 0.01;
+        let esBobina = prod.tipo_gestion === 'bobina';
+        if (!value || isNaN(value) || parseFloat(value) <= 0) {
+            value = esBobina ? 0.01 : 1;
         } else {
-            value = Math.max(1, Math.round(parseFloat(value) || 1));
+            if (esBobina) {
+                value = Math.max(0.01, parseFloat(value));
+                value = parseFloat(value.toFixed(2));
+            } else {
+                value = Math.max(1, Math.round(parseFloat(value)));
+            }
         }
-        productosCotizacion[index].cantidad = value;
-        // Actualiza el input visualmente
+        prod.cantidad = value;
         $(this).val(value);
         // Si es principal de paquete, sincronizar relacionados
         if (prod.paquete_id && prod.tipo_paquete === 'principal') {
@@ -1828,9 +1865,7 @@ function renderTablaInsumos() {
                     </td>
                     <td style='vertical-align:middle;'>
                         <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
-                            <span style="font-size:1em; font-weight:600; color:${typeof ins.costo !== 'undefined' && ins.costo !== null && ins.costo !== '' && parseFloat(ins.precio) > 0 && (parseFloat(ins.precio) - parseFloat(ins.costo)) >= 0 ? '#198754' : '#d63333'};">
-                                ${typeof ins.costo !== 'undefined' && ins.costo !== null && ins.costo !== '' && parseFloat(ins.precio) > 0 ? `${(((parseFloat(ins.precio) - parseFloat(ins.costo)) / parseFloat(ins.precio)) * 100).toFixed(2)}%` : '--'}
-                            </span>
+                            <input type="number" min="0" max="99" step="0.01" value="${typeof ins.costo !== 'undefined' && ins.costo !== null && ins.costo !== '' && parseFloat(ins.precio) > 0 ? (((parseFloat(ins.precio) - parseFloat(ins.costo)) / parseFloat(ins.precio)) * 100).toFixed(2) : ''}" class="form-control form-control-sm margen-insumo-input" data-index="${i}" style="width:70px; text-align:right; font-size:1em; font-weight:600; color:${typeof ins.costo !== 'undefined' && ins.costo !== null && ins.costo !== '' && parseFloat(ins.precio) > 0 && (parseFloat(ins.precio) - parseFloat(ins.costo)) >= 0 ? '#198754' : '#d63333'};" title="Editar margen (%)">
                             <span style="font-size:0.9em; color:#888;">
                                 ${typeof ins.costo !== 'undefined' && ins.costo !== null && ins.costo !== '' && parseFloat(ins.precio) > 0 ? `Utilidad: $${(parseFloat(ins.precio) - parseFloat(ins.costo)).toFixed(2)}` : ''}
                             </span>
@@ -1860,6 +1895,21 @@ function renderTablaInsumos() {
     });
     $('#tablaInsumosCotizacion tbody').html(html);
     recalcularTotales();
+    // Evento para margen editable en insumos
+    $('.margen-insumo-input').off('input').on('input', function() {
+        const index = parseInt($(this).data('index'));
+        let porcentaje = parseFloat($(this).val());
+        const ins = insumosCotizacion[index];
+        if (ins && typeof ins.costo !== 'undefined' && ins.costo !== null && ins.costo !== '') {
+            if (!isNaN(porcentaje) && porcentaje >= 0) {
+                const costo = parseFloat(ins.costo);
+                const nuevoPrecio = costo / (1 - porcentaje / 100);
+                ins.precio = parseFloat(nuevoPrecio.toFixed(4));
+                renderTablaInsumos();
+                guardarBorrador();
+            }
+        }
+    });
 // Evento para toggle IVA en productos
 $(document).on('change', '.iva-toggle-producto', function() {
     const index = parseInt($(this).data('index'));
