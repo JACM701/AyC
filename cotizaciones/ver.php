@@ -61,7 +61,7 @@ $servicios = $stmt->get_result();
 
 // Obtener insumos de la cotización
 $stmt = $mysqli->prepare("
-    SELECT ci.*, i.nombre as insumo_nombre, i.categoria as insumo_categoria, i.cantidad as insumo_stock, i.precio_unitario as insumo_precio, c.name as categoria_nombre, s.name as proveedor_nombre
+    SELECT ci.*, i.nombre as insumo_nombre, i.categoria as insumo_categoria, i.cantidad as insumo_stock, i.precio_unitario as insumo_precio, i.imagen as insumo_imagen, c.name as categoria_nombre, s.name as proveedor_nombre
     FROM cotizaciones_insumos ci
     LEFT JOIN insumos i ON ci.insumo_id = i.insumo_id
     LEFT JOIN categories c ON i.category_id = c.category_id
@@ -419,7 +419,19 @@ $insumos = $stmt->get_result();
                             <?php endif; ?>
                         </td>
                         <td class="imagen">
-                            <span style="color:#ccc;"><i class="bi bi-tools"></i> Insumo</span>
+                            <?php
+                            $img = $insumo['insumo_imagen'] ?? '';
+                            if ($img) {
+                                if (strpos($img, 'uploads/insumos/') === false) {
+                                    $img = 'uploads/insumos/' . $img;
+                                }
+                            }
+                            ?>
+                            <?php if ($img): ?>
+                                <img src="../<?= htmlspecialchars($img) ?>" alt="Imagen Insumo" style="height:38px;">
+                            <?php else: ?>
+                                <span style="color:#ccc;"><i class="bi bi-tools"></i> Insumo</span>
+                            <?php endif; ?>
                         </td>
                         <td><?= number_format($insumo['cantidad'], 0) ?></td>
                         <td>$<?= number_format($insumo['precio_unitario'], 2) ?></td>
