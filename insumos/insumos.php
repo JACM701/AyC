@@ -778,7 +778,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <p class="mb-0">Los siguientes insumos están agotados y requieren reabastecimiento:</p>
                     <ul class="mb-0 mt-2">
                         <?php while ($insumo = $agotados_insumos->fetch_assoc()): ?>
-                            <li><strong><?= htmlspecialchars($insumo['nombre']) ?></strong> - <?= htmlspecialchars($insumo['proveedor']) ?></li>
+                            <li><strong><?= htmlspecialchars($insumo['nombre']) ?></strong> - <?= htmlspecialchars($insumo['proveedor'] ?? 'Agotado') ?></li>
                         <?php endwhile; ?>
                     </ul>
                 </div>

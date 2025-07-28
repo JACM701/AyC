@@ -1650,6 +1650,7 @@ $('#btnAgregarProductoRapido, #btnAltaRapidaProducto').on('click', function() { 
 $(document).on('click', '.btn-eliminar-producto', function() { setTimeout(guardarBorrador, 300); });
 
 // Guardar también al agregar/eliminar servicios
+$('#btnAgregarServicioRapido, #btnAltaRapidaServicio').on('click', function() { setTimeout(guardarBorrador, 300); });
 $(document).on('click', '.btn-eliminar-servicio', function() { setTimeout(guardarBorrador, 300); });
 
 // Al cargar la página, preguntar si hay borrador
@@ -1732,9 +1733,11 @@ $('#sugerencias_insumos').on('click', 'button', function() {
         equivalenciaStr = `1 bolsa = ${equivalencia} piezas`;
     }
     const precioBolsa = parseFloat($(this).data('precio')) || 0;
-    let precioPieza = '';
+    let precioFinal = '';
     if (equivalencia > 1 && precioBolsa > 0) {
-        precioPieza = (precioBolsa / equivalencia).toFixed(4);
+        precioFinal = (precioBolsa / equivalencia).toFixed(4);
+    } else {
+        precioFinal = precioBolsa;
     }
     const insumo = {
         insumo_id: $(this).data('id'),
@@ -1743,7 +1746,7 @@ $('#sugerencias_insumos').on('click', 'button', function() {
         proveedor: $(this).data('proveedor'),
         stock: equivalencia > 1 ? Math.floor($(this).data('stock') * equivalencia) : $(this).data('stock'),
         cantidad: 1,
-        precio: precioPieza,
+        precio: precioFinal,
         equivalencia: equivalencia,
         equivalenciaStr: equivalenciaStr,
         unidad: unidad
