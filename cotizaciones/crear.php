@@ -737,11 +737,13 @@ function agregarProductoATabla(prod) {
     if (!prod.tipo_gestion) prod.tipo_gestion = 'pieza';
     productosCotizacion.push(prod);
     renderTablaProductos();
+    guardarBorrador();
 }
 $(document).on('click', '.btn-eliminar-producto', function() {
     const idx = $(this).data('idx');
     productosCotizacion.splice(idx, 1);
     renderTablaProductos();
+    guardarBorrador();
 });
 function renderTablaProductos() {
     let html = '';
@@ -917,12 +919,14 @@ $('#sugerencias_servicios').on('click', 'button', function() {
 function agregarServicioATabla(servicio) {
     serviciosCotizacion.push(servicio);
     renderTablaServicios();
+    guardarBorrador();
 }
 
 $(document).on('click', '.btn-eliminar-servicio', function() {
     const idx = $(this).data('idx');
     serviciosCotizacion.splice(idx, 1);
     renderTablaServicios();
+    guardarBorrador();
 });
 
 function renderTablaServicios() {
@@ -1756,6 +1760,7 @@ $('#sugerencias_insumos').on('click', 'button', function() {
     }
     insumosCotizacion.push(insumo);
     renderTablaInsumos();
+    guardarBorrador();
     $('#buscador_insumo').val('');
     $('#sugerencias_insumos').hide();
 });
@@ -1830,6 +1835,7 @@ $(document).on('click', '.btn-eliminar-insumo', function() {
     const idx = $(this).data('idx');
     insumosCotizacion.splice(idx, 1);
     renderTablaInsumos();
+    guardarBorrador();
 });
 // Incluir insumos en el cálculo de totales
 function recalcularTotales() {
