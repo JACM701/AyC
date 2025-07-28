@@ -68,51 +68,8 @@ try {
     $stmt->execute();
     $stmt->close();
 
-    // Manejar cambios de stock según el cambio de estado
-    if ($nuevo_estado_nombre === 'Aprobada' && $estado_anterior_nombre !== 'Aprobada') {
-        $_SESSION['success'] = "Cotización aprobada exitosamente.";
-    } elseif ($estado_anterior_nombre === 'Aprobada' && $nuevo_estado_nombre !== 'Aprobada') {
-        // DESAPROBAR: Restaurar stock solo para productos que fueron descontados
-        $productos->data_seek(0); // Resetear el puntero del resultado
-        while ($producto = $productos->fetch_assoc()) {
-            if ($producto['product_id']) { // Solo procesar productos del inventario
-                // Solo restaurar si el stock actual es menor al original (fue descontado)
-                $stmt = $mysqli->prepare("SELECT quantity FROM products WHERE product_id = ?");
-                $stmt->bind_param('i', $producto['product_id']);
-                $stmt->execute();
-                $stock_actual = $stmt->get_result()->fetch_assoc()['quantity'];
-                $stmt->close();
-                
-                if ($stock_actual < $producto['stock_actual']) {
-                    // Fue descontado, restaurar
-                    $nuevo_stock = $stock_actual + $producto['cantidad'];
-                    
-                    $stmt = $mysqli->prepare("UPDATE products SET quantity = ? WHERE product_id = ?");
-                    $stmt->bind_param('ii', $nuevo_stock, $producto['product_id']);
-                    $stmt->execute();
-                    $stmt->close();
-                    
-                    // Registrar movimiento de entrada (restauración)
-                    $stmt = $mysqli->prepare("
-                        INSERT INTO movements (product_id, movement_type_id, quantity, reference, notes, user_id) 
-                        VALUES (?, 1, ?, ?, ?, ?)
-                    ");
-                    $referencia = "Cotización desaprobada: " . $cotizacion['numero_cotizacion'];
-                    $notas = "Desaprobación de cotización - Cliente: " . $cotizacion['cliente_nombre_real'];
-                    $user_id = $_SESSION['user_id'] ?? null;
-                    $stmt->bind_param('iissi', $producto['product_id'], $producto['cantidad'], $referencia, $notas, $user_id);
-                    $stmt->execute();
-                    $stmt->close();
-                }
-            }
-        }
-        
-        $_SESSION['success'] = "Cotización desaprobada. Stock restaurado.";
-        
-    } else {
-        // Otros cambios de estado (sin afectar stock)
-        $_SESSION['success'] = "Estado de cotización actualizado a: " . $nuevo_estado_nombre;
-    }
+    // Los cambios de estado ya no afectan el inventario
+    $_SESSION['success'] = "Estado de cotización actualizado a: " . $nuevo_estado_nombre;
     
     // Registrar en historial
     require_once 'helpers.php';

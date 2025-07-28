@@ -42,69 +42,8 @@ $productos = $stmt->get_result();
 
 // Procesar conversión
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $mysqli->begin_transaction();
     try {
-        // Descontar stock y registrar movimientos para cada producto
-        $stmt = $mysqli->prepare("
-            SELECT cp.*, p.product_name, p.sku, p.quantity as stock_actual, p.description
-            FROM cotizaciones_productos cp
-            LEFT JOIN products p ON cp.product_id = p.product_id
-            WHERE cp.cotizacion_id = ?
-            ORDER BY cp.cotizacion_producto_id
-        ");
-        $stmt->bind_param('i', $cotizacion_id);
-        $stmt->execute();
-        $productos_convertir = $stmt->get_result();
-        $stmt->close();
-        while ($producto = $productos_convertir->fetch_assoc()) {
-            if ($producto['product_id']) {
-                // Registrar movimiento de salida
-                $stmt_mov = $mysqli->prepare("
-                    INSERT INTO movements (product_id, movement_type_id, quantity, movement_date, reference, notes, user_id) 
-                    VALUES (?, 4, ?, NOW(), ?, ?, ?)
-                ");
-                $cantidad_negativa = -$producto['cantidad'];
-                $referencia = "Venta por cotización: " . $cotizacion['numero_cotizacion'];
-                $notas = "Conversión de cotización a venta";
-                $user_id = $_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? null;
-                $stmt_mov->bind_param('idssi', $producto['product_id'], $cantidad_negativa, $referencia, $notas, $user_id);
-                $stmt_mov->execute();
-                $stmt_mov->close();
-                // Actualizar stock (permitir negativo)
-                $stmt_upd = $mysqli->prepare("UPDATE products SET quantity = quantity - ? WHERE product_id = ?");
-                $stmt_upd->bind_param('di', $producto['cantidad'], $producto['product_id']);
-                $stmt_upd->execute();
-                $stmt_upd->close();
-            }
-        }
-        // Descontar stock y registrar movimientos para cada insumo
-        $stmt = $mysqli->prepare("
-            SELECT ci.*, i.nombre as insumo_nombre, i.unidad
-            FROM cotizaciones_insumos ci
-            LEFT JOIN insumos i ON ci.insumo_id = i.insumo_id
-            WHERE ci.cotizacion_id = ?
-        ");
-        $stmt->bind_param('i', $cotizacion_id);
-        $stmt->execute();
-        $insumos_convertir = $stmt->get_result();
-        $stmt->close();
-        while ($insumo = $insumos_convertir->fetch_assoc()) {
-            if ($insumo['insumo_id']) {
-                $equivalencia = 1;
-                if (preg_match('/\((\d+)\s*piezas\)/i', $insumo['unidad'], $m)) {
-                    $equivalencia = (int)$m[1];
-                }
-                $cantidad_piezas = $insumo['cantidad']; // SIEMPRE piezas
-                // Si la unidad es bolsa/caja, descontar fracción
-                $cantidad_fraccion = $cantidad_piezas / $equivalencia;
-                // Descontar del stock (que está en bolsas/cajas)
-                $stmt_upd = $mysqli->prepare("UPDATE insumos SET cantidad = cantidad - ? WHERE insumo_id = ?");
-                $stmt_upd->bind_param('di', $cantidad_fraccion, $insumo['insumo_id']);
-                $stmt_upd->execute();
-                $stmt_upd->close();
-            }
-        }
-        // Actualizar estado a 'Convertida'
+        // Solo actualizar estado a 'Convertida' y registrar en historial
         $stmt = $mysqli->prepare("
             UPDATE cotizaciones 
             SET estado_id = (SELECT est_cot_id FROM est_cotizacion WHERE nombre_estado = 'Convertida'), updated_at = NOW() 
@@ -118,15 +57,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         registrarAccionCotizacion(
             $cotizacion_id,
             'Convertida',
-            'Cotización convertida a venta y stock descontado',
+            'Cotización convertida a venta (sin afectar inventario)',
             $_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? null,
             $mysqli
         );
-        $mysqli->commit();
-        $success = "Cotización convertida exitosamente a venta. El stock de los productos ha sido descontado y los movimientos registrados.";
+        $success = "Cotización convertida exitosamente a venta. El inventario no ha sido modificado.";
         header("refresh:2;url=ver.php?id=$cotizacion_id");
     } catch (Exception $e) {
-        $mysqli->rollback();
         $error = "Error al convertir la cotización: " . $e->getMessage();
     }
 }
@@ -257,8 +194,8 @@ $insumos = $stmt->get_result();
         </div>
 
         <div class="conversion-card">
-            <h5 class="mb-3"><i class="bi bi-box"></i> Productos y Stock Disponible</h5>
-            <p class="text-muted mb-3">Se registrarán movimientos de salida para los productos del inventario.</p>
+            <h5 class="mb-3"><i class="bi bi-box"></i> Productos en la Cotización</h5>
+            <p class="text-muted mb-3">Esta cotización no afectará el inventario al convertirse en venta.</p>
             
             <?php 
             $todos_con_stock = true;
@@ -307,8 +244,8 @@ $insumos = $stmt->get_result();
         </div>
 
         <div class="conversion-card">
-            <h5 class="mb-3"><i class="bi bi-tools"></i> Insumos y Stock Disponible</h5>
-            <p class="text-muted mb-3">Se descontarán insumos del inventario.</p>
+            <h5 class="mb-3"><i class="bi bi-tools"></i> Insumos en la Cotización</h5>
+            <p class="text-muted mb-3">Esta cotización no afectará el inventario de insumos al convertirse en venta.</p>
             <?php 
             $todos_insumos_con_stock = true;
             while ($insumo = $insumos->fetch_assoc()):
@@ -373,16 +310,9 @@ $insumos = $stmt->get_result();
 
         <div class="conversion-card">
             <h5 class="mb-3"><i class="bi bi-check-circle"></i> Confirmar Conversión</h5>
-            <?php if (!$todos_con_stock): ?>
-                <div class="alert alert-warning" role="alert">
-                    <i class="bi bi-exclamation-triangle"></i>
-                    <strong>Advertencia:</strong> Algunos productos no tienen suficiente stock disponible. La venta se completará, pero deberás reponer inventario.
-                </div>
-            <?php endif; ?>
             <p>Al convertir esta cotización a venta:</p>
             <ul>
-                <li>Se registrarán movimientos de salida en el inventario</li>
-                <li>Se actualizará el stock de los productos</li>
+                <li><strong>No</strong> se descontará inventario de productos ni insumos</li>
                 <li>La cotización cambiará a estado "Convertida"</li>
                 <li>Se registrará en el historial de la cotización</li>
             </ul>
