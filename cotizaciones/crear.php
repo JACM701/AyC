@@ -761,6 +761,8 @@ function renderTablaProductos() {
         if (typeof p.stock !== 'undefined' && p.stock !== null && p.stock !== '') {
             stockStr = esBobina ? parseFloat(p.stock).toFixed(2) : parseInt(p.stock);
         }
+        if (typeof p.iva === 'undefined') p.iva = false;
+        const ivaMonto = p.iva ? sub * 0.16 : 0;
         html += `
             <tr>
                 <td>${p.nombre}
@@ -794,14 +796,32 @@ function renderTablaProductos() {
                            data-index="${i}" 
                            style="width: 110px;">
                 </td>
-                <td>$${sub.toFixed(2)}</td>
+                <td>
+                    <div style="display:flex; flex-direction:column; align-items:flex-start;">
+                        <span>$${p.iva ? (sub + (sub * 0.16)).toFixed(2) : sub.toFixed(2)}${p.iva ? ' <span class=\'badge bg-warning ms-1\'>IVA incluido</span>' : ''}</span>
+                        ${p.iva ? `<span style='font-size:0.85em; color:#888;'>Base: $${sub.toFixed(2)} | IVA: $${(sub * 0.16).toFixed(2)}</span>` : ''}
+                    </div>
+                </td>
                 <td>
                     <button type="button" class="btn btn-danger btn-sm btn-eliminar-producto" data-idx="${i}">
                         <i class="bi bi-trash"></i>
                     </button>
+                    <div style="margin-top:6px;">
+                        <label class="form-check-label" style="font-size:0.95em;">
+                            <input type="checkbox" class="form-check-input iva-toggle-producto" data-index="${i}" ${p.iva ? 'checked' : ''}> IVA 16%
+                        </label>
+                        ${p.iva ? `<span class='badge bg-warning ms-1'>IVA: $${ivaMonto.toFixed(2)}</span>` : ''}
+                    </div>
                 </td>
             </tr>
         `;
+// Evento para toggle IVA en productos
+$(document).on('change', '.iva-toggle-producto', function() {
+    const index = parseInt($(this).data('index'));
+    productosCotizacion[index].iva = this.checked;
+    renderTablaProductos();
+    guardarBorrador();
+});
     });
     $('#tablaProductosCotizacion tbody').html(html);
     $('#subtotal').val(`$${subtotal.toFixed(2)}`);
@@ -1768,7 +1788,9 @@ function renderTablaInsumos() {
     let html = '';
     let subtotal = 0;
     insumosCotizacion.forEach((ins, i) => {
+        if (typeof ins.iva === 'undefined') ins.iva = false;
         const sub = (parseFloat(ins.precio) || 0) * (parseFloat(ins.cantidad) || 1);
+        const ivaMonto = ins.iva ? sub * 0.16 : 0;
         subtotal += sub;
         html += `
             <tr>
@@ -1781,12 +1803,32 @@ function renderTablaInsumos() {
                 <td><input type="number" min="1" step="1" value="${ins.cantidad}" class="form-control form-control-sm cantidad-insumo-input" data-index="${i}" data-paquete-id="${ins.paquete_id || ''}" data-tipo-paquete="${ins.tipo_paquete || ''}" style="width: 80px;"></td>
                 <td><input type="number" min="0" step="0.0001" value="${ins.precio || ''}" class="form-control form-control-sm precio-insumo-input" data-index="${i}" style="width: 110px;"></td>
                 <td>$${sub.toFixed(2)}</td>
+                <td>
+                    <label class="form-check-label" style="font-size:0.95em;">
+                        <input type="checkbox" class="form-check-input iva-toggle-insumo" data-index="${i}" ${ins.iva ? 'checked' : ''}> IVA 16%
+                    </label>
+                    ${ins.iva ? `<span class='badge bg-warning ms-1'>IVA: $${ivaMonto.toFixed(2)}</span>` : ''}
+                </td>
                 <td><button type="button" class="btn btn-danger btn-sm btn-eliminar-insumo" data-idx="${i}"><i class="bi bi-trash"></i></button></td>
             </tr>
         `;
     });
     $('#tablaInsumosCotizacion tbody').html(html);
     recalcularTotales();
+// Evento para toggle IVA en productos
+$(document).on('change', '.iva-toggle-producto', function() {
+    const index = parseInt($(this).data('index'));
+    productosCotizacion[index].iva = this.checked;
+    renderTablaProductos();
+    guardarBorrador();
+});
+// Evento para toggle IVA en insumos
+$(document).on('change', '.iva-toggle-insumo', function() {
+    const index = parseInt($(this).data('index'));
+    insumosCotizacion[index].iva = this.checked;
+    renderTablaInsumos();
+    guardarBorrador();
+});
 }
 $(document).on('input', '.cantidad-insumo-input', function() {
     const index = parseInt($(this).data('index'));
@@ -1842,13 +1884,37 @@ function recalcularTotales() {
     const subtotalProductos = productosCotizacion.reduce((sum, p) => sum + ((parseFloat(p.precio)||0)*(parseFloat(p.cantidad)||1)), 0);
     const subtotalServicios = serviciosCotizacion.reduce((sum, s) => sum + ((parseFloat(s.precio)||0)*(parseFloat(s.cantidad)||1)), 0);
     const subtotalInsumos = insumosCotizacion.reduce((sum, i) => sum + ((parseFloat(i.precio)||0)*(parseFloat(i.cantidad)||1)), 0);
+    const ivaProductos = productosCotizacion.reduce((sum, p) => {
+        const sub = (parseFloat(p.precio)||0)*(parseFloat(p.cantidad)||1);
+        return sum + (p.iva ? sub * 0.16 : 0);
+    }, 0);
+    const ivaInsumos = insumosCotizacion.reduce((sum, i) => {
+        const sub = (parseFloat(i.precio)||0)*(parseFloat(i.cantidad)||1);
+        return sum + (i.iva ? sub * 0.16 : 0);
+    }, 0);
     const subtotal = subtotalProductos + subtotalServicios + subtotalInsumos;
     const descuentoPorcentaje = parseFloat($('#descuento_porcentaje').val()) || 0;
     const descuentoMonto = subtotal * descuentoPorcentaje / 100;
     const total = subtotal - descuentoMonto;
+    const totalIVA = ivaProductos + ivaInsumos;
     $('#subtotal').val(`$${subtotal.toFixed(2)}`);
     $('#descuento_monto').val(`$${descuentoMonto.toFixed(2)}`);
     $('#total').val(`$${total.toFixed(2)}`);
+    // Mostrar IVA total en el resumen si existe el campo
+    if ($('#iva_total').length) {
+        $('#iva_total').val(`$${totalIVA.toFixed(2)}`);
+    }
+// Agregar campo visual de IVA total en el resumen si no existe
+$(document).ready(function() {
+    if ($('#iva_total').length === 0) {
+        const ivaInput = `<div class="col-md-4"><label class="form-label">IVA 16% Total</label><input type="text" id="iva_total" class="form-control" readonly value="$0.00"></div>`;
+        // Busca el resumen y lo inserta antes del total
+        const resumenRow = $('.section-title:contains("Resumen")').parent().find('.row.g-3');
+        if (resumenRow.length) {
+            resumenRow.append(ivaInput);
+        }
+    }
+});
 }
 
 // Evento para check de sincronización en productos
