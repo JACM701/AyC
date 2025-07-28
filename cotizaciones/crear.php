@@ -303,6 +303,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .select2-selection__rendered { line-height: 38px !important; }
         .select2-selection__arrow { height: 38px !important; }
         .table thead th { background: #121866; color: #fff; }
+        .th-accion-dark {
+            background: #121866 !important;
+            color: #fff !important;
+            width: 70px !important;
+            text-align: center;
+        }
+        /* Asegura que los td de la columna Acción tengan el mismo ancho */
+        #tablaInsumosCotizacion td:last-child,
+        #tablaProductosCotizacion td:last-child {
+            width: 70px !important;
+            text-align: center;
+        }
         .badge-stock { font-size: 0.85rem; }
         /* Icono de búsqueda discreto en la tabla */
         .icon-buscar-google {
@@ -441,7 +453,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <thead class="table-dark">
                         <tr>
                             <th>Nombre</th>
-                            <th>SKU</th>
+<!-- SKU removido -->
                             <th>Enlace</th>
                             <th>Proveedor</th>
                             <th>Stock</th>
@@ -475,7 +487,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <th>Cantidad</th>
                             <th>Precio</th>
                             <th>Subtotal</th>
-                            <th>Acción</th>
+                            <th class="th-accion-dark">Acción</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
@@ -768,9 +780,7 @@ function renderTablaProductos() {
                 <td>${p.nombre}
                     ${p.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google"><i class="bi bi-search"></i></a>` : ''}
                 </td>
-                <td>${p.sku || ''}
-                    ${p.sku ? `<a href="https://www.google.com/search?q=${skuGoogle}" target="_blank" title="Buscar SKU en Google" class="icon-buscar-google"><i class="bi bi-search"></i></a>` : ''}
-                </td>
+                <!-- SKU removido -->
                 <td style="text-align:center;">
                     ${p.paquete_id ? `<input type='checkbox' class='sync-checkbox' data-index='${i}' ${p.sincronizado !== false ? 'checked' : ''} title='Sincronizar con principal'> <i class='bi bi-link-45deg'></i>` : ''}
                 </td>
@@ -796,21 +806,23 @@ function renderTablaProductos() {
                            data-index="${i}" 
                            style="width: 110px;">
                 </td>
-                <td>
-                    <div style="display:flex; flex-direction:column; align-items:flex-start;">
-                        <span>$${p.iva ? (sub + (sub * 0.16)).toFixed(2) : sub.toFixed(2)}${p.iva ? ' <span class=\'badge bg-warning ms-1\'>IVA incluido</span>' : ''}</span>
-                        ${p.iva ? `<span style='font-size:0.85em; color:#888;'>Base: $${sub.toFixed(2)} | IVA: $${(sub * 0.16).toFixed(2)}</span>` : ''}
-                    </div>
-                </td>
-                <td>
-                    <button type="button" class="btn btn-danger btn-sm btn-eliminar-producto" data-idx="${i}">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                    <div style="margin-top:6px;">
-                        <label class="form-check-label" style="font-size:0.95em;">
+                <td style="text-align:right; vertical-align:middle;">
+                    <div style="display:flex; flex-direction:column; align-items:flex-end;">
+                        <span style="font-size:1.15em; font-weight:600;">
+                            $${p.iva ? (sub + (sub * 0.16)).toFixed(2) : sub.toFixed(2)}
+                            ${p.iva ? '<span class="badge bg-warning ms-2">IVA incluido</span>' : ''}
+                        </span>
+                        <label class="form-check-label mt-1" style="font-size:0.95em;">
                             <input type="checkbox" class="form-check-input iva-toggle-producto" data-index="${i}" ${p.iva ? 'checked' : ''}> IVA 16%
                         </label>
-                        ${p.iva ? `<span class='badge bg-warning ms-1'>IVA: $${ivaMonto.toFixed(2)}</span>` : ''}
+                        ${p.iva ? `<span style='font-size:0.85em; color:#888; margin-top:2px;'>Base: $${sub.toFixed(2)}<span style='margin:0 6px;'>|</span>IVA: $${(sub * 0.16).toFixed(2)}</span>` : ''}
+                    </div>
+                </td>
+                <td style="width:70px; text-align:center; vertical-align:middle; padding:0;">
+                    <div style="display:flex; justify-content:center; align-items:center; height:100%;">
+                        <button type="button" class="btn btn-danger btn-sm btn-eliminar-producto" data-idx="${i}" style="width:32px; height:32px; display:flex; justify-content:center; align-items:center; padding:0;">
+                            <i class="bi bi-trash" style="font-size:1.15em;"></i>
+                        </button>
                     </div>
                 </td>
             </tr>
@@ -1802,14 +1814,25 @@ function renderTablaInsumos() {
                 <td>${ins.stock}</td>
                 <td><input type="number" min="1" step="1" value="${ins.cantidad}" class="form-control form-control-sm cantidad-insumo-input" data-index="${i}" data-paquete-id="${ins.paquete_id || ''}" data-tipo-paquete="${ins.tipo_paquete || ''}" style="width: 80px;"></td>
                 <td><input type="number" min="0" step="0.0001" value="${ins.precio || ''}" class="form-control form-control-sm precio-insumo-input" data-index="${i}" style="width: 110px;"></td>
-                <td>$${sub.toFixed(2)}</td>
                 <td>
-                    <label class="form-check-label" style="font-size:0.95em;">
-                        <input type="checkbox" class="form-check-input iva-toggle-insumo" data-index="${i}" ${ins.iva ? 'checked' : ''}> IVA 16%
-                    </label>
-                    ${ins.iva ? `<span class='badge bg-warning ms-1'>IVA: $${ivaMonto.toFixed(2)}</span>` : ''}
+                    <div style="display:flex; flex-direction:column; align-items:flex-end;">
+                        <span style="font-size:1.15em; font-weight:600;">
+                            $${ins.iva ? (sub + ivaMonto).toFixed(2) : sub.toFixed(2)}
+                            ${ins.iva ? '<span class="badge bg-warning ms-2">IVA incluido</span>' : ''}
+                        </span>
+                        <label class="form-check-label mt-1" style="font-size:0.95em;">
+                            <input type="checkbox" class="form-check-input iva-toggle-insumo" data-index="${i}" ${ins.iva ? 'checked' : ''}> IVA 16%
+                        </label>
+                        ${ins.iva ? `<span style='font-size:0.85em; color:#888; margin-top:2px;'>Base: $${sub.toFixed(2)}<span style='margin:0 6px;'>|</span>IVA: $${ivaMonto.toFixed(2)}</span>` : ''}
+                    </div>
                 </td>
-                <td><button type="button" class="btn btn-danger btn-sm btn-eliminar-insumo" data-idx="${i}"><i class="bi bi-trash"></i></button></td>
+                <td style="width:70px; text-align:center; vertical-align:middle; padding:0;">
+                    <div style="display:flex; justify-content:center; align-items:center; height:100%;">
+                        <button type="button" class="btn btn-danger btn-sm btn-eliminar-insumo" data-idx="${i}" style="width:32px; height:32px; display:flex; justify-content:center; align-items:center; padding:0;">
+                            <i class="bi bi-trash" style="font-size:1.15em;"></i>
+                        </button>
+                    </div>
+                </td>
             </tr>
         `;
     });
