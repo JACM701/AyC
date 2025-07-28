@@ -1804,37 +1804,19 @@ function renderTablaInsumos() {
         const ivaMonto = ins.iva ? sub * 0.16 : 0;
         subtotal += sub;
         html += `
-            <tr style='background:#fff; border-radius:16px; box-shadow:0 2px 12px rgba(18,24,102,0.07); margin-bottom:12px; border:2px solid #f4f6fb; transition:box-shadow 0.2s, border 0.2s;'>
-                <td style='font-weight:700; color:#121866; padding:18px 12px; min-width:180px;'>
-                    <div style='display:flex; flex-direction:column;'>
-                        <span>${ins.nombre}</span>
-                        ${ins.equivalenciaStr ? `<small class='text-muted'>${ins.equivalenciaStr}</small>` : ''}
-                    </div>
-                </td>
-                <td style="text-align:center; vertical-align:middle;">
-                    ${ins.paquete_id ? `<span class='badge bg-info' style='font-size:0.95em;'><input type='checkbox' class='sync-checkbox-insumo' data-index='${i}' ${ins.sincronizado !== false ? 'checked' : ''} title='Sincronizar con principal' style='margin-right:4px;'> <i class='bi bi-link-45deg'></i> Sync</span>` : ''}
-                </td>
-                <td style='vertical-align:middle;'>${ins.proveedor || ''}</td>
-                <td style='color:#198754; font-weight:600; vertical-align:middle;'>${ins.stock}</td>
-                <td style='vertical-align:middle;'>
-                    <input type="number" min="1" step="1" value="${ins.cantidad}" class="form-control form-control-sm cantidad-insumo-input" data-index="${i}" data-paquete-id="${ins.paquete_id || ''}" data-tipo-paquete="${ins.tipo_paquete || ''}" style="width: 80px; background:#f8f9fa; border-radius:8px; border:1px solid #dbe2ef; box-shadow:0 1px 2px rgba(18,24,102,0.04);">
-                </td>
-                <td style='vertical-align:middle;'>
-                    <input type="number" min="0" step="0.0001" value="${ins.precio || ''}" class="form-control form-control-sm precio-insumo-input" data-index="${i}" style="width: 110px; background:#f8f9fa; border-radius:8px; border:1px solid #dbe2ef; box-shadow:0 1px 2px rgba(18,24,102,0.04);">
-                </td>
-                <td style='vertical-align:middle;'>
-                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
-                        <span style="font-size:1em; font-weight:600; color:${typeof ins.costo !== 'undefined' && ins.costo !== null && ins.costo !== '' && parseFloat(ins.precio) > 0 && (parseFloat(ins.precio) - parseFloat(ins.costo)) >= 0 ? '#198754' : '#d63333'};">
-                            ${typeof ins.costo !== 'undefined' && ins.costo !== null && ins.costo !== '' && parseFloat(ins.precio) > 0 ? `${(((parseFloat(ins.precio) - parseFloat(ins.costo)) / parseFloat(ins.precio)) * 100).toFixed(2)}%` : '--'}
-                        </span>
-                        <span style="font-size:0.9em; color:#888;">
-                            ${typeof ins.costo !== 'undefined' && ins.costo !== null && ins.costo !== '' && parseFloat(ins.precio) > 0 ? `Utilidad: $${(parseFloat(ins.precio) - parseFloat(ins.costo)).toFixed(2)}` : ''}
-                        </span>
-                    </div>
-                </td>
-                <td style='vertical-align:middle;'>
-                    <div style="display:flex; flex-direction:row; align-items:center; justify-content:flex-end; gap:16px;">
-                        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
+                <tr style='background:#fff; border-radius:16px; box-shadow:0 2px 12px rgba(18,24,102,0.07); margin-bottom:12px; border:2px solid #f4f6fb; transition:box-shadow 0.2s, border 0.2s;'>
+                    <td style='font-weight:700; color:#121866; padding:18px 12px; min-width:180px;'>${ins.nombre}</td>
+                    <td style="text-align:center; vertical-align:middle;">${ins.categoria || ''}${ins.equivalenciaStr ? `<br><small class='text-muted'>${ins.equivalenciaStr}</small>` : ''}</td>
+                    <td style='vertical-align:middle;'>${ins.proveedor || ''}</td>
+                    <td style='color:#198754; font-weight:600; vertical-align:middle;'>${ins.stock}</td>
+                    <td style='vertical-align:middle;'>
+                        <input type="number" min="1" step="1" value="${ins.cantidad}" class="form-control form-control-sm cantidad-insumo-input" data-index="${i}" style="width: 80px; background:#f8f9fa; border-radius:8px; border:1px solid #dbe2ef; box-shadow:0 1px 2px rgba(18,24,102,0.04);">
+                    </td>
+                    <td style='vertical-align:middle;'>
+                        <input type="number" min="0" step="0.0001" value="${ins.precio}" class="form-control form-control-sm precio-insumo-input" data-index="${i}" style="width: 110px; background:#f8f9fa; border-radius:8px; border:1px solid #dbe2ef; box-shadow:0 1px 2px rgba(18,24,102,0.04);">
+                    </td>
+                    <td style='vertical-align:middle;'>
+                        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px; height:100%;">
                             <span style="font-size:1.15em; font-weight:700; color:#212529;">
                                 $${ins.iva ? (sub + ivaMonto).toFixed(2) : sub.toFixed(2)}
                                 ${ins.iva ? '<span class="badge bg-warning ms-2">IVA incluido</span>' : ''}
@@ -1844,13 +1826,16 @@ function renderTablaInsumos() {
                             </label>
                             ${ins.iva ? `<span style='font-size:0.85em; color:#888; margin-top:2px;'>Base: $${sub.toFixed(2)}<span style='margin:0 6px;'>|</span>IVA: $${ivaMonto.toFixed(2)}</span>` : ''}
                         </div>
-                        <button type="button" class="btn btn-danger btn-sm btn-eliminar-insumo" data-idx="${i}" style="width:32px; height:32px; display:flex; justify-content:center; align-items:center; padding:0; border-radius:10px; box-shadow:0 1px 4px rgba(214,51,51,0.08);">
-                            <i class="bi bi-trash" style="font-size:1.15em;"></i>
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `;
+                    </td>
+                    <td style="width:70px; text-align:center; vertical-align:middle; padding:0;">
+                        <div style="display:flex; justify-content:center; align-items:center; height:48px;">
+                            <button type="button" class="btn btn-danger btn-sm btn-eliminar-insumo" data-idx="${i}" style="width:32px; height:32px; display:flex; justify-content:center; align-items:center; border-radius:10px; box-shadow:0 1px 4px rgba(214,51,51,0.08);">
+                                <i class="bi bi-trash" style="font-size:1.15em;"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
     });
     $('#tablaInsumosCotizacion tbody').html(html);
     recalcularTotales();
