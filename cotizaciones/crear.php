@@ -11,6 +11,7 @@ $productos = $mysqli->query("
         p.product_name, 
         p.sku, 
         p.price, 
+        p.cost_price,
         p.tipo_gestion,
         c.name as categoria, 
         s.name as proveedor,
@@ -24,7 +25,7 @@ $productos = $mysqli->query("
     LEFT JOIN categories c ON p.category_id = c.category_id 
     LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id
     LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
-    GROUP BY p.product_id, p.product_name, p.sku, p.price, p.tipo_gestion, c.name, s.name, p.quantity
+    GROUP BY p.product_id, p.product_name, p.sku, p.price, p.cost_price, p.tipo_gestion, c.name, s.name, p.quantity
     ORDER BY p.product_name ASC
 ");
 $productos_array = $productos ? $productos->fetch_all(MYSQLI_ASSOC) : [];
@@ -712,7 +713,8 @@ $('#sugerencias_productos').on('click', 'button', function() {
         stock: prod ? (prod.tipo_gestion === 'bobina' ? (prod.stock_disponible || 0) : prod.stock_disponible) : $(this).data('stock'),
         cantidad: prod && prod.tipo_gestion === 'bobina' ? 1.00 : 1,
         precio: $(this).data('precio'),
-        tipo_gestion: prod ? prod.tipo_gestion : 'pieza'
+        tipo_gestion: prod ? prod.tipo_gestion : 'pieza',
+        cost_price: prod && typeof prod.cost_price !== 'undefined' ? prod.cost_price : ''
     });
     $('#buscador_producto').val('');
     $('#sugerencias_productos').hide();
@@ -748,6 +750,13 @@ $('#btnAgregarProductoRapido').on('click', function() {
 });
 function agregarProductoATabla(prod) {
     if (!prod.tipo_gestion) prod.tipo_gestion = 'pieza';
+    // Si el producto existe en productosArray, copiar cost_price
+    if (typeof prod.product_id !== 'undefined' && prod.product_id !== null) {
+        const prodBase = productosArray.find(p => p.product_id == prod.product_id);
+        if (prodBase && typeof prodBase.cost_price !== 'undefined') {
+            prod.cost_price = prodBase.cost_price;
+        }
+    }
     productosCotizacion.push(prod);
     renderTablaProductos();
     guardarBorrador();
@@ -798,11 +807,11 @@ function renderTablaProductos() {
                 </td>
                 <td style='vertical-align:middle;'>
                     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
-                        <span style="font-size:1em; font-weight:600; color:${typeof p.costo !== 'undefined' && p.costo !== null && p.costo !== '' && parseFloat(p.precio) > 0 && (parseFloat(p.precio) - parseFloat(p.costo)) >= 0 ? '#198754' : '#d63333'};">
-                            ${typeof p.costo !== 'undefined' && p.costo !== null && p.costo !== '' && parseFloat(p.precio) > 0 ? `${(((parseFloat(p.precio) - parseFloat(p.costo)) / parseFloat(p.precio)) * 100).toFixed(2)}%` : '--'}
+                        <span style="font-size:1em; font-weight:600; color:${typeof p.cost_price !== 'undefined' && p.cost_price !== null && p.cost_price !== '' && parseFloat(p.precio) > 0 && (parseFloat(p.precio) - parseFloat(p.cost_price)) >= 0 ? '#198754' : '#d63333'};">
+                            ${typeof p.cost_price !== 'undefined' && p.cost_price !== null && p.cost_price !== '' && parseFloat(p.precio) > 0 ? `${(((parseFloat(p.precio) - parseFloat(p.cost_price)) / parseFloat(p.precio)) * 100).toFixed(2)}%` : '--'}
                         </span>
                         <span style="font-size:0.9em; color:#888;">
-                            ${typeof p.costo !== 'undefined' && p.costo !== null && p.costo !== '' && parseFloat(p.precio) > 0 ? `Utilidad: $${(parseFloat(p.precio) - parseFloat(p.costo)).toFixed(2)}` : ''}
+                            ${typeof p.cost_price !== 'undefined' && p.cost_price !== null && p.cost_price !== '' && parseFloat(p.precio) > 0 ? `Utilidad: $${(parseFloat(p.precio) - parseFloat(p.cost_price)).toFixed(2)}` : ''}
                         </span>
                     </div>
                 </td>
@@ -1783,7 +1792,8 @@ $('#sugerencias_insumos').on('click', 'button', function() {
         precio: precioFinal,
         equivalencia: equivalencia,
         equivalenciaStr: equivalenciaStr,
-        unidad: unidad
+        unidad: unidad,
+        costo: $(this).data('cost_price') // <-- Agregado para margen
     };
     // Evitar duplicados
     if (insumosCotizacion.some(i => i.insumo_id == insumo.insumo_id)) {
@@ -1816,12 +1826,15 @@ function renderTablaInsumos() {
                     <td style='vertical-align:middle;'>
                         <input type="number" min="0" step="0.0001" value="${ins.precio}" class="form-control form-control-sm precio-insumo-input" data-index="${i}" style="width: 110px; background:#f8f9fa; border-radius:8px; border:1px solid #dbe2ef; box-shadow:0 1px 2px rgba(18,24,102,0.04);">
                     </td>
-                    <td style='vertical-align:middle; text-align:right; background:#f8f9fa; color:#0d6efd; font-weight:600; border-radius:8px; min-width:90px;'>
-                        <span style='font-size:1.08em;'>
-                            $${(typeof ins.costo !== 'undefined' && ins.costo !== null && ins.costo !== '' && !isNaN(ins.costo)) ? ((parseFloat(ins.precio) - parseFloat(ins.costo)) * (parseFloat(ins.cantidad) || 1)).toFixed(2) : '—'}
-                        </span>
-                        <br>
-                        <small style='color:#888;'>Margen</small>
+                    <td style='vertical-align:middle;'>
+                        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
+                            <span style="font-size:1em; font-weight:600; color:${typeof ins.costo !== 'undefined' && ins.costo !== null && ins.costo !== '' && parseFloat(ins.precio) > 0 && (parseFloat(ins.precio) - parseFloat(ins.costo)) >= 0 ? '#198754' : '#d63333'};">
+                                ${typeof ins.costo !== 'undefined' && ins.costo !== null && ins.costo !== '' && parseFloat(ins.precio) > 0 ? `${(((parseFloat(ins.precio) - parseFloat(ins.costo)) / parseFloat(ins.precio)) * 100).toFixed(2)}%` : '--'}
+                            </span>
+                            <span style="font-size:0.9em; color:#888;">
+                                ${typeof ins.costo !== 'undefined' && ins.costo !== null && ins.costo !== '' && parseFloat(ins.precio) > 0 ? `Utilidad: $${(parseFloat(ins.precio) - parseFloat(ins.costo)).toFixed(2)}` : ''}
+                            </span>
+                        </div>
                     </td>
                     <td style='vertical-align:middle;'>
                         <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px; height:100%;">
