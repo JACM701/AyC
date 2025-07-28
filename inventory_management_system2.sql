@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: 127.0.0.1
--- Tiempo de generación: 20-07-2025 a las 01:56:59
+-- Tiempo de generación: 28-07-2025 a las 01:50:37
 -- Versión del servidor: 10.4.32-MariaDB
 -- Versión de PHP: 8.2.12
 
@@ -42,7 +42,8 @@ CREATE TABLE `bobinas` (
 
 INSERT INTO `bobinas` (`bobina_id`, `product_id`, `metros_actuales`, `identificador`, `is_active`, `created_at`) VALUES
 (2, 72, 305.00, 'Bobina #1', 1, '2025-07-14 19:57:57'),
-(6, 72, 305.00, 'Bobina #2', 1, '2025-07-16 20:13:48');
+(6, 72, 305.00, 'Bobina #2', 1, '2025-07-16 20:13:48'),
+(7, 72, 700.00, 'Bobina #3', 1, '2025-07-21 15:03:00');
 
 -- --------------------------------------------------------
 
@@ -145,7 +146,12 @@ INSERT INTO `cotizaciones` (`cotizacion_id`, `numero_cotizacion`, `cliente_id`, 
 (1, 'COT-2025-0001', 1, '2025-07-17', 30, 2177.12, 0.00, 0.00, 2177.12, '', '0', 2, 1, '2025-07-17 04:58:50', '2025-07-17 04:58:50'),
 (2, 'COT-2025-0002', 1, '2025-07-17', 30, 544.28, 0.00, 0.00, 544.28, '', '0', 2, 1, '2025-07-17 05:01:04', '2025-07-17 05:01:04'),
 (3, 'COT-2025-0003', 1, '2025-07-17', 30, 477.28, 0.00, 0.00, 477.28, '', '0', 2, 1, '2025-07-17 05:02:28', '2025-07-17 05:02:28'),
-(4, 'COT-2025-0004', 1, '2025-07-18', 30, 3057.35, 0.00, 0.00, 3057.35, '', '0', 2, 1, '2025-07-18 07:26:15', '2025-07-18 07:26:15');
+(4, 'COT-2025-0004', 1, '2025-07-18', 30, 2307.35, 0.00, 0.00, 2307.35, '', '0', 5, 1, '2025-07-18 07:26:15', '2025-07-22 19:54:44'),
+(5, 'COT-2025-0005', 1, '2025-07-22', 30, 2307.35, 0.00, 0.00, 2307.35, '', '0', 5, 1, '2025-07-22 17:08:23', '2025-07-22 19:29:29'),
+(6, 'COT-2025-0006', 1, '2025-07-22', 30, 1845.88, 0.00, 0.00, 1845.88, '', '0', 5, 1, '2025-07-22 18:03:02', '2025-07-22 19:30:10'),
+(7, 'COT-2025-0007', 1, '2025-07-22', 30, 611.47, 0.00, 0.00, 611.47, '', '0', 5, 1, '2025-07-22 19:32:56', '2025-07-22 19:33:17'),
+(8, 'COT-2025-0008', 1, '2025-07-22', 30, 611.47, 0.00, 0.00, 611.47, '', '0', 5, 1, '2025-07-22 19:55:54', '2025-07-22 19:56:08'),
+(9, 'COT-2025-0009', 1, '2025-07-22', 30, 611.47, 0.00, 0.00, 611.47, '', '0', 5, 1, '2025-07-22 20:04:55', '2025-07-22 20:05:15');
 
 -- --------------------------------------------------------
 
@@ -166,6 +172,7 @@ INSERT INTO `cotizaciones_acciones` (`accion_id`, `nombre_accion`) VALUES
 (3, 'Aprobada'),
 (5, 'Convertida'),
 (1, 'Creada'),
+(7, 'Devolución'),
 (2, 'Enviada'),
 (6, 'Modificada'),
 (4, 'Rechazada');
@@ -193,7 +200,68 @@ INSERT INTO `cotizaciones_historial` (`historial_id`, `cotizacion_id`, `accion_i
 (1, 1, 1, 'Cotización creada con 1 productos por un total de $2,177.12', 1, '2025-07-17 04:58:50'),
 (2, 2, 1, 'Cotización creada con 1 productos por un total de $544.28', 1, '2025-07-17 05:01:04'),
 (3, 3, 1, 'Cotización creada con 1 productos por un total de $477.28', 1, '2025-07-17 05:02:28'),
-(4, 4, 1, 'Cotización creada con 1 productos por un total de $3,057.35', 1, '2025-07-18 07:26:15');
+(4, 4, 1, 'Cotización creada con 1 productos por un total de $3,057.35', 1, '2025-07-18 07:26:15'),
+(5, 5, 1, 'Cotización creada con 1 productos por un total de $2,445.88', 1, '2025-07-22 17:08:23'),
+(6, 5, 3, 'Estado cambiado de \'Enviada\' a \'Aprobada\'', 1, '2025-07-22 17:10:22'),
+(7, 5, 4, 'Estado cambiado de \'Aprobada\' a \'Rechazada\'', 1, '2025-07-22 17:11:38'),
+(8, 5, 3, 'Estado cambiado de \'Rechazada\' a \'Aprobada\'', 1, '2025-07-22 17:11:43'),
+(9, 5, 6, 'Cotización modificada con 1 productos por un total de $2,307.35', 1, '2025-07-22 17:42:26'),
+(10, 5, 6, 'Cotización modificada con 1 productos por un total de $2,307.35', 1, '2025-07-22 17:53:54'),
+(11, 5, 6, 'Cotización modificada con 1 productos por un total de $2,307.35', 1, '2025-07-22 17:54:24'),
+(12, 5, 6, 'Cotización modificada con 1 productos por un total de $2,307.35', 1, '2025-07-22 17:57:42'),
+(13, 5, 6, 'Cotización modificada con 1 productos por un total de $2,307.35', 1, '2025-07-22 17:58:00'),
+(14, 6, 1, 'Cotización creada con 1 productos por un total de $2,145.88', 1, '2025-07-22 18:03:02'),
+(15, 6, 3, 'Estado cambiado de \'Enviada\' a \'Aprobada\'', 1, '2025-07-22 18:03:09'),
+(16, 6, 4, 'Estado cambiado de \'Aprobada\' a \'Rechazada\'', 1, '2025-07-22 18:25:48'),
+(17, 6, 3, 'Estado cambiado de \'Rechazada\' a \'Aprobada\'', 1, '2025-07-22 18:25:51'),
+(18, 6, 5, 'Cotización convertida a venta y stock descontado', 1, '2025-07-22 18:37:45'),
+(19, 5, 5, 'Cotización convertida a venta y stock descontado', 1, '2025-07-22 19:29:29'),
+(20, 6, 6, 'Cotización modificada con 1 productos por un total de $1,845.88', 1, '2025-07-22 19:30:10'),
+(21, 7, 1, 'Cotización creada con 1 productos por un total de $611.47', 1, '2025-07-22 19:32:56'),
+(22, 7, 3, 'Estado cambiado de \'Enviada\' a \'Aprobada\'', 1, '2025-07-22 19:33:03'),
+(23, 7, 5, 'Cotización convertida a venta y stock descontado', 1, '2025-07-22 19:33:17'),
+(24, 4, 6, 'Cotización modificada con 1 productos por un total de $2,307.35', 1, '2025-07-22 19:54:30'),
+(25, 4, 3, 'Estado cambiado de \'Enviada\' a \'Aprobada\'', 1, '2025-07-22 19:54:36'),
+(26, 4, 5, 'Cotización convertida a venta y stock descontado', 1, '2025-07-22 19:54:44'),
+(27, 8, 1, 'Cotización creada con 1 productos por un total de $611.47', 1, '2025-07-22 19:55:54'),
+(28, 8, 3, 'Estado cambiado de \'Enviada\' a \'Aprobada\'', 1, '2025-07-22 19:55:58'),
+(29, 8, 5, 'Cotización convertida a venta y stock descontado', 1, '2025-07-22 19:56:08'),
+(30, 9, 1, 'Cotización creada con 1 productos por un total de $611.47', 1, '2025-07-22 20:04:55'),
+(31, 9, 3, 'Estado cambiado de \'Enviada\' a \'Aprobada\'', 1, '2025-07-22 20:05:01'),
+(32, 9, 5, 'Cotización convertida a venta y stock descontado', 1, '2025-07-22 20:05:15'),
+(33, 9, 7, 'Se devolvieron 1 unidades del producto ID 53', 1, '2025-07-22 20:55:13');
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `cotizaciones_insumos`
+--
+
+CREATE TABLE `cotizaciones_insumos` (
+  `cotizacion_insumo_id` int(11) NOT NULL,
+  `cotizacion_id` int(11) NOT NULL,
+  `insumo_id` int(11) NOT NULL,
+  `nombre_insumo` varchar(255) NOT NULL,
+  `categoria` varchar(100) DEFAULT NULL,
+  `proveedor` varchar(100) DEFAULT NULL,
+  `cantidad` decimal(10,2) NOT NULL,
+  `precio_unitario` decimal(10,2) NOT NULL,
+  `precio_total` decimal(10,2) NOT NULL,
+  `imagen` varchar(255) DEFAULT NULL,
+  `stock_disponible` decimal(10,2) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Volcado de datos para la tabla `cotizaciones_insumos`
+--
+
+INSERT INTO `cotizaciones_insumos` (`cotizacion_insumo_id`, `cotizacion_id`, `insumo_id`, `nombre_insumo`, `categoria`, `proveedor`, `cantidad`, `precio_unitario`, `precio_total`, `imagen`, `stock_disponible`) VALUES
+(2, 5, 4, 'pijas', 'Accesorios', '0', 5.00, 0.00, 0.00, NULL, 0.93),
+(4, 6, 3, 'Conectores', 'Accesorios', '0', 5.00, 0.00, 0.00, NULL, 1.98),
+(5, 7, 4, 'pijas', 'Accesorios', 'Syscom', 50.00, 0.00, 0.00, NULL, 5.93),
+(6, 4, 4, 'pijas', 'Accesorios', '0', 10.00, 2.00, 20.00, NULL, 0.93),
+(7, 8, 3, 'Conectores', 'Accesorios', 'Amazon', 1.00, 0.00, 0.00, NULL, 0.00),
+(8, 9, 3, 'Conectores', 'Accesorios', 'Amazon', 1.00, 0.00, 0.00, NULL, 1.00);
 
 -- --------------------------------------------------------
 
@@ -218,7 +286,12 @@ INSERT INTO `cotizaciones_productos` (`cotizacion_producto_id`, `cotizacion_id`,
 (1, 1, 30, 4, 444.28, 1777.12),
 (2, 2, 30, 1, 444.28, 444.28),
 (3, 3, 30, 1, 444.28, 444.28),
-(4, 4, 53, 5, 461.47, 2307.35);
+(10, 5, 53, 5, 461.47, 2307.35),
+(12, 6, 53, 4, 461.47, 1845.88),
+(13, 7, 53, 1, 461.47, 461.47),
+(14, 4, 53, 5, 461.47, 2307.35),
+(15, 8, 53, 1, 461.47, 461.47),
+(16, 9, 53, 1, 461.47, 461.47);
 
 -- --------------------------------------------------------
 
@@ -247,7 +320,12 @@ INSERT INTO `cotizaciones_servicios` (`cotizacion_servicio_id`, `cotizacion_id`,
 (1, 1, 6, 'Consultoría técnica', 'Asesoramiento técnico para sistemas de seguridad.', 4.00, 100.00, 400.00, NULL, '2025-07-17 04:58:51'),
 (2, 2, 6, 'Consultoría técnica', 'Asesoramiento técnico para sistemas de seguridad.', 1.00, 100.00, 100.00, '', '2025-07-17 05:01:04'),
 (3, 3, 10, 'gsd', 'fdsfg', 1.00, 33.00, 33.00, 'servicio_1752722174_68786afe81abb.png', '2025-07-17 05:02:28'),
-(4, 4, 1, 'Instalación de cámara', 'Instalación completa de cámara de seguridad incluyendo cableado y configuración.', 5.00, 150.00, 750.00, '', '2025-07-18 07:26:15');
+(10, 5, NULL, 'Instalación de cámara', 'Instalación completa de cámara de seguridad incluyendo cableado y configuración.', 5.00, 150.00, 750.00, '', '2025-07-22 17:58:00'),
+(12, 6, NULL, 'Instalación de cámara', 'Instalación completa de cámara de seguridad incluyendo cableado y configuración.', 2.00, 150.00, 300.00, '', '2025-07-22 19:30:10'),
+(13, 7, 1, 'Instalación de cámara', 'Instalación completa de cámara de seguridad incluyendo cableado y configuración.', 1.00, 150.00, 150.00, '', '2025-07-22 19:32:56'),
+(14, 4, NULL, 'Instalación de cámara', 'Instalación completa de cámara de seguridad incluyendo cableado y configuración.', 5.00, 150.00, 750.00, '', '2025-07-22 19:54:30'),
+(15, 8, 1, 'Instalación de cámara', 'Instalación completa de cámara de seguridad incluyendo cableado y configuración.', 1.00, 150.00, 150.00, '', '2025-07-22 19:55:54'),
+(16, 9, 1, 'Instalación de cámara', 'Instalación completa de cámara de seguridad incluyendo cableado y configuración.', 1.00, 150.00, 150.00, '', '2025-07-22 20:04:55');
 
 -- --------------------------------------------------------
 
@@ -328,7 +406,8 @@ CREATE TABLE `insumos` (
   `nombre` varchar(100) DEFAULT NULL,
   `categoria` varchar(50) DEFAULT NULL,
   `unidad` varchar(20) DEFAULT NULL,
-  `cantidad` decimal(10,2) DEFAULT NULL,
+  `imagen` varchar(255) DEFAULT NULL,
+  `cantidad` decimal(12,4) DEFAULT NULL,
   `minimo` decimal(10,2) DEFAULT NULL,
   `precio_unitario` decimal(10,2) DEFAULT NULL,
   `ubicacion` varchar(100) DEFAULT NULL,
@@ -339,6 +418,16 @@ CREATE TABLE `insumos` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Volcado de datos para la tabla `insumos`
+--
+
+INSERT INTO `insumos` (`insumo_id`, `product_id`, `category_id`, `supplier_id`, `nombre`, `categoria`, `unidad`, `imagen`, `cantidad`, `minimo`, `precio_unitario`, `ubicacion`, `estado`, `consumo_semanal`, `ultima_actualizacion`, `is_active`, `created_at`, `updated_at`) VALUES
+(1, NULL, 5, 6, 'Conectores', 'Accesorios', 'bolsa', 'uploads/insumos/insumo_1753065188_2581.png', 0.0000, 0.00, 0.00, '', 'agotado', 0.00, '2025-07-21 14:16:17', 0, '2025-07-21 02:33:08', '2025-07-21 14:20:08'),
+(2, NULL, 5, 6, 'Conectores', 'Accesorios', 'bolsa (1000 piezas)', 'uploads/insumos/insumo_1753066903_6104.png', 0.9800, 0.00, 0.00, '', 'disponible', 0.00, '2025-07-21 03:26:58', 0, '2025-07-21 03:01:43', '2025-07-21 14:20:28'),
+(3, NULL, 5, 6, 'Conectores', 'Accesorios', 'bolsa (1000 piezas)', NULL, 0.9990, 0.00, 0.00, '', 'disponible', 0.00, '2025-07-22 20:04:16', 1, '2025-07-21 03:17:22', '2025-07-22 20:05:15'),
+(4, NULL, 5, 4, 'pijas', 'Accesorios', 'bolsa (500 piezas)', NULL, 0.9300, 0.00, 0.00, '', 'disponible', 0.00, '2025-07-22 20:04:33', 1, '2025-07-21 17:12:16', '2025-07-22 20:04:33');
 
 -- --------------------------------------------------------
 
@@ -351,10 +440,41 @@ CREATE TABLE `insumos_movements` (
   `insumo_id` int(11) DEFAULT NULL,
   `user_id` int(11) DEFAULT NULL,
   `tipo_movimiento` enum('entrada','salida') DEFAULT NULL,
-  `cantidad` decimal(10,2) DEFAULT NULL,
+  `cantidad` decimal(12,4) DEFAULT NULL,
+  `piezas_movidas` decimal(10,2) DEFAULT NULL COMMENT 'Cantidad exacta de piezas movidas, si aplica',
   `motivo` text DEFAULT NULL,
   `fecha_movimiento` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Volcado de datos para la tabla `insumos_movements`
+--
+
+INSERT INTO `insumos_movements` (`insumo_movement_id`, `insumo_id`, `user_id`, `tipo_movimiento`, `cantidad`, `piezas_movidas`, `motivo`, `fecha_movimiento`) VALUES
+(1, 2, 1, 'salida', 0.0300, NULL, 'Trabajo', '2025-07-21 03:06:47'),
+(2, 3, 1, 'salida', 0.0300, NULL, 'sf', '2025-07-21 03:17:48'),
+(3, 1, 1, 'salida', 1.0000, NULL, 'si', '2025-07-21 14:16:17'),
+(4, 3, 1, 'entrada', 0.0300, NULL, 'Sobra', '2025-07-21 14:40:29'),
+(5, 3, 1, 'salida', 0.0100, NULL, 'si', '2025-07-21 14:41:05'),
+(6, 3, 1, 'salida', 0.0300, NULL, 'wo', '2025-07-21 14:41:25'),
+(7, 3, 1, 'entrada', 0.0300, NULL, 'zo', '2025-07-21 14:41:44'),
+(8, 3, 1, 'salida', 0.0300, NULL, 'as', '2025-07-21 14:42:01'),
+(9, 3, 1, 'entrada', 0.0200, NULL, 'ask', '2025-07-21 14:42:28'),
+(10, 3, 1, 'salida', 0.0300, NULL, 'ma', '2025-07-21 14:42:50'),
+(11, 3, 1, 'entrada', 0.0250, 25.00, 'sk', '2025-07-21 15:14:58'),
+(12, 3, 1, 'salida', 0.0250, 25.00, 'des', '2025-07-21 15:15:10'),
+(13, 3, 1, 'entrada', 0.0200, 20.00, 'dd', '2025-07-21 15:15:24'),
+(14, 3, 1, 'salida', 0.0250, 25.00, 'fs', '2025-07-21 15:15:38'),
+(15, 4, 1, 'entrada', 1.0000, 500.00, 'Ajuste', '2025-07-21 17:13:09'),
+(16, 4, 1, 'salida', 0.0700, 35.00, 'Chamba', '2025-07-21 18:37:10'),
+(17, 3, 1, 'entrada', 3.0000, 3000.00, 'Ajuste', '2025-07-22 19:30:42'),
+(18, 3, 1, 'entrada', 0.0250, 25.00, 'ajuste', '2025-07-22 19:31:05'),
+(19, 4, 1, 'entrada', 10.0000, 5000.00, 'ajuste', '2025-07-22 19:31:51'),
+(20, 4, 1, 'entrada', 2.0000, 1000.00, 'ds', '2025-07-22 19:34:07'),
+(21, 4, 1, 'entrada', 42.0000, NULL, 'ajuste', '2025-07-22 19:34:22'),
+(22, 4, 1, 'entrada', 1.0000, NULL, 'ajuste', '2025-07-22 19:34:42'),
+(23, 3, 1, 'entrada', 2.0000, NULL, 'ajuste', '2025-07-22 20:04:16'),
+(24, 4, 1, 'entrada', 10.0000, NULL, 'si', '2025-07-22 20:04:33');
 
 -- --------------------------------------------------------
 
@@ -393,7 +513,10 @@ INSERT INTO `logs` (`log_id`, `user_id`, `action`, `description`, `created_at`) 
 (16, 1, 'login', 'Usuario admin inició sesión', '2025-07-15 18:51:08'),
 (17, 1, 'login', 'Usuario admin inició sesión', '2025-07-15 21:48:32'),
 (18, 1, 'login', 'Usuario admin inició sesión', '2025-07-18 07:23:47'),
-(19, 1, 'login', 'Usuario admin inició sesión', '2025-07-19 20:25:32');
+(19, 1, 'login', 'Usuario admin inició sesión', '2025-07-19 20:25:32'),
+(20, 1, 'login', 'Usuario admin inició sesión', '2025-07-20 21:12:13'),
+(21, 1, 'login', 'Usuario admin inició sesión', '2025-07-21 14:09:12'),
+(22, 1, 'login', 'Usuario admin inició sesión', '2025-07-27 23:49:18');
 
 -- --------------------------------------------------------
 
@@ -555,7 +678,26 @@ INSERT INTO `movements` (`movement_id`, `product_id`, `bobina_id`, `movement_typ
 (141, 72, 3, 7, 305, NULL, NULL, NULL, NULL, 1, '2025-07-16 20:00:09', '2025-07-16 20:00:09', '2025-07-16 20:00:09', NULL),
 (142, 72, 4, 1, 305, NULL, NULL, NULL, NULL, 1, '2025-07-16 20:00:27', '2025-07-16 20:00:27', '2025-07-16 20:00:27', NULL),
 (143, 72, 5, 1, 305, NULL, NULL, NULL, NULL, 1, '2025-07-16 20:12:55', '2025-07-16 20:12:55', '2025-07-16 20:12:55', NULL),
-(144, 72, 6, 1, 305, NULL, NULL, NULL, NULL, 1, '2025-07-16 20:13:48', '2025-07-16 20:13:48', '2025-07-16 20:13:48', NULL);
+(144, 72, 6, 1, 305, NULL, NULL, NULL, NULL, 1, '2025-07-16 20:13:48', '2025-07-16 20:13:48', '2025-07-16 20:13:48', NULL),
+(145, 72, 2, 7, 305, NULL, NULL, NULL, NULL, 1, '2025-07-21 14:55:34', '2025-07-21 14:55:34', '2025-07-21 14:55:34', NULL),
+(146, 72, 2, 2, -30, NULL, NULL, NULL, NULL, 1, '2025-07-21 14:56:00', '2025-07-21 14:56:00', '2025-07-21 14:56:00', NULL),
+(147, 72, 2, 2, -305, NULL, NULL, NULL, NULL, 1, '2025-07-21 14:57:58', '2025-07-21 14:57:58', '2025-07-21 14:57:58', NULL),
+(148, 72, 2, 2, -20, NULL, NULL, NULL, NULL, 1, '2025-07-21 14:57:58', '2025-07-21 14:57:58', '2025-07-21 14:57:58', NULL),
+(149, 72, 7, 1, 305, NULL, NULL, NULL, NULL, 1, '2025-07-21 15:03:00', '2025-07-21 15:03:00', '2025-07-21 15:03:00', NULL),
+(150, 72, 6, 2, -305, NULL, NULL, NULL, NULL, 1, '2025-07-21 15:03:15', '2025-07-21 15:03:15', '2025-07-21 15:03:15', NULL),
+(151, 72, 6, 7, 305, NULL, NULL, NULL, NULL, 1, '2025-07-21 15:03:33', '2025-07-21 15:03:33', '2025-07-21 15:03:33', NULL),
+(152, 72, 2, 2, -255, NULL, NULL, NULL, NULL, 1, '2025-07-21 15:03:57', '2025-07-21 15:03:57', '2025-07-21 15:03:57', NULL),
+(153, 72, 7, 3, 305, NULL, NULL, NULL, NULL, 1, '2025-07-21 15:04:18', '2025-07-21 15:04:18', '2025-07-21 15:04:18', NULL),
+(154, 72, 2, 1, 305, NULL, NULL, NULL, NULL, 1, '2025-07-21 15:04:35', '2025-07-21 15:04:35', '2025-07-21 15:04:35', NULL),
+(155, 72, 7, 3, 140, NULL, NULL, NULL, NULL, 1, '2025-07-21 15:29:31', '2025-07-21 15:29:31', '2025-07-21 15:29:31', NULL),
+(156, 72, 7, 3, -50, NULL, NULL, NULL, NULL, 1, '2025-07-21 15:31:42', '2025-07-21 15:31:42', '2025-07-21 15:31:42', NULL),
+(157, 53, NULL, 4, -4, NULL, NULL, 'Venta por cotización: COT-2025-0006', 'Conversión de cotización a venta', 1, '2025-07-22 18:37:45', '2025-07-22 18:37:45', '2025-07-22 18:37:45', NULL),
+(158, 53, NULL, 4, -5, NULL, NULL, 'Venta por cotización: COT-2025-0005', 'Conversión de cotización a venta', 1, '2025-07-22 19:29:29', '2025-07-22 19:29:29', '2025-07-22 19:29:29', NULL),
+(159, 53, NULL, 4, -1, NULL, NULL, 'Venta por cotización: COT-2025-0007', 'Conversión de cotización a venta', 1, '2025-07-22 19:33:17', '2025-07-22 19:33:17', '2025-07-22 19:33:17', NULL),
+(160, 53, NULL, 4, -5, NULL, NULL, 'Venta por cotización: COT-2025-0004', 'Conversión de cotización a venta', 1, '2025-07-22 19:54:44', '2025-07-22 19:54:44', '2025-07-22 19:54:44', NULL),
+(161, 53, NULL, 4, -1, NULL, NULL, 'Venta por cotización: COT-2025-0008', 'Conversión de cotización a venta', 1, '2025-07-22 19:56:08', '2025-07-22 19:56:08', '2025-07-22 19:56:08', NULL),
+(162, 53, NULL, 4, -1, NULL, NULL, 'Venta por cotización: COT-2025-0009', 'Conversión de cotización a venta', 1, '2025-07-22 20:05:15', '2025-07-22 20:05:15', '2025-07-22 20:05:15', NULL),
+(163, 53, NULL, 7, 1, NULL, NULL, 'Devolución por cotización #9', 'Devolución de producto tras venta', 1, '2025-07-22 20:55:13', '2025-07-22 20:55:13', '2025-07-22 20:55:13', NULL);
 
 -- --------------------------------------------------------
 
@@ -607,7 +749,7 @@ CREATE TABLE `precios_proveedores` (
 
 CREATE TABLE `products` (
   `product_id` int(11) NOT NULL,
-  `product_name` varchar(100) DEFAULT NULL,
+  `product_name` varchar(300) DEFAULT NULL,
   `sku` varchar(50) DEFAULT NULL,
   `barcode` varchar(50) DEFAULT NULL,
   `price` decimal(10,2) DEFAULT NULL,
@@ -683,7 +825,7 @@ INSERT INTO `products` (`product_id`, `product_name`, `sku`, `barcode`, `price`,
 (50, 'Camara Bullet de 2 Megapixeles', 'DH-HAC-B1A21N-U-0280B', '6923172577917', 257.27, 197.90, 181, NULL, NULL, 1, 31, 'DAHUA HAC-B1A21N-U-28 - Camara Bullet de 2 Megapixeles/ Lente de 2.8 mm/ 30 Metros de IR/ 100 Grados de Apertura/ IP67/ Soporta: CVI/TVI/AHD y CVBS/ #LoNuevo #VolDH #M1', 'uploads/products/prod_687531cbac53b.png', 'normal', '0', NULL, '2025-07-14 16:35:23', '2025-07-14 17:47:09'),
 (51, 'DAHUA IPC-WPT1339DD-SW-3E2-PV -Cámara IP PT Wifi Dual de 6 MP/ Dos lentes de 3 MP cada uno (fijo y P', 'DH-IPC-WPT1339DD-SW-3E2-PV', '6939554932311', 1249.33, 961.02, 7, NULL, NULL, 1, 29, 'DAHUA IPC-WPT1339DD-SW-3E2-PV -Cámara IP PT Wifi Dual de 6 MP/ Dos lentes de 3 MP cada uno (fijo y PT), Iluminador Dual Inteligente, IR 50m, Microfono y Altavoz Integrados, IA, Autotracking, Disuasión activa, Ranura MicroSD, IP66#LoNuevo #DDPT #DHWifi #MC', 'uploads/products/prod_6875337cf0e5c.png', 'normal', '0', NULL, '2025-07-14 16:42:36', '2025-07-14 23:11:51'),
 (52, 'Dahua IPC-WPT1539DD-SW-5E2-PV - Cámara IP PT Wifi Dual de 10 MP, 2 Lentes de 5 MP cada uno (Fijo y P', 'DH-IPC-WPT1539DD-SW-5E2-PV', '6939554932489', 1385.11, 1065.47, 1, NULL, NULL, 1, 29, 'Dahua IPC-WPT1539DD-SW-5E2-PV - Cámara IP PT Wifi Dual de 10 MP, 2 Lentes de 5 MP cada uno (Fijo y PT), Iluminador Dual Inteligente/ IR de 50m, Microfono y Altavoz Integrados, IA, Autotracking, Disuación activa, Ranura MicroSD, IP66 #LoNuevo #DDPT #DHWifi', 'uploads/products/prod_68753478a3c10.png', 'normal', '0', NULL, '2025-07-14 16:46:48', '2025-07-14 16:46:48'),
-(53, 'Cámara Bullet 5 Megapixeles', 'DH-HAC-B1A51N-0280B', 'PRODCM12098159', 461.47, 354.98, 1, NULL, NULL, 1, 31, 'DAHUA HAC-B1A51N-0280B - Cámara Bullet 5 Megapixeles con lente de 2.8 mm y ángulo de 106°. Visión nocturna IR de hasta 20 m, certificación IP67 para exteriores, compatible con CVI, CVBS, AHD y TVI. #HDCVI9.0 #5MP #VIVA #TECNOWEEN #TW1.', 'uploads/products/prod_6879f6cff195c.png', 'normal', '0', NULL, '2025-07-14 16:55:40', '2025-07-18 07:25:03'),
+(53, 'DAHUA HAC-B1A51N-0280B - Cámara Bullet 5 Megapixeles con lente de 2.8 mm y ángulo de 106°. Visión nocturna IR de hasta 20 m, certificación IP67 para exteriores, compatible con CVI, CVBS, AHD y TVI. #H', 'DH-HAC-B1A51N-0280B', 'PRODCM12098159', 461.47, 354.98, -15, NULL, NULL, 1, 31, 'DAHUA HAC-B1A51N-0280B - Cámara Bullet 5 Megapixeles con lente de 2.8 mm y ángulo de 106°. Visión nocturna IR de hasta 20 m, certificación IP67 para exteriores, compatible con CVI, CVBS, AHD y TVI. #HDCVI9.0 #5MP #VIVA #TECNOWEEN #TW1.', 'uploads/products/prod_6879f6cff195c.png', 'normal', '0', NULL, '2025-07-14 16:55:40', '2025-07-22 20:55:13'),
 (54, 'DAHUA PFA150 - Montaje para poste compatible con camaras PTZ series SD65XX / SD69 / SD63 / SD64 / SD', 'DH-PFA150-V2', '6939554903717', 474.25, 364.81, 1, NULL, NULL, 1, 32, 'DAHUA PFA150 - Montaje para poste compatible con camaras PTZ series SD65XX / SD69 / SD63 / SD64 / SD6A / SD6C', 'uploads/products/prod_6875373006060.png', 'normal', '0', NULL, '2025-07-14 16:58:24', '2025-07-14 16:58:24'),
 (55, 'Camara bullet HDCVI 4 MP Metalica', 'DH-HAC-B2A41N-0280B', 'PRODCAM12328029', 541.29, 416.38, 1, NULL, NULL, 1, 31, 'DAHUA COOPER B2A41 - Camara bullet HDCVI 4 MP / TVI / A HD / CVBS / Lente 2.8 mm / Smart ir 20 Mts / IP67 / Apertura lente 97 grados / Metalica/', 'uploads/products/prod_6875380db06b3.png', 'normal', '0', NULL, '2025-07-14 17:02:05', '2025-07-14 17:02:05'),
 (56, 'Cámara IP Domo Antivandalica 4k/ 8 Megapixeles', 'DH-IPC-HDBW2831EN-S-0280B-S2', 'PRODCM12724262', 2449.99, 1884.61, 1, NULL, NULL, 1, 10, 'DAHUA IPC-HDBW2831E-S-S2 -Cámara IP Domo Antivandalica 4k/ 8 Megapixeles/ Lente de 2.8mm/ 105 Grados de Apertura/ H.265+/ WDR Real de 120 dB/ IR de 30 Mts/ Videoanaliticos con IVS/ IP67/ IK10/ PoE/ Ranura para MicroSD/', 'uploads/products/prod_68753947d7aba.png', 'normal', '0', NULL, '2025-07-14 17:07:19', '2025-07-14 17:07:19'),
@@ -702,7 +844,7 @@ INSERT INTO `products` (`product_id`, `product_name`, `sku`, `barcode`, `price`,
 (69, 'DAHUA HAC-HFW1801CN-A-0280B-S2 - Cámara Bullet 4k con Micrófono Integrado/ 8 Megapixeles/ Lente de 2', 'DH-HAC-HFW1801CN-A', NULL, 900.45, 692.65, 4, NULL, NULL, 1, 31, 'DAHUA HAC-HFW1801CN-A-0280B-S2 - Cámara Bullet 4k con Micrófono Integrado/ 8 Megapixeles/ Lente de 2.8 mm/ 106 Grados de Apertura/ 30 Metros de IR/ WDR Real de 120 dB/ Soporta: CVI/TVI/AHD/CVBS/ #ProHDCVI', 'uploads/products/prod_68754be297a18.png', 'normal', '0', NULL, '2025-07-14 18:26:42', '2025-07-14 18:26:42'),
 (70, 'Gabinete de Acero IP66 Uso en Intemperie (250 x 300 x 150 mm) con Placa Trasera Interior Metálica y ', 'PST-2530-15A', 'PRODGAB20063699', 768.16, 590.89, 1, NULL, NULL, 4, 37, 'Gabinete de Acero IP66 Uso en Intemperie (250 x 300 x 150 mm) con Placa Trasera Interior Metálica y Compuerta Inferior Atornillable (Incluye Chapa y Llave T).', 'uploads/products/prod_6875558ca5ad9.png', 'normal', '0', NULL, '2025-07-14 19:07:56', '2025-07-14 19:07:56'),
 (71, 'GABINETE ENSON LINCE7', 'lince7', 'LINCE07ENE10', 256.10, 197.00, 1, 1, 5, 4, 37, 'GABINETE ENSON LINCE7 PARA SIRENA DE 15W COMPATIBLE CON MODELO PM-SRE108 Y COMPARTIMIENTO PARA TAMPER', 'uploads/products/prod_68755ec387ea7.png', 'normal', '0', NULL, '2025-07-14 19:47:15', '2025-07-14 19:47:15'),
-(72, 'Cable UTP CCA, categoría 5E, color negro', 'SAXXON OUTP5ECCAEXT', 'TVD119038', 7.00, 867.88, 610, 305, NULL, 1, 28, 'SAXXON OUTP5ECCAEXT - Cable UTP CCA, categoría 5E, color negro, 305 metros para exterior, con 4 pares y doble forro', 'uploads/products/prod_6875614596ed8.png', 'bobina', '0', NULL, '2025-07-14 19:57:57', '2025-07-16 20:13:48'),
+(72, 'Cable UTP CCA, categoría 5E, color negro', 'SAXXON OUTP5ECCAEXT', 'TVD119038', 7.00, 867.88, 1310, 305, NULL, 1, 28, 'SAXXON OUTP5ECCAEXT - Cable UTP CCA, categoría 5E, color negro, 305 metros para exterior, con 4 pares y doble forro', 'uploads/products/prod_6875614596ed8.png', 'bobina', '0', NULL, '2025-07-14 19:57:57', '2025-07-21 15:31:42'),
 (73, 'DISCO DE 1 TB NEW PULL 3.5', 'AUTO-0002', 'PRODDIS33296609', 680.11, 523.16, 0, 2, 5, 2, 38, 'Disco Duro GENERICO New Pull, 1 TB, SATA, 3.5 pulgadas, PC', 'uploads/products/prod_687589ee85059.png', 'normal', '0', NULL, '2025-07-14 22:51:26', '2025-07-14 23:13:22');
 
 -- --------------------------------------------------------
@@ -950,6 +1092,14 @@ ALTER TABLE `cotizaciones_historial`
   ADD KEY `user_id` (`user_id`);
 
 --
+-- Indices de la tabla `cotizaciones_insumos`
+--
+ALTER TABLE `cotizaciones_insumos`
+  ADD PRIMARY KEY (`cotizacion_insumo_id`),
+  ADD KEY `cotizacion_id` (`cotizacion_id`),
+  ADD KEY `insumo_id` (`insumo_id`);
+
+--
 -- Indices de la tabla `cotizaciones_productos`
 --
 ALTER TABLE `cotizaciones_productos`
@@ -1099,7 +1249,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT de la tabla `bobinas`
 --
 ALTER TABLE `bobinas`
-  MODIFY `bobina_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `bobina_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT de la tabla `categories`
@@ -1117,31 +1267,37 @@ ALTER TABLE `clientes`
 -- AUTO_INCREMENT de la tabla `cotizaciones`
 --
 ALTER TABLE `cotizaciones`
-  MODIFY `cotizacion_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `cotizacion_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT de la tabla `cotizaciones_acciones`
 --
 ALTER TABLE `cotizaciones_acciones`
-  MODIFY `accion_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `accion_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT de la tabla `cotizaciones_historial`
 --
 ALTER TABLE `cotizaciones_historial`
-  MODIFY `historial_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `historial_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=34;
+
+--
+-- AUTO_INCREMENT de la tabla `cotizaciones_insumos`
+--
+ALTER TABLE `cotizaciones_insumos`
+  MODIFY `cotizacion_insumo_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT de la tabla `cotizaciones_productos`
 --
 ALTER TABLE `cotizaciones_productos`
-  MODIFY `cotizacion_producto_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `cotizacion_producto_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
 
 --
 -- AUTO_INCREMENT de la tabla `cotizaciones_servicios`
 --
 ALTER TABLE `cotizaciones_servicios`
-  MODIFY `cotizacion_servicio_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `cotizacion_servicio_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
 
 --
 -- AUTO_INCREMENT de la tabla `equipos`
@@ -1171,25 +1327,25 @@ ALTER TABLE `est_cotizacion`
 -- AUTO_INCREMENT de la tabla `insumos`
 --
 ALTER TABLE `insumos`
-  MODIFY `insumo_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `insumo_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT de la tabla `insumos_movements`
 --
 ALTER TABLE `insumos_movements`
-  MODIFY `insumo_movement_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `insumo_movement_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
 
 --
 -- AUTO_INCREMENT de la tabla `logs`
 --
 ALTER TABLE `logs`
-  MODIFY `log_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
+  MODIFY `log_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
 
 --
 -- AUTO_INCREMENT de la tabla `movements`
 --
 ALTER TABLE `movements`
-  MODIFY `movement_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=145;
+  MODIFY `movement_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=164;
 
 --
 -- AUTO_INCREMENT de la tabla `movement_types`
@@ -1248,6 +1404,13 @@ ALTER TABLE `users`
 --
 -- Restricciones para tablas volcadas
 --
+
+--
+-- Filtros para la tabla `cotizaciones_insumos`
+--
+ALTER TABLE `cotizaciones_insumos`
+  ADD CONSTRAINT `cotizaciones_insumos_ibfk_1` FOREIGN KEY (`cotizacion_id`) REFERENCES `cotizaciones` (`cotizacion_id`),
+  ADD CONSTRAINT `cotizaciones_insumos_ibfk_2` FOREIGN KEY (`insumo_id`) REFERENCES `insumos` (`insumo_id`);
 
 --
 -- Filtros para la tabla `cotizaciones_servicios`
