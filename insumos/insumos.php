@@ -1049,7 +1049,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     </div>
                                     
                                     <div class="row">
-                                        <div class="col-md-6">
+                                        <div class="col-md-4">
                                             <div class="mb-3">
                                                 <label class="form-label">Unidad de medida</label>
                                                 <select class="form-select" id="unidadInsumo">
@@ -1058,10 +1058,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                                 </select>
                                             </div>
                                         </div>
-                                        <div class="col-md-6">
+                                        <div class="col-md-4">
                                             <div class="mb-3">
                                                 <label class="form-label">Precio unitario</label>
                                                 <input type="number" class="form-control" id="precioInsumo" min="0" step="0.01" placeholder="0.00">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label class="form-label">Costo</label>
+                                                <input type="number" class="form-control" id="costoInsumo" min="0" step="0.01" placeholder="0.00">
+                                                <small class="text-muted">Costo de compra por unidad</small>
                                             </div>
                                         </div>
                                     </div>

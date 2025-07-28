@@ -458,7 +458,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <th>Stock</th>
                             <th>Cantidad</th>
                             <th>Precio</th>
-                            <th>Margen</th>
+                            <th style="text-align:right; color:#0d6efd; min-width:90px;">Margen</th>
                             <th>Subtotal</th>
                             <th>Acción</th>
                         </tr>
@@ -480,12 +480,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <table class="table table-striped align-middle" id="tablaInsumosCotizacion">
                     <thead class="table-dark">
                         <tr>
-                            <th>Nombre</th>
-                            <th>Enlace</th>
+                            <th style='min-width:180px;'>Nombre</th>
+                            <th style='text-align:center;'>Enlace</th>
                             <th>Proveedor</th>
-                            <th>Stock</th>
+                            <th style='color:#198754;'>Stock</th>
                             <th>Cantidad</th>
                             <th>Precio</th>
+                            <th style='text-align:right; color:#0d6efd; min-width:90px;'>Margen</th>
                             <th>Subtotal</th>
                             <th class="th-accion-dark">Acción</th>
                         </tr>
@@ -1814,6 +1815,13 @@ function renderTablaInsumos() {
                     </td>
                     <td style='vertical-align:middle;'>
                         <input type="number" min="0" step="0.0001" value="${ins.precio}" class="form-control form-control-sm precio-insumo-input" data-index="${i}" style="width: 110px; background:#f8f9fa; border-radius:8px; border:1px solid #dbe2ef; box-shadow:0 1px 2px rgba(18,24,102,0.04);">
+                    </td>
+                    <td style='vertical-align:middle; text-align:right; background:#f8f9fa; color:#0d6efd; font-weight:600; border-radius:8px; min-width:90px;'>
+                        <span style='font-size:1.08em;'>
+                            $${(typeof ins.costo !== 'undefined' && ins.costo !== null && ins.costo !== '' && !isNaN(ins.costo)) ? ((parseFloat(ins.precio) - parseFloat(ins.costo)) * (parseFloat(ins.cantidad) || 1)).toFixed(2) : '—'}
+                        </span>
+                        <br>
+                        <small style='color:#888;'>Margen</small>
                     </td>
                     <td style='vertical-align:middle;'>
                         <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px; height:100%;">
