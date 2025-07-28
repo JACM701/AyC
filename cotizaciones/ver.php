@@ -219,6 +219,7 @@ $insumos = $stmt->get_result();
             th.costo-total, td.costo-total { display: none !important; }
             .badge.bg-danger { display: none !important; }
             .text-muted { display: none !important; }
+            .acciones-cotizacion { display: none !important; }
         }
         .alert.shadow.rounded-4 {
             box-shadow: 0 4px 24px rgba(18,24,102,0.10) !important;
