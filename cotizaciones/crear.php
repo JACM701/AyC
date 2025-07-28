@@ -453,12 +453,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <thead class="table-dark">
                         <tr>
                             <th>Nombre</th>
-<!-- SKU removido -->
                             <th>Enlace</th>
                             <th>Proveedor</th>
                             <th>Stock</th>
                             <th>Cantidad</th>
                             <th>Precio</th>
+                            <th>Margen</th>
                             <th>Subtotal</th>
                             <th>Acción</th>
                         </tr>
@@ -776,51 +776,50 @@ function renderTablaProductos() {
         if (typeof p.iva === 'undefined') p.iva = false;
         const ivaMonto = p.iva ? sub * 0.16 : 0;
         html += `
-            <tr>
-                <td>${p.nombre}
-                    ${p.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google"><i class="bi bi-search"></i></a>` : ''}
+            <tr style='background:#fff; border-radius:16px; box-shadow:0 2px 12px rgba(18,24,102,0.07); margin-bottom:12px; border:2px solid #f4f6fb; transition:box-shadow 0.2s, border 0.2s;'>
+                <td style='font-weight:700; color:#121866; padding:18px 12px; min-width:180px;'>
+                    <div style='display:flex; flex-direction:column;'>
+                        <span>${p.nombre}</span>
+                        ${p.sku ? `<small class='text-muted'>SKU: ${p.sku}</small>` : ''}
+                        ${p.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google" style='margin-top:4px;'><i class="bi bi-search"></i></a>` : ''}
+                    </div>
                 </td>
-                <!-- SKU removido -->
-                <td style="text-align:center;">
-                    ${p.paquete_id ? `<input type='checkbox' class='sync-checkbox' data-index='${i}' ${p.sincronizado !== false ? 'checked' : ''} title='Sincronizar con principal'> <i class='bi bi-link-45deg'></i>` : ''}
+                <td style="text-align:center; vertical-align:middle;">
+                    ${p.paquete_id ? `<span class='badge bg-info' style='font-size:0.95em;'><input type='checkbox' class='sync-checkbox' data-index='${i}' ${p.sincronizado !== false ? 'checked' : ''} title='Sincronizar con principal' style='margin-right:4px;'> <i class='bi bi-link-45deg'></i> Sync</span>` : ''}
                 </td>
-                <td>${p.proveedor || ''}</td>
-                <td>${stockStr}</td>
-                <td>
-                    <input type="number" 
-                           min="${min}" 
-                           step="${step}" 
-                           value="${p.cantidad}" 
-                           class="form-control form-control-sm cantidad-input" 
-                           data-index="${i}" 
-                           data-paquete-id="${p.paquete_id || ''}"
-                           data-tipo-paquete="${p.tipo_paquete || ''}"
-                           style="width: 80px; display:inline-block;">${unidad}
+                <td style='vertical-align:middle;'>${p.proveedor || ''}</td>
+                <td style='color:#198754; font-weight:600; vertical-align:middle;'>${stockStr}</td>
+                <td style='vertical-align:middle;'>
+                    <input type="number" min="${min}" step="${step}" value="${p.cantidad}" class="form-control form-control-sm cantidad-input" data-index="${i}" data-paquete-id="${p.paquete_id || ''}" data-tipo-paquete="${p.tipo_paquete || ''}" style="width: 80px; background:#f8f9fa; border-radius:8px; border:1px solid #dbe2ef; box-shadow:0 1px 2px rgba(18,24,102,0.04);">${unidad}
                 </td>
-                <td>
-                    <input type="number" 
-                           min="0" 
-                           step="0.01" 
-                           value="${p.precio}" 
-                           class="form-control form-control-sm precio-input" 
-                           data-index="${i}" 
-                           style="width: 110px;">
+                <td style='vertical-align:middle;'>
+                    <input type="number" min="0" step="0.0001" value="${p.precio || ''}" class="form-control form-control-sm precio-input" data-index="${i}" style="width: 110px; background:#f8f9fa; border-radius:8px; border:1px solid #dbe2ef; box-shadow:0 1px 2px rgba(18,24,102,0.04);">
                 </td>
-                <td style="text-align:right; vertical-align:middle;">
-                    <div style="display:flex; flex-direction:column; align-items:flex-end;">
-                        <span style="font-size:1.15em; font-weight:600;">
-                            $${p.iva ? (sub + (sub * 0.16)).toFixed(2) : sub.toFixed(2)}
+                <td style='vertical-align:middle;'>
+                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
+                        <span style="font-size:1em; font-weight:600; color:${typeof p.costo !== 'undefined' && p.costo !== null && p.costo !== '' && parseFloat(p.precio) > 0 && (parseFloat(p.precio) - parseFloat(p.costo)) >= 0 ? '#198754' : '#d63333'};">
+                            ${typeof p.costo !== 'undefined' && p.costo !== null && p.costo !== '' && parseFloat(p.precio) > 0 ? `${(((parseFloat(p.precio) - parseFloat(p.costo)) / parseFloat(p.precio)) * 100).toFixed(2)}%` : '--'}
+                        </span>
+                        <span style="font-size:0.9em; color:#888;">
+                            ${typeof p.costo !== 'undefined' && p.costo !== null && p.costo !== '' && parseFloat(p.precio) > 0 ? `Utilidad: $${(parseFloat(p.precio) - parseFloat(p.costo)).toFixed(2)}` : ''}
+                        </span>
+                    </div>
+                </td>
+                <td style='vertical-align:middle;'>
+                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
+                        <span style="font-size:1.15em; font-weight:700; color:#212529;">
+                            $${p.iva ? (sub + ivaMonto).toFixed(2) : sub.toFixed(2)}
                             ${p.iva ? '<span class="badge bg-warning ms-2">IVA incluido</span>' : ''}
                         </span>
                         <label class="form-check-label mt-1" style="font-size:0.95em;">
                             <input type="checkbox" class="form-check-input iva-toggle-producto" data-index="${i}" ${p.iva ? 'checked' : ''}> IVA 16%
                         </label>
-                        ${p.iva ? `<span style='font-size:0.85em; color:#888; margin-top:2px;'>Base: $${sub.toFixed(2)}<span style='margin:0 6px;'>|</span>IVA: $${(sub * 0.16).toFixed(2)}</span>` : ''}
+                        ${p.iva ? `<span style='font-size:0.85em; color:#888; margin-top:2px;'>Base: $${sub.toFixed(2)}<span style='margin:0 6px;'>|</span>IVA: $${ivaMonto.toFixed(2)}</span>` : ''}
                     </div>
                 </td>
                 <td style="width:70px; text-align:center; vertical-align:middle; padding:0;">
                     <div style="display:flex; justify-content:center; align-items:center; height:100%;">
-                        <button type="button" class="btn btn-danger btn-sm btn-eliminar-producto" data-idx="${i}" style="width:32px; height:32px; display:flex; justify-content:center; align-items:center; padding:0;">
+                        <button type="button" class="btn btn-danger btn-sm btn-eliminar-producto" data-idx="${i}" style="width:32px; height:32px; display:flex; justify-content:center; align-items:center; padding:0; border-radius:10px; box-shadow:0 1px 4px rgba(214,51,51,0.08);">
                             <i class="bi bi-trash" style="font-size:1.15em;"></i>
                         </button>
                     </div>
@@ -1805,30 +1804,47 @@ function renderTablaInsumos() {
         const ivaMonto = ins.iva ? sub * 0.16 : 0;
         subtotal += sub;
         html += `
-            <tr>
-                <td>${ins.nombre}${ins.equivalenciaStr ? `<br><small class='text-muted'>${ins.equivalenciaStr}</small>` : ''}</td>
-                <td style="text-align:center;">
-                    ${ins.paquete_id ? `<input type='checkbox' class='sync-checkbox-insumo' data-index='${i}' ${ins.sincronizado !== false ? 'checked' : ''} title='Sincronizar con principal'> <i class='bi bi-link-45deg'></i>` : ''}
-                </td>
-                <td>${ins.proveedor || ''}</td>
-                <td>${ins.stock}</td>
-                <td><input type="number" min="1" step="1" value="${ins.cantidad}" class="form-control form-control-sm cantidad-insumo-input" data-index="${i}" data-paquete-id="${ins.paquete_id || ''}" data-tipo-paquete="${ins.tipo_paquete || ''}" style="width: 80px;"></td>
-                <td><input type="number" min="0" step="0.0001" value="${ins.precio || ''}" class="form-control form-control-sm precio-insumo-input" data-index="${i}" style="width: 110px;"></td>
-                <td>
-                    <div style="display:flex; flex-direction:column; align-items:flex-end;">
-                        <span style="font-size:1.15em; font-weight:600;">
-                            $${ins.iva ? (sub + ivaMonto).toFixed(2) : sub.toFixed(2)}
-                            ${ins.iva ? '<span class="badge bg-warning ms-2">IVA incluido</span>' : ''}
-                        </span>
-                        <label class="form-check-label mt-1" style="font-size:0.95em;">
-                            <input type="checkbox" class="form-check-input iva-toggle-insumo" data-index="${i}" ${ins.iva ? 'checked' : ''}> IVA 16%
-                        </label>
-                        ${ins.iva ? `<span style='font-size:0.85em; color:#888; margin-top:2px;'>Base: $${sub.toFixed(2)}<span style='margin:0 6px;'>|</span>IVA: $${ivaMonto.toFixed(2)}</span>` : ''}
+            <tr style='background:#fff; border-radius:16px; box-shadow:0 2px 12px rgba(18,24,102,0.07); margin-bottom:12px; border:2px solid #f4f6fb; transition:box-shadow 0.2s, border 0.2s;'>
+                <td style='font-weight:700; color:#121866; padding:18px 12px; min-width:180px;'>
+                    <div style='display:flex; flex-direction:column;'>
+                        <span>${ins.nombre}</span>
+                        ${ins.equivalenciaStr ? `<small class='text-muted'>${ins.equivalenciaStr}</small>` : ''}
                     </div>
                 </td>
-                <td style="width:70px; text-align:center; vertical-align:middle; padding:0;">
-                    <div style="display:flex; justify-content:center; align-items:center; height:100%;">
-                        <button type="button" class="btn btn-danger btn-sm btn-eliminar-insumo" data-idx="${i}" style="width:32px; height:32px; display:flex; justify-content:center; align-items:center; padding:0;">
+                <td style="text-align:center; vertical-align:middle;">
+                    ${ins.paquete_id ? `<span class='badge bg-info' style='font-size:0.95em;'><input type='checkbox' class='sync-checkbox-insumo' data-index='${i}' ${ins.sincronizado !== false ? 'checked' : ''} title='Sincronizar con principal' style='margin-right:4px;'> <i class='bi bi-link-45deg'></i> Sync</span>` : ''}
+                </td>
+                <td style='vertical-align:middle;'>${ins.proveedor || ''}</td>
+                <td style='color:#198754; font-weight:600; vertical-align:middle;'>${ins.stock}</td>
+                <td style='vertical-align:middle;'>
+                    <input type="number" min="1" step="1" value="${ins.cantidad}" class="form-control form-control-sm cantidad-insumo-input" data-index="${i}" data-paquete-id="${ins.paquete_id || ''}" data-tipo-paquete="${ins.tipo_paquete || ''}" style="width: 80px; background:#f8f9fa; border-radius:8px; border:1px solid #dbe2ef; box-shadow:0 1px 2px rgba(18,24,102,0.04);">
+                </td>
+                <td style='vertical-align:middle;'>
+                    <input type="number" min="0" step="0.0001" value="${ins.precio || ''}" class="form-control form-control-sm precio-insumo-input" data-index="${i}" style="width: 110px; background:#f8f9fa; border-radius:8px; border:1px solid #dbe2ef; box-shadow:0 1px 2px rgba(18,24,102,0.04);">
+                </td>
+                <td style='vertical-align:middle;'>
+                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
+                        <span style="font-size:1em; font-weight:600; color:${typeof ins.costo !== 'undefined' && ins.costo !== null && ins.costo !== '' && parseFloat(ins.precio) > 0 && (parseFloat(ins.precio) - parseFloat(ins.costo)) >= 0 ? '#198754' : '#d63333'};">
+                            ${typeof ins.costo !== 'undefined' && ins.costo !== null && ins.costo !== '' && parseFloat(ins.precio) > 0 ? `${(((parseFloat(ins.precio) - parseFloat(ins.costo)) / parseFloat(ins.precio)) * 100).toFixed(2)}%` : '--'}
+                        </span>
+                        <span style="font-size:0.9em; color:#888;">
+                            ${typeof ins.costo !== 'undefined' && ins.costo !== null && ins.costo !== '' && parseFloat(ins.precio) > 0 ? `Utilidad: $${(parseFloat(ins.precio) - parseFloat(ins.costo)).toFixed(2)}` : ''}
+                        </span>
+                    </div>
+                </td>
+                <td style='vertical-align:middle;'>
+                    <div style="display:flex; flex-direction:row; align-items:center; justify-content:flex-end; gap:16px;">
+                        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
+                            <span style="font-size:1.15em; font-weight:700; color:#212529;">
+                                $${ins.iva ? (sub + ivaMonto).toFixed(2) : sub.toFixed(2)}
+                                ${ins.iva ? '<span class="badge bg-warning ms-2">IVA incluido</span>' : ''}
+                            </span>
+                            <label class="form-check-label mt-1" style="font-size:0.95em;">
+                                <input type="checkbox" class="form-check-input iva-toggle-insumo" data-index="${i}" ${ins.iva ? 'checked' : ''}> IVA 16%
+                            </label>
+                            ${ins.iva ? `<span style='font-size:0.85em; color:#888; margin-top:2px;'>Base: $${sub.toFixed(2)}<span style='margin:0 6px;'>|</span>IVA: $${ivaMonto.toFixed(2)}</span>` : ''}
+                        </div>
+                        <button type="button" class="btn btn-danger btn-sm btn-eliminar-insumo" data-idx="${i}" style="width:32px; height:32px; display:flex; justify-content:center; align-items:center; padding:0; border-radius:10px; box-shadow:0 1px 4px rgba(214,51,51,0.08);">
                             <i class="bi bi-trash" style="font-size:1.15em;"></i>
                         </button>
                     </div>
