@@ -216,24 +216,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $insumo_id = intval($_POST['insumo_id'] ?? 0);
     $minimo = floatval($_POST['minimo'] ?? 0);
     $unidad = trim($_POST['unidad'] ?? 'pieza');
-    
-    if (!$insumo_id || $minimo < 0) {
+    $cost_price = isset($_POST['costo']) ? floatval($_POST['costo']) : null;
+    $precio_unitario = isset($_POST['precio_unitario']) ? floatval($_POST['precio_unitario']) : null;
+
+    if (!$insumo_id || $minimo < 0 || $unidad === '' || $cost_price === null || $precio_unitario === null) {
         echo json_encode(['success'=>false,'message'=>'Datos incompletos o inválidos.']);
         exit;
     }
-    
+
     // Obtener insumo actual
     $stmt = $mysqli->prepare("SELECT * FROM insumos WHERE insumo_id = ?");
     $stmt->bind_param('i', $insumo_id);
     $stmt->execute();
     $insumo = $stmt->get_result()->fetch_assoc();
     $stmt->close();
-    
+
     if (!$insumo) {
         echo json_encode(['success'=>false,'message'=>'Insumo no encontrado.']);
         exit;
     }
-    
+
     // Determinar estado basado en la cantidad actual
     $estado = 'disponible';
     if ($insumo['cantidad'] <= $minimo) {
@@ -242,11 +244,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     if ($insumo['cantidad'] == 0) {
         $estado = 'agotado';
     }
-    
-    // Actualizar insumo (solo minimo, unidad y estado)
-    $stmt = $mysqli->prepare("UPDATE insumos SET minimo = ?, unidad = ?, estado = ?, ultima_actualizacion = NOW() WHERE insumo_id = ?");
-    $stmt->bind_param('dssi', $minimo, $unidad, $estado, $insumo_id);
-    
+
+    // Actualizar insumo (mínimo, unidad, cost_price, precio_unitario y estado)
+    $stmt = $mysqli->prepare("UPDATE insumos SET minimo = ?, unidad = ?, cost_price = ?, precio_unitario = ?, estado = ?, ultima_actualizacion = NOW() WHERE insumo_id = ?");
+    $stmt->bind_param('dsddsi', $minimo, $unidad, $cost_price, $precio_unitario, $estado, $insumo_id);
+
     if ($stmt->execute()) {
         echo json_encode(['success'=>true,'message'=>'Insumo actualizado correctamente.']);
     } else {
@@ -1228,47 +1230,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
         
         function editarInsumo(id) {
-            // Buscar insumo real en la lista global
             const insumos = window.insumosData || [];
             const insumo = insumos.find(i => i.insumo_id == id);
             if (!insumo) {
                 Swal.fire({ icon: 'error', title: 'Insumo no encontrado', text: 'No se pudo cargar la información del insumo.' });
                 return;
             }
-            // En la función editarInsumo, antes de mostrar el modal:
-            // Buscar si el insumo tiene movimientos
-            let tieneMovimientos = false;
-            if (insumo.movimientos && insumo.movimientos > 0) {
-                tieneMovimientos = true;
-            }
-            // Modal de edición real
             const modal = `
                 <div class="modal fade" id="modalEditarInsumo" tabindex="-1">
                     <div class="modal-dialog">
                         <div class="modal-content">
                             <div class="modal-header">
-                                <h5 class="modal-title"><i class="bi bi-pencil"></i> Editar Insumo</h5>
+                                <h5 class="modal-title">Editar Insumo - ${insumo.nombre}</h5>
                                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                             </div>
                             <div class="modal-body">
                                 <div class="mb-3">
-                                    <label class="form-label">Nombre</label>
-                                    <input type="text" class="form-control" value="${insumo.nombre}" readonly>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Cantidad (Solo visual)</label>
-                                    <input type="number" class="form-control" value="${insumo.cantidad}" readonly style="background-color: #f8f9fa;">
-                                    <small class="text-muted">La cantidad solo se modifica a través de movimientos</small>
+                                    <label class="form-label">Unidad</label>
+                                    <input type="text" class="form-control" id="editUnidad" value="${insumo.unidad}" readonly>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Stock mínimo</label>
                                     <input type="number" class="form-control" id="editMinimo" value="${insumo.minimo}" min="0">
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Unidad</label>
-                                    <input type="text" class="form-control" id="editUnidad" value="${insumo.unidad}" readonly style="background:#f8f9fa;cursor:not-allowed;">
+                                    <label class="form-label">Costo</label>
+                                    <input type="number" class="form-control" id="editCosto" value="${insumo.cost_price ?? insumo.costo ?? ''}" min="0" step="0.01">
                                 </div>
-                                ${tieneMovimientos ? `<div class='alert alert-warning mt-2'><i class='bi bi-exclamation-triangle'></i> No se puede cambiar la unidad de medida porque este insumo ya tiene movimientos registrados.</div>` : ''}
+                                <div class="mb-3">
+                                    <label class="form-label">Precio unitario</label>
+                                    <input type="number" class="form-control" id="editPrecioUnitario" value="${insumo.precio_unitario}" min="0" step="0.01">
+                                </div>
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -1292,7 +1284,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         function guardarEdicionInsumo(id) {
             const minimo = document.getElementById('editMinimo').value;
             const unidad = document.getElementById('editUnidad').value;
-            if (minimo === '' || unidad === '') {
+            const costo = document.getElementById('editCosto').value;
+            const precio_unitario = document.getElementById('editPrecioUnitario').value;
+            if (minimo === '' || unidad === '' || costo === '' || precio_unitario === '') {
                 Swal.fire({ icon: 'warning', title: 'Campos incompletos', text: 'Por favor completa todos los campos obligatorios.' });
                 return;
             }
@@ -1303,7 +1297,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     action: 'editar_insumo',
                     insumo_id: id,
                     minimo: minimo,
-                    unidad: unidad
+                    unidad: unidad,
+                    costo: costo,
+                    precio_unitario: precio_unitario
                 })
             })
             .then(res => res.json())
@@ -1311,7 +1307,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 if (data.success) {
                     Swal.fire({ icon: 'success', title: '¡Insumo actualizado correctamente!', text: 'Los cambios han sido guardados en la base de datos.', timer: 1800, showConfirmButton: false });
                     const modal = bootstrap.Modal.getInstance(document.getElementById('modalEditarInsumo'));
-                    modal.hide();
+                    if (modal) modal.hide();
                     setTimeout(() => { window.location.reload(); }, 1200);
                 } else {
                     Swal.fire({ icon: 'error', title: 'Error', text: data.message });
@@ -1717,4 +1713,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
     </script>
 </body>
-</html> 
+</html>

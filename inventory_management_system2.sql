@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: 127.0.0.1
--- Tiempo de generación: 28-07-2025 a las 01:50:37
+-- Tiempo de generación: 29-07-2025 a las 16:29:27
 -- Versión del servidor: 10.4.32-MariaDB
 -- Versión de PHP: 8.2.12
 
@@ -151,7 +151,10 @@ INSERT INTO `cotizaciones` (`cotizacion_id`, `numero_cotizacion`, `cliente_id`, 
 (6, 'COT-2025-0006', 1, '2025-07-22', 30, 1845.88, 0.00, 0.00, 1845.88, '', '0', 5, 1, '2025-07-22 18:03:02', '2025-07-22 19:30:10'),
 (7, 'COT-2025-0007', 1, '2025-07-22', 30, 611.47, 0.00, 0.00, 611.47, '', '0', 5, 1, '2025-07-22 19:32:56', '2025-07-22 19:33:17'),
 (8, 'COT-2025-0008', 1, '2025-07-22', 30, 611.47, 0.00, 0.00, 611.47, '', '0', 5, 1, '2025-07-22 19:55:54', '2025-07-22 19:56:08'),
-(9, 'COT-2025-0009', 1, '2025-07-22', 30, 611.47, 0.00, 0.00, 611.47, '', '0', 5, 1, '2025-07-22 20:04:55', '2025-07-22 20:05:15');
+(9, 'COT-2025-0009', 1, '2025-07-22', 30, 611.47, 0.00, 0.00, 611.47, '', '0', 5, 1, '2025-07-22 20:04:55', '2025-07-22 20:05:15'),
+(10, 'COT-2025-0010', 1, '2025-07-28', 30, 337.65, 0.00, 0.00, 337.65, '', '0', 2, 1, '2025-07-28 05:04:54', '2025-07-28 05:04:54'),
+(11, 'COT-2025-0011', 1, '2025-07-28', 30, 2513.55, 0.00, 0.00, 2513.55, '', '0', 5, 1, '2025-07-28 05:53:41', '2025-07-28 05:54:00'),
+(12, 'COT-2025-0012', 1, '2025-07-28', 30, 4475.86, 0.00, 0.00, 4475.86, '', '0', 2, 1, '2025-07-28 15:49:35', '2025-07-28 15:49:35');
 
 -- --------------------------------------------------------
 
@@ -229,7 +232,12 @@ INSERT INTO `cotizaciones_historial` (`historial_id`, `cotizacion_id`, `accion_i
 (30, 9, 1, 'Cotización creada con 1 productos por un total de $611.47', 1, '2025-07-22 20:04:55'),
 (31, 9, 3, 'Estado cambiado de \'Enviada\' a \'Aprobada\'', 1, '2025-07-22 20:05:01'),
 (32, 9, 5, 'Cotización convertida a venta y stock descontado', 1, '2025-07-22 20:05:15'),
-(33, 9, 7, 'Se devolvieron 1 unidades del producto ID 53', 1, '2025-07-22 20:55:13');
+(33, 9, 7, 'Se devolvieron 1 unidades del producto ID 53', 1, '2025-07-22 20:55:13'),
+(34, 10, 1, 'Cotización creada con 1 productos por un total de $337.65', 1, '2025-07-28 05:04:54'),
+(35, 11, 1, 'Cotización creada con 1 productos por un total de $2,513.55', 1, '2025-07-28 05:53:41'),
+(36, 11, 3, 'Estado cambiado de \'Enviada\' a \'Aprobada\'', 1, '2025-07-28 05:53:47'),
+(37, 11, 5, 'Cotización convertida a venta (sin afectar inventario)', 1, '2025-07-28 05:54:00'),
+(38, 12, 1, 'Cotización creada con 4 productos por un total de $4,475.86', 1, '2025-07-28 15:49:35');
 
 -- --------------------------------------------------------
 
@@ -261,7 +269,11 @@ INSERT INTO `cotizaciones_insumos` (`cotizacion_insumo_id`, `cotizacion_id`, `in
 (5, 7, 4, 'pijas', 'Accesorios', 'Syscom', 50.00, 0.00, 0.00, NULL, 5.93),
 (6, 4, 4, 'pijas', 'Accesorios', '0', 10.00, 2.00, 20.00, NULL, 0.93),
 (7, 8, 3, 'Conectores', 'Accesorios', 'Amazon', 1.00, 0.00, 0.00, NULL, 0.00),
-(8, 9, 3, 'Conectores', 'Accesorios', 'Amazon', 1.00, 0.00, 0.00, NULL, 1.00);
+(8, 9, 3, 'Conectores', 'Accesorios', 'Amazon', 1.00, 0.00, 0.00, NULL, 1.00),
+(9, 10, 5, 'Gabinete', 'Accesorios', 'TVC', 1.00, 3000.00, 3000.00, NULL, 0.00),
+(10, 11, 5, 'Gabinete', 'Accesorios', 'TVC', 1.00, 3000.00, 3000.00, NULL, 0.00),
+(11, 12, 3, 'Conectores', 'Accesorios', 'Amazon', 1.00, 0.00, 0.00, NULL, 1.00),
+(12, 12, 5, 'Gabinete', 'Accesorios', 'TVC', 1.00, 500.00, 500.00, NULL, 0.00);
 
 -- --------------------------------------------------------
 
@@ -291,7 +303,13 @@ INSERT INTO `cotizaciones_productos` (`cotizacion_producto_id`, `cotizacion_id`,
 (13, 7, 53, 1, 461.47, 461.47),
 (14, 4, 53, 5, 461.47, 2307.35),
 (15, 8, 53, 1, 461.47, 461.47),
-(16, 9, 53, 1, 461.47, 461.47);
+(16, 9, 53, 1, 461.47, 461.47),
+(17, 10, 61, 1, 337.65, 337.65),
+(18, 11, 61, 7, 337.65, 2363.55),
+(19, 12, 53, 1, 461.47, 461.47),
+(20, 12, 30, 1, 444.28, 444.28),
+(21, 12, 62, 1, 1424.31, 1424.31),
+(22, 12, 60, 1, 1845.80, 1845.80);
 
 -- --------------------------------------------------------
 
@@ -325,7 +343,10 @@ INSERT INTO `cotizaciones_servicios` (`cotizacion_servicio_id`, `cotizacion_id`,
 (13, 7, 1, 'Instalación de cámara', 'Instalación completa de cámara de seguridad incluyendo cableado y configuración.', 1.00, 150.00, 150.00, '', '2025-07-22 19:32:56'),
 (14, 4, NULL, 'Instalación de cámara', 'Instalación completa de cámara de seguridad incluyendo cableado y configuración.', 5.00, 150.00, 750.00, '', '2025-07-22 19:54:30'),
 (15, 8, 1, 'Instalación de cámara', 'Instalación completa de cámara de seguridad incluyendo cableado y configuración.', 1.00, 150.00, 150.00, '', '2025-07-22 19:55:54'),
-(16, 9, 1, 'Instalación de cámara', 'Instalación completa de cámara de seguridad incluyendo cableado y configuración.', 1.00, 150.00, 150.00, '', '2025-07-22 20:04:55');
+(16, 9, 1, 'Instalación de cámara', 'Instalación completa de cámara de seguridad incluyendo cableado y configuración.', 1.00, 150.00, 150.00, '', '2025-07-22 20:04:55'),
+(17, 11, 1, 'Instalación de cámara', 'Instalación completa de cámara de seguridad incluyendo cableado y configuración.', 1.00, 150.00, 150.00, '', '2025-07-28 05:53:41'),
+(18, 12, 1, 'Instalación de cámara', 'Instalación completa de cámara de seguridad incluyendo cableado y configuración.', 1.00, 150.00, 150.00, '', '2025-07-28 15:49:35'),
+(19, 12, 8, 'Capacitación de usuarios', 'Entrenamiento en el uso de sistemas de seguridad.', 1.00, 150.00, 150.00, 'servicio_1752722168_68786af858230.png', '2025-07-28 15:49:35');
 
 -- --------------------------------------------------------
 
@@ -416,18 +437,22 @@ CREATE TABLE `insumos` (
   `ultima_actualizacion` timestamp NOT NULL DEFAULT current_timestamp(),
   `is_active` tinyint(1) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `cost_price` decimal(10,2) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Volcado de datos para la tabla `insumos`
 --
 
-INSERT INTO `insumos` (`insumo_id`, `product_id`, `category_id`, `supplier_id`, `nombre`, `categoria`, `unidad`, `imagen`, `cantidad`, `minimo`, `precio_unitario`, `ubicacion`, `estado`, `consumo_semanal`, `ultima_actualizacion`, `is_active`, `created_at`, `updated_at`) VALUES
-(1, NULL, 5, 6, 'Conectores', 'Accesorios', 'bolsa', 'uploads/insumos/insumo_1753065188_2581.png', 0.0000, 0.00, 0.00, '', 'agotado', 0.00, '2025-07-21 14:16:17', 0, '2025-07-21 02:33:08', '2025-07-21 14:20:08'),
-(2, NULL, 5, 6, 'Conectores', 'Accesorios', 'bolsa (1000 piezas)', 'uploads/insumos/insumo_1753066903_6104.png', 0.9800, 0.00, 0.00, '', 'disponible', 0.00, '2025-07-21 03:26:58', 0, '2025-07-21 03:01:43', '2025-07-21 14:20:28'),
-(3, NULL, 5, 6, 'Conectores', 'Accesorios', 'bolsa (1000 piezas)', NULL, 0.9990, 0.00, 0.00, '', 'disponible', 0.00, '2025-07-22 20:04:16', 1, '2025-07-21 03:17:22', '2025-07-22 20:05:15'),
-(4, NULL, 5, 4, 'pijas', 'Accesorios', 'bolsa (500 piezas)', NULL, 0.9300, 0.00, 0.00, '', 'disponible', 0.00, '2025-07-22 20:04:33', 1, '2025-07-21 17:12:16', '2025-07-22 20:04:33');
+INSERT INTO `insumos` (`insumo_id`, `product_id`, `category_id`, `supplier_id`, `nombre`, `categoria`, `unidad`, `imagen`, `cantidad`, `minimo`, `precio_unitario`, `ubicacion`, `estado`, `consumo_semanal`, `ultima_actualizacion`, `is_active`, `created_at`, `updated_at`, `cost_price`) VALUES
+(1, NULL, 5, 6, 'Conectores', 'Accesorios', 'bolsa', 'uploads/insumos/insumo_1753065188_2581.png', 0.0000, 0.00, 0.00, '', 'agotado', 0.00, '2025-07-21 14:16:17', 0, '2025-07-21 02:33:08', '2025-07-21 14:20:08', NULL),
+(2, NULL, 5, 6, 'Conectores', 'Accesorios', 'bolsa (1000 piezas)', 'uploads/insumos/insumo_1753066903_6104.png', 0.9800, 0.00, 0.00, '', 'disponible', 0.00, '2025-07-21 03:26:58', 0, '2025-07-21 03:01:43', '2025-07-21 14:20:28', NULL),
+(3, NULL, 5, 6, 'Conectores', 'Accesorios', 'bolsa', NULL, 0.9990, 0.00, 2.00, '', 'disponible', 0.00, '2025-07-29 14:08:03', 1, '2025-07-21 03:17:22', '2025-07-29 14:08:03', 1100.31),
+(4, NULL, 5, 4, 'pijas', 'Accesorios', 'bolsa (500 piezas)', NULL, 0.9300, 0.00, 2.00, '', 'disponible', 0.00, '2025-07-29 07:03:04', 1, '2025-07-21 17:12:16', '2025-07-29 07:03:04', 3.48),
+(5, NULL, 5, 1, 'Gabinete', 'Accesorios', 'pieza', 'uploads/insumos/insumo_1753678312_6621.png', 0.0000, 0.00, 3000.00, '', 'agotado', 0.00, '2025-07-29 06:43:18', 1, '2025-07-28 04:51:52', '2025-07-29 06:43:18', 3480.00),
+(6, NULL, 5, 5, 'GabineteSDJ', 'Accesorios', '0', 'uploads/insumos/insumo_1753728446_5976.png', 0.0000, 0.00, 500.00, '', 'agotado', 0.00, '2025-07-28 23:07:56', 1, '2025-07-28 18:47:26', '2025-07-28 23:07:56', 300.00),
+(7, NULL, 5, 1, 'Gabinetegsdfgf', 'Accesorios', 'pieza', NULL, 0.0000, 0.00, 22.00, '', 'agotado', 0.00, '2025-07-29 07:02:56', 1, '2025-07-29 06:38:06', '2025-07-29 07:02:56', 34.34);
 
 -- --------------------------------------------------------
 
@@ -845,7 +870,17 @@ INSERT INTO `products` (`product_id`, `product_name`, `sku`, `barcode`, `price`,
 (70, 'Gabinete de Acero IP66 Uso en Intemperie (250 x 300 x 150 mm) con Placa Trasera Interior Metálica y ', 'PST-2530-15A', 'PRODGAB20063699', 768.16, 590.89, 1, NULL, NULL, 4, 37, 'Gabinete de Acero IP66 Uso en Intemperie (250 x 300 x 150 mm) con Placa Trasera Interior Metálica y Compuerta Inferior Atornillable (Incluye Chapa y Llave T).', 'uploads/products/prod_6875558ca5ad9.png', 'normal', '0', NULL, '2025-07-14 19:07:56', '2025-07-14 19:07:56'),
 (71, 'GABINETE ENSON LINCE7', 'lince7', 'LINCE07ENE10', 256.10, 197.00, 1, 1, 5, 4, 37, 'GABINETE ENSON LINCE7 PARA SIRENA DE 15W COMPATIBLE CON MODELO PM-SRE108 Y COMPARTIMIENTO PARA TAMPER', 'uploads/products/prod_68755ec387ea7.png', 'normal', '0', NULL, '2025-07-14 19:47:15', '2025-07-14 19:47:15'),
 (72, 'Cable UTP CCA, categoría 5E, color negro', 'SAXXON OUTP5ECCAEXT', 'TVD119038', 7.00, 867.88, 1310, 305, NULL, 1, 28, 'SAXXON OUTP5ECCAEXT - Cable UTP CCA, categoría 5E, color negro, 305 metros para exterior, con 4 pares y doble forro', 'uploads/products/prod_6875614596ed8.png', 'bobina', '0', NULL, '2025-07-14 19:57:57', '2025-07-21 15:31:42'),
-(73, 'DISCO DE 1 TB NEW PULL 3.5', 'AUTO-0002', 'PRODDIS33296609', 680.11, 523.16, 0, 2, 5, 2, 38, 'Disco Duro GENERICO New Pull, 1 TB, SATA, 3.5 pulgadas, PC', 'uploads/products/prod_687589ee85059.png', 'normal', '0', NULL, '2025-07-14 22:51:26', '2025-07-14 23:13:22');
+(73, 'DISCO DE 1 TB NEW PULL 3.5', 'AUTO-0002', 'PRODDIS33296609', 680.11, 523.16, 0, 2, 5, 2, 38, 'Disco Duro GENERICO New Pull, 1 TB, SATA, 3.5 pulgadas, PC', 'uploads/products/prod_687589ee85059.png', 'normal', '0', NULL, '2025-07-14 22:51:26', '2025-07-14 23:13:22'),
+(74, 'JFJD', 'JFJ-7936', NULL, 12131.00, 432.00, 1, NULL, NULL, 1, 28, '', NULL, NULL, NULL, NULL, '2025-07-28 00:53:42', '2025-07-28 00:53:42'),
+(75, 'JFJD', 'JFJ-5736', NULL, 12131.00, 432.00, 1, NULL, NULL, 1, 28, '', NULL, NULL, NULL, NULL, '2025-07-28 00:53:42', '2025-07-28 00:53:42'),
+(76, 'JFJD', 'JFJ-5046', NULL, 12131.00, 432.00, 1, NULL, NULL, 1, 28, '', NULL, NULL, NULL, NULL, '2025-07-28 00:53:50', '2025-07-28 00:53:50'),
+(77, 'JFJD', 'JFJ-1267', NULL, 12131.00, 432.00, 1, NULL, NULL, 1, 28, '', NULL, NULL, NULL, NULL, '2025-07-28 00:53:50', '2025-07-28 00:53:50'),
+(78, 'JFJD', 'JFJ-8504', NULL, 12131.00, 432.00, 1, NULL, NULL, 1, 28, '', NULL, NULL, NULL, NULL, '2025-07-28 00:53:56', '2025-07-28 00:53:56'),
+(79, 'JFJD', 'JFJ-5218', NULL, 12131.00, 432.00, 1, NULL, NULL, 1, 28, '', NULL, NULL, NULL, NULL, '2025-07-28 00:53:56', '2025-07-28 00:53:56'),
+(80, 'Josue', 'JOS-2634', NULL, 12.00, 133.00, 1, NULL, NULL, 1, 5, '', NULL, NULL, NULL, NULL, '2025-07-28 00:54:44', '2025-07-28 00:54:44'),
+(81, 'Josue', 'JOS-6887', NULL, 12.00, 133.00, 1, NULL, NULL, 1, 5, '', NULL, NULL, NULL, NULL, '2025-07-28 00:54:44', '2025-07-28 00:54:44'),
+(82, 'Josue2', 'JOS-3307', NULL, 1233.00, 333.00, 1, NULL, NULL, 1, 5, '', NULL, NULL, NULL, NULL, '2025-07-28 00:57:23', '2025-07-28 00:57:23'),
+(83, 'Josue3', 'JOS-5814', NULL, 26.00, 20.00, 1, NULL, NULL, 1, 5, '', NULL, NULL, NULL, NULL, '2025-07-28 01:53:10', '2025-07-28 01:53:10');
 
 -- --------------------------------------------------------
 
@@ -1267,7 +1302,7 @@ ALTER TABLE `clientes`
 -- AUTO_INCREMENT de la tabla `cotizaciones`
 --
 ALTER TABLE `cotizaciones`
-  MODIFY `cotizacion_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+  MODIFY `cotizacion_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT de la tabla `cotizaciones_acciones`
@@ -1279,25 +1314,25 @@ ALTER TABLE `cotizaciones_acciones`
 -- AUTO_INCREMENT de la tabla `cotizaciones_historial`
 --
 ALTER TABLE `cotizaciones_historial`
-  MODIFY `historial_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=34;
+  MODIFY `historial_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=39;
 
 --
 -- AUTO_INCREMENT de la tabla `cotizaciones_insumos`
 --
 ALTER TABLE `cotizaciones_insumos`
-  MODIFY `cotizacion_insumo_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `cotizacion_insumo_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT de la tabla `cotizaciones_productos`
 --
 ALTER TABLE `cotizaciones_productos`
-  MODIFY `cotizacion_producto_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
+  MODIFY `cotizacion_producto_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
 
 --
 -- AUTO_INCREMENT de la tabla `cotizaciones_servicios`
 --
 ALTER TABLE `cotizaciones_servicios`
-  MODIFY `cotizacion_servicio_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
+  MODIFY `cotizacion_servicio_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
 
 --
 -- AUTO_INCREMENT de la tabla `equipos`
@@ -1327,7 +1362,7 @@ ALTER TABLE `est_cotizacion`
 -- AUTO_INCREMENT de la tabla `insumos`
 --
 ALTER TABLE `insumos`
-  MODIFY `insumo_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `insumo_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT de la tabla `insumos_movements`
@@ -1363,7 +1398,7 @@ ALTER TABLE `precios_proveedores`
 -- AUTO_INCREMENT de la tabla `products`
 --
 ALTER TABLE `products`
-  MODIFY `product_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=74;
+  MODIFY `product_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=84;
 
 --
 -- AUTO_INCREMENT de la tabla `roles`

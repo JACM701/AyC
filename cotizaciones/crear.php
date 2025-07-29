@@ -1851,6 +1851,13 @@ function renderTablaInsumos() {
         const sub = (parseFloat(ins.precio) || 0) * (parseFloat(ins.cantidad) || 1);
         const ivaMonto = ins.iva ? sub * 0.16 : 0;
         subtotal += sub;
+        // Calcular costo base con IVA
+        const costoBase = (typeof ins.costo !== 'undefined' && ins.costo !== null && ins.costo !== '') ? parseFloat(ins.costo) * 1.16 : 0;
+        // Calcular margen (%) sobre costoBase con IVA
+        let margen = '';
+        if (costoBase > 0 && parseFloat(ins.precio) > 0) {
+            margen = (((parseFloat(ins.precio) - costoBase) / parseFloat(ins.precio)) * 100).toFixed(2);
+        }
         html += `
                 <tr style='background:#fff; border-radius:16px; box-shadow:0 2px 12px rgba(18,24,102,0.07); margin-bottom:12px; border:2px solid #f4f6fb; transition:box-shadow 0.2s, border 0.2s;'>
                     <td style='font-weight:700; color:#121866; padding:18px 12px; min-width:180px;'>${ins.nombre}</td>
@@ -1865,9 +1872,9 @@ function renderTablaInsumos() {
                     </td>
                     <td style='vertical-align:middle;'>
                         <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
-                            <input type="number" min="0" max="99" step="0.01" value="${typeof ins.costo !== 'undefined' && ins.costo !== null && ins.costo !== '' && parseFloat(ins.precio) > 0 ? (((parseFloat(ins.precio) - parseFloat(ins.costo)) / parseFloat(ins.precio)) * 100).toFixed(2) : ''}" class="form-control form-control-sm margen-insumo-input" data-index="${i}" style="width:70px; text-align:right; font-size:1em; font-weight:600; color:${typeof ins.costo !== 'undefined' && ins.costo !== null && ins.costo !== '' && parseFloat(ins.precio) > 0 && (parseFloat(ins.precio) - parseFloat(ins.costo)) >= 0 ? '#198754' : '#d63333'};" title="Editar margen (%)">
+                            <input type="number" min="0" max="99" step="0.01" value="${margen}" class="form-control form-control-sm margen-insumo-input" data-index="${i}" style="width:70px; text-align:right; font-size:1em; font-weight:600; color:${costoBase > 0 && parseFloat(ins.precio) > 0 && (parseFloat(ins.precio) - costoBase) >= 0 ? '#198754' : '#d63333'};" title="Editar margen (%)">
                             <span style="font-size:0.9em; color:#888;">
-                                ${typeof ins.costo !== 'undefined' && ins.costo !== null && ins.costo !== '' && parseFloat(ins.precio) > 0 ? `Utilidad: $${(parseFloat(ins.precio) - parseFloat(ins.costo)).toFixed(2)}` : ''}
+                                ${costoBase > 0 && parseFloat(ins.precio) > 0 ? `Utilidad: $${(parseFloat(ins.precio) - costoBase).toFixed(2)}` : ''}
                             </span>
                         </div>
                     </td>
@@ -1878,9 +1885,10 @@ function renderTablaInsumos() {
                                 ${ins.iva ? '<span class="badge bg-warning ms-2">IVA incluido</span>' : ''}
                             </span>
                             <label class="form-check-label mt-1" style="font-size:0.95em;">
-                                <input type="checkbox" class="form-check-input iva-toggle-insumo" data-index="${i}" ${ins.iva ? 'checked' : ''}> IVA 16%
+                                <input type="checkbox" class="form-check-input iva-toggle-insumo" data-index="${i}" ${ins.iva ? 'checked' : ''} ${(typeof ins.costo !== 'undefined' && ins.costo !== null && ins.costo !== '' && ins.precio && Math.abs(parseFloat(ins.precio) - (parseFloat(ins.costo) * 1.16)) < 0.01) ? 'disabled' : ''}> IVA 16%
                             </label>
-                            ${ins.iva ? `<span style='font-size:0.85em; color:#888; margin-top:2px;'>Base: $${sub.toFixed(2)}<span style='margin:0 6px;'>|</span>IVA: $${ivaMonto.toFixed(2)}</span>` : ''}
+                            <span style='font-size:0.85em; color:#888; margin-top:2px;'>Base: $${(typeof ins.costo !== 'undefined' && ins.costo !== null && ins.costo !== '') ? (parseFloat(ins.costo) * 1.16).toFixed(2) : '-'}</span>
+                            ${ins.iva ? `<span style='font-size:0.85em; color:#888; margin-top:2px;'>IVA: $${ivaMonto.toFixed(2)}</span>` : ''}
                         </div>
                     </td>
                     <td style="width:70px; text-align:center; vertical-align:middle; padding:0;">
@@ -1902,8 +1910,8 @@ function renderTablaInsumos() {
         const ins = insumosCotizacion[index];
         if (ins && typeof ins.costo !== 'undefined' && ins.costo !== null && ins.costo !== '') {
             if (!isNaN(porcentaje) && porcentaje >= 0) {
-                const costo = parseFloat(ins.costo);
-                const nuevoPrecio = costo / (1 - porcentaje / 100);
+                const costoBase = parseFloat(ins.costo) * 1.16;
+                const nuevoPrecio = costoBase / (1 - porcentaje / 100);
                 ins.precio = parseFloat(nuevoPrecio.toFixed(4));
                 renderTablaInsumos();
                 guardarBorrador();
