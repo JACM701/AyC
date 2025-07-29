@@ -786,10 +786,26 @@ function renderTablaProductos() {
         if (typeof p.stock !== 'undefined' && p.stock !== null && p.stock !== '') {
             stockStr = esBobina ? parseFloat(p.stock).toFixed(2) : parseInt(p.stock);
         }
-        // Margen sobre precio base (cost_price)
+        // Margen y costo unitario para bobinas
         let margen = '';
-        if (typeof p.cost_price !== 'undefined' && p.cost_price !== null && p.cost_price !== '' && parseFloat(p.precio) > 0) {
-            margen = (((parseFloat(p.precio) - parseFloat(p.cost_price)) / parseFloat(p.cost_price)) * 100).toFixed(2);
+        let margenNegativo = false;
+        let costoUnitario = undefined;
+        if (esBobina && typeof p.cost_price !== 'undefined' && p.cost_price !== null && p.cost_price !== '' && !isNaN(parseFloat(p.cost_price))) {
+            // Costo por metro
+            costoUnitario = parseFloat(p.cost_price) / 305;
+        } else if (typeof p.cost_price !== 'undefined' && p.cost_price !== null && p.cost_price !== '' && !isNaN(parseFloat(p.cost_price))) {
+            costoUnitario = parseFloat(p.cost_price);
+        }
+        if (typeof p.margen !== 'undefined' && p.margen !== null && p.margen !== '') {
+            margenNegativo = parseFloat(p.margen) < 0;
+            margen = parseFloat(p.margen).toFixed(2);
+        } else if (costoUnitario !== undefined && parseFloat(p.precio) > 0) {
+            // Margen sobre precio de venta, igual que en Excel
+            let margenCalc = (((parseFloat(p.precio) - costoUnitario) / parseFloat(p.precio)) * 100);
+            margenNegativo = margenCalc < 0;
+            margen = isFinite(margenCalc) ? margenCalc.toFixed(2) : '0.00';
+        } else if (costoUnitario !== undefined && parseFloat(p.precio) === 0) {
+            margen = '0.00';
         }
         html += `
             <tr style='background:#fff; border-radius:16px; box-shadow:0 2px 12px rgba(18,24,102,0.07); margin-bottom:12px; border:2px solid #f4f6fb; transition:box-shadow 0.2s, border 0.2s;'>
@@ -813,9 +829,9 @@ function renderTablaProductos() {
                 </td>
                 <td style='vertical-align:middle;'>
                     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
-                        <input type="number" min="0" max="99" step="0.01" value="${margen}" class="form-control form-control-sm margen-producto-input" data-index="${i}" style="width:70px; text-align:right; font-size:1em; font-weight:600; color:${typeof p.cost_price !== 'undefined' && p.cost_price !== null && p.cost_price !== '' && parseFloat(p.precio) > 0 && (parseFloat(p.precio) - parseFloat(p.cost_price)) >= 0 ? '#198754' : '#d63333'};" title="Editar margen (%)">
+                        <input type="number" min="-99" max="99" step="0.01" value="${margen}" class="form-control form-control-sm margen-producto-input" data-index="${i}" style="width:70px; text-align:right; font-size:1em; font-weight:600; color:${margenNegativo ? '#d63333' : '#198754'};" title="Editar margen (%)" ${costoUnitario === undefined ? 'disabled' : ''}>
                         <span style="font-size:0.9em; color:#888;">
-                            ${typeof p.cost_price !== 'undefined' && p.cost_price !== null && p.cost_price !== '' && parseFloat(p.precio) > 0 ? `Utilidad: $${(parseFloat(p.precio) - parseFloat(p.cost_price)).toFixed(2)}` : ''}
+                            ${costoUnitario !== undefined && parseFloat(p.precio) > 0 ? `Utilidad: $${(parseFloat(p.precio) - costoUnitario).toFixed(2)}` : ''}
                         </span>
                     </div>
                 </td>
@@ -843,15 +859,26 @@ function renderTablaProductos() {
         const index = parseInt($(this).data('index'));
         let porcentaje = parseFloat($(this).val());
         const prod = productosCotizacion[index];
-        if (prod && typeof prod.cost_price !== 'undefined' && prod.cost_price !== null && prod.cost_price !== '') {
-            if (!isNaN(porcentaje) && porcentaje >= 0) {
-                // Calcular nuevo precio según margen sobre cost_price
-                const costo = parseFloat(prod.cost_price);
-                const nuevoPrecio = costo * (1 + porcentaje / 100);
-                prod.precio = parseFloat(nuevoPrecio.toFixed(4));
-                renderTablaProductos();
-                guardarBorrador();
+        let costoUnitario = undefined;
+        const esBobina = prod.tipo_gestion === 'bobina';
+        if (esBobina && typeof prod.cost_price !== 'undefined' && prod.cost_price !== null && prod.cost_price !== '' && !isNaN(parseFloat(prod.cost_price))) {
+            costoUnitario = parseFloat(prod.cost_price) / 305;
+        } else if (typeof prod.cost_price !== 'undefined' && prod.cost_price !== null && prod.cost_price !== '' && !isNaN(parseFloat(prod.cost_price))) {
+            costoUnitario = parseFloat(prod.cost_price);
+        }
+        if (prod && costoUnitario !== undefined && !isNaN(porcentaje)) {
+            // Calcular nuevo precio según margen sobre precio de venta
+            // margen = ((precio - costoUnitario) / precio) * 100 => precio = costoUnitario / (1 - margen/100)
+            let nuevoPrecio = 0;
+            if (porcentaje < 100) {
+                nuevoPrecio = costoUnitario / (1 - porcentaje / 100);
+            } else {
+                nuevoPrecio = costoUnitario * 10; // Evitar división por cero, poner un precio alto
             }
+            prod.precio = parseFloat(nuevoPrecio.toFixed(4));
+            prod.margen = porcentaje;
+            renderTablaProductos();
+            guardarBorrador();
         }
     });
 }
@@ -1825,6 +1852,11 @@ $('#sugerencias_insumos').on('click', 'button', function() {
     if (typeof costo === 'undefined' || costo === null || costo === '' || isNaN(parseFloat(costo))) {
         costo = $(this).data('cost_price');
     }
+    // Si equivalencia > 1 y costo es por bolsa, convertir a unitario
+    let costoUnitario = (typeof costo !== 'undefined' && costo !== null && costo !== '' && !isNaN(parseFloat(costo))) ? parseFloat(costo) : undefined;
+    if (costoUnitario !== undefined && equivalencia > 1) {
+        costoUnitario = costoUnitario / equivalencia;
+    }
     const insumo = {
         insumo_id: $(this).data('id'),
         nombre: $(this).data('nombre'),
@@ -1836,7 +1868,7 @@ $('#sugerencias_insumos').on('click', 'button', function() {
         equivalencia: equivalencia,
         equivalenciaStr: equivalenciaStr,
         unidad: unidad,
-        costo: (typeof costo !== 'undefined' && costo !== null && costo !== '' && !isNaN(parseFloat(costo))) ? parseFloat(costo) : undefined
+        costo: costoUnitario
     };
     // Evitar duplicados
     if (insumosCotizacion.some(i => i.insumo_id == insumo.insumo_id)) {
@@ -1872,11 +1904,14 @@ function renderTablaInsumos() {
         }
         // Mostrar margen guardado si existe, si no calcular
         let margen = '';
+        let margenNegativo = false;
         if (typeof ins.margen !== 'undefined' && ins.margen !== null && ins.margen !== '') {
-            margen = ins.margen;
+            margenNegativo = parseFloat(ins.margen) < 0;
+            margen = Math.abs(parseFloat(ins.margen)).toFixed(2);
         } else if (costoReal !== undefined && parseFloat(ins.precio) > 0) {
-            margen = (((parseFloat(ins.precio) - costoReal) / costoReal) * 100);
-            margen = isFinite(margen) ? parseFloat(margen).toFixed(2) : '0.00';
+            let margenCalc = (((parseFloat(ins.precio) - costoReal) / costoReal) * 100);
+            margenNegativo = margenCalc < 0;
+            margen = isFinite(margenCalc) ? Math.abs(parseFloat(margenCalc)).toFixed(2) : '0.00';
         } else if (costoReal !== undefined && parseFloat(ins.precio) === 0) {
             margen = '0.00';
         }
@@ -1912,7 +1947,7 @@ function renderTablaInsumos() {
                 </td>
                 <td style='vertical-align:middle;'>
                     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
-                        <input type="number" min="0" max="99" step="0.01" value="${margen}" class="form-control form-control-sm margen-insumo-input" data-index="${i}" style="width:70px; text-align:right; font-size:1em; font-weight:600; color:${costoReal !== undefined && parseFloat(ins.precio) > 0 && (parseFloat(ins.precio) - costoReal) >= 0 ? '#198754' : '#d63333'};" title="Editar margen (%)" ${costoReal === undefined ? 'disabled' : ''}>
+                        <input type="number" min="0" max="99" step="0.01" value="${margen}" class="form-control form-control-sm margen-insumo-input" data-index="${i}" style="width:70px; text-align:right; font-size:1em; font-weight:600; color:${margenNegativo ? '#d63333' : '#198754'};" title="Editar margen (%)" ${costoReal === undefined ? 'disabled' : ''}>
                         ${(costoReal === undefined) ? '<span style="font-size:0.9em; color:#d63333;">Sin costo</span>' : '<span style="font-size:0.9em; color:#888;"></span>'}
                     </div>
                 </td>
@@ -1938,6 +1973,11 @@ function renderTablaInsumos() {
     $('.margen-insumo-input').off('input').on('input', function() {
         const index = parseInt($(this).data('index'));
         let porcentaje = parseFloat($(this).val());
+        // Forzar margen positivo
+        if (!isNaN(porcentaje) && porcentaje < 0) {
+            porcentaje = Math.abs(porcentaje);
+            $(this).val(porcentaje.toFixed(2));
+        }
         const ins = insumosCotizacion[index];
         // Usar costoReal para el cálculo
         let costoReal = undefined;
