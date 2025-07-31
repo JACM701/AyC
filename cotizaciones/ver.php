@@ -507,24 +507,41 @@ $insumos = $stmt->get_result();
                         <td colspan="2" style="text-align:center;">$<?= number_format($cotizacion['descuento_monto'], 2) ?></td>
                     </tr>
                 <?php endif; ?>
+                <?php if ($ivaManual > 0): ?>
                 <tr>
                     <td colspan="5" style="text-align:right; color:#198754; font-size:1.05em;">IVA especial</td>
                     <td colspan="2" style="text-align:center; color:#198754; font-weight:600; background:#e9fbe9; border-radius:6px;">
-                        <?php if (!empty($cotizacion['condicion_iva']) && is_numeric($cotizacion['condicion_iva']) && floatval($cotizacion['condicion_iva']) > 0): ?>
-                            <i class="bi bi-info-circle" style="font-size:1.2em;"></i> $<?= number_format($ivaManual, 2) ?>
-                        <?php else: ?>
-                            <span style="color:#999; font-weight:400;">No aplicado</span>
-                        <?php endif; ?>
+                        <i class="bi bi-info-circle" style="font-size:1.2em;"></i> $<?= number_format($ivaManual, 2) ?>
                     </td>
                 </tr>
+                <?php endif; ?>
                 <tr>
                     <td colspan="5" style="text-align:right; font-size:1.1rem; color:#121866;">TOTAL</td>
-                    <td colspan="2" style="text-align:center; font-size:1.1rem; color:#e53935;">$<?= number_format(($cotizacion['subtotal'] - $cotizacion['descuento_monto']) + $ivaManual, 2) ?></td>
+                    <td colspan="2" style="text-align:center; font-size:1.1rem; color:#e53935;">$<?= number_format($cotizacion['total'], 2) ?></td>
                 </tr>
             </tfoot>
         </table>
         <!-- RESUMEN card removed as requested -->
 
+        <div style="margin-top:10px; font-size:0.97rem; color:#888;">
+            <i class="bi bi-info-circle" style="color:#198754;"></i>
+            <?php
+            $base = $cotizacion['subtotal'] - $cotizacion['descuento_monto'];
+            $diferencia = $cotizacion['total'] - $base;
+            if ($base > 0) {
+                $porcentaje = ($diferencia / $base) * 100;
+                if ($porcentaje < 0) {
+                    echo 'El <strong>total</strong> es menor al <strong>subtotal</strong> por un descuento aplicado de <strong>' . number_format(abs($porcentaje), 2) . '%</strong>.';
+                } else if ($porcentaje > 0) {
+                    echo 'El <strong>total</strong> es mayor al <strong>subtotal</strong> por un cargo adicional (ej. IVA especial) de <strong>' . number_format($porcentaje, 2) . '%</strong>.';
+                } else {
+                    echo 'El <strong>total</strong> coincide con el <strong>subtotal</strong>.';
+                }
+            } else {
+                echo 'El <strong>total</strong> puede diferir del <strong>subtotal</strong> por descuentos o cargos adicionales.';
+            }
+            ?>
+        </div>
         <?php if ($cotizacion['condiciones_pago'] || $cotizacion['observaciones']): ?>
             <div class="condiciones">
                 <?php if ($cotizacion['condiciones_pago']): ?>

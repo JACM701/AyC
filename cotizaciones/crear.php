@@ -71,6 +71,8 @@ $estados_array = $estados ? $estados->fetch_all(MYSQLI_ASSOC) : [];
 
 $success = $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Leer IVA especial si viene del formulario
+    $iva_especial = isset($_POST['condicion_iva']) ? trim($_POST['condicion_iva']) : '';
     $productos_json = $_POST['productos_json'] ?? '';
     $servicios_json = $_POST['servicios_json'] ?? '';
     $productos = json_decode($productos_json, true);
@@ -137,7 +139,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         $descuento_monto = $subtotal * $descuento_porcentaje / 100;
-        $total = $subtotal - $descuento_monto;
+        $total_sin_iva = $subtotal - $descuento_monto;
+        $total = $total_sin_iva;
+        // Si hay IVA especial, sumarlo al total
+        if ($iva_especial !== '' && is_numeric($iva_especial) && floatval($iva_especial) > 0) {
+            $iva_monto = $total_sin_iva * (floatval($iva_especial) / 100);
+            $total += $iva_monto;
+        }
         
         // Generar número de cotización automáticamente
         $year = date('Y');
