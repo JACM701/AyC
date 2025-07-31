@@ -1,0 +1,6 @@
+2025-07-31 09:17:28 - [DEBUG FRONTEND] subtotal_frontend: 616.47, total_frontend: 826.07, condicion_iva: 34
+2025-07-31 09:17:28 - [DEBUG INICIAL] POST recibido - cliente_id: 1, condicion_iva: 34, subtotal_frontend: 616.47, total_frontend: 826.07
+2025-07-31 09:17:28 - [FRONTEND TOTALS] subtotal=616.47, descuento_monto=0, total=826.07
+2025-07-31 09:17:28 - [COTIZACION] subtotal=616.47, descuento_monto=0, total=826.07
+2025-07-31 09:17:28 - [INSERT] Insertando en DB con total=826.07
+2025-07-31 09:17:28 - [SUCCESS] Cotización guardada correctamente con ID=60
