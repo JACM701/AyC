@@ -373,7 +373,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             transition: opacity 0.15s;
             vertical-align: middle;
         }
-        #tablaProductosCotizacion td:hover .icon-buscar-google {
+        #tablaProductosCotizacion td:hover .icon-buscar-google,
+        #tablaInsumosCotizacion td:hover .icon-buscar-google {
             opacity: 1;
         }
     </style>
@@ -936,29 +937,6 @@ $(document).on('click', '.btn-eliminar-insumo', function() {
     recalcularTotales();
 });
 
-function renderTablaInsumos() {
-    let html = '';
-    let subtotal = 0;
-    insumosCotizacion.forEach((ins, i) => {
-        const sub = (parseFloat(ins.precio) || 0) * (parseFloat(ins.cantidad) || 1);
-        subtotal += sub;
-        html += `<tr>
-            <td style="text-align:center; vertical-align:middle; width:80px;">
-                ${ins.imagen ? `<img src="../uploads/insumos/${ins.imagen}" alt="${ins.nombre}" style="width:50px; height:50px; object-fit:cover; border-radius:8px; border:1px solid #ddd;">` : '<i class="bi bi-image text-muted" style="font-size:2em;"></i>'}
-            </td>
-            <td>${ins.nombre}</td>
-            <td>${ins.insumo_id ? `<a href='../insumos/insumos.php?id=${ins.insumo_id}' target='_blank'><i class='bi bi-link-45deg'></i></a>` : '-'}</td>
-            <td><input type='number' class='form-control cantidad-insumo-input' data-index='${i}' value='${ins.cantidad}' min='0.01' step='0.01'></td>
-            <td><input type='number' class='form-control precio-insumo-input' data-index='${i}' value='${ins.precio}' min='0' step='0.01'></td>
-            <td>${ins.costo ? `$${parseFloat(ins.costo).toFixed(2)}` : '-'}</td>
-            <td>$${sub.toFixed(2)}</td>
-            <td><button type='button' class='btn btn-sm btn-danger btn-eliminar-insumo' data-idx='${i}'><i class='bi bi-trash'></i></button></td>
-        </tr>`;
-    });
-    $('#tablaInsumosCotizacion tbody').html(html);
-    recalcularTotales();
-}
-
 $(document).on('input', '.cantidad-insumo-input', function() {
     const index = parseInt($(this).data('index'));
     let value = parseFloat($(this).val());
@@ -1234,7 +1212,7 @@ function renderTablaProductos() {
                     </div>
                 </td>
                 <td style="text-align:center; vertical-align:middle;">
-                    ${p.paquete_id ? `<span class='badge bg-info' style='font-size:0.95em;'><input type='checkbox' class='sync-checkbox' data-index='${i}' ${p.sincronizado !== false ? 'checked' : ''} title='Sincronizar con principal' style='margin-right:4px;'> <i class='bi bi-link-45deg'></i> Sync</span>` : ''}
+                    ${p.paquete_id ? `<span class='badge bg-info' style='font-size:0.95em;'><input type='checkbox' class='sync-checkbox' data-index='${i}' ${p.sincronizado !== false ? 'checked' : ''} title='Sincronizar con principal' style='margin-right:4px;'> <i class='bi bi-link-45deg'></i> Sync</span>` : `<button type='button' class='btn btn-sm btn-outline-primary' onclick='conectarProductoAPaquete(${i})' title='Conectar a paquete inteligente'><i class='bi bi-link'></i></button>`}
                 </td>
                 <td style='vertical-align:middle;'>
                     <input type="number" min="${min}" step="${step}" value="${p.cantidad}" class="form-control form-control-sm cantidad-input" data-index="${i}" data-paquete-id="${p.paquete_id || ''}" data-tipo-paquete="${p.tipo_paquete || ''}" style="width: 80px; background:#f8f9fa; border-radius:8px; border:1px solid #dbe2ef; box-shadow:0 1px 2px rgba(18,24,102,0.04);">${unidad}
@@ -1454,7 +1432,7 @@ function renderTablaServicios() {
                     ${s.tiempo_estimado ? `<br><small class="text-muted">Tiempo estimado: ${s.tiempo_estimado}h</small>` : ''}
                 </td>
                 <td style="text-align:center;">
-                    ${s.paquete_id ? `<input type='checkbox' class='sync-checkbox-servicio' data-index='${i}' ${s.sincronizado !== false ? 'checked' : ''} title='Sincronizar con principal'> <i class='bi bi-link-45deg'></i>` : ''}
+                    ${s.paquete_id ? `<span class='badge bg-info' style='font-size:0.95em;'><input type='checkbox' class='sync-checkbox-servicio' data-index='${i}' ${s.sincronizado !== false ? 'checked' : ''} title='Sincronizar con principal' style='margin-right:4px;'> <i class='bi bi-link-45deg'></i> Sync</span>` : `<button type='button' class='btn btn-sm btn-outline-primary' onclick='conectarServicioAPaquete(${i})' title='Conectar a paquete inteligente'><i class='bi bi-link'></i></button>`}
                 </td>
                 <td>
                     <input type="number" 
@@ -2414,10 +2392,13 @@ function renderTablaInsumos() {
                     ${imagenHtml}
                 </td>
                 <td style='font-weight:700; color:#121866; padding:18px 12px; min-width:180px;'>
-                    ${ins.nombre}
+                    <div style='display:flex; flex-direction:column;'>
+                        <span>${ins.nombre}</span>
+                        ${ins.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google" style='margin-top:4px;'><i class="bi bi-search"></i></a>` : ''}
+                    </div>
                 </td>
                 <td style='text-align:center; vertical-align:middle;'>
-                    ${ins.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google"><i class="bi bi-search"></i></a>` : ''}
+                    ${ins.paquete_id ? `<span class='badge bg-info' style='font-size:0.95em;'><input type='checkbox' class='sync-checkbox-insumo' data-index='${i}' ${ins.sincronizado !== false ? 'checked' : ''} title='Sincronizar con principal' style='margin-right:4px;'> <i class='bi bi-link-45deg'></i> Sync</span>` : `<button type='button' class='btn btn-sm btn-outline-primary' onclick='conectarInsumoAPaquete(${i})' title='Conectar a paquete inteligente'><i class='bi bi-link'></i></button>`}
                 </td>
                 <td style='vertical-align:middle;'>
                     <input type="number" min="1" step="1" value="${ins.cantidad}" class="form-control form-control-sm cantidad-insumo-input" data-index="${i}" style="width: 80px; background:#f8f9fa; border-radius:8px; border:1px solid #dbe2ef; box-shadow:0 1px 2px rgba(18,24,102,0.04);">
@@ -2557,6 +2538,292 @@ $(document).on('change', '.sync-checkbox-insumo', function() {
     const index = parseInt($(this).data('index'));
     insumosCotizacion[index].sincronizado = this.checked;
 });
+
+// Función para conectar un insumo a un paquete inteligente
+function conectarInsumoAPaquete(index) {
+    const insumo = insumosCotizacion[index];
+    if (!insumo) return;
+    
+    // Mostrar modal para seleccionar paquete
+    const paquetes = window.PaquetesCotizacion ? window.PaquetesCotizacion.getPaquetes() : [];
+    
+    if (paquetes.length === 0) {
+        mostrarNotificacion('No hay paquetes inteligentes creados. Primero crea un paquete desde "Gestionar paquetes inteligentes".', 'warning');
+        return;
+    }
+    
+    let html = `
+    <div class="modal fade" id="modalConectarInsumo" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-link"></i> Conectar insumo a paquete</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Insumo:</strong> ${insumo.nombre}</p>
+                    <div class="mb-3">
+                        <label class="form-label">Seleccionar paquete:</label>
+                        <select class="form-select" id="selectPaqueteInsumo">
+                            <option value="">-- Selecciona un paquete --</option>`;
+    
+    paquetes.forEach((paq, idx) => {
+        html += `<option value="${idx}">${paq.nombre}</option>`;
+    });
+    
+    html += `
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de relación:</label>
+                        <select class="form-select" id="tipoRelacionInsumo">
+                            <option value="relacionado">Relacionado (se sincroniza con principal)</option>
+                            <option value="principal">Principal (controla las cantidades)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Factor de multiplicación:</label>
+                        <input type="number" class="form-control" id="factorInsumo" value="1" min="0.01" step="0.01">
+                        <small class="text-muted">Cantidad que se usará por cada unidad del principal</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="confirmarConexionInsumo(${index})">Conectar</button>
+                </div>
+            </div>
+        </div>
+    </div>`;
+    
+    // Remover modal anterior si existe
+    $('#modalConectarInsumo').remove();
+    
+    // Agregar modal al DOM
+    $('body').append(html);
+    
+    // Mostrar modal
+    $('#modalConectarInsumo').modal('show');
+}
+
+// Función para confirmar la conexión del insumo al paquete
+function confirmarConexionInsumo(index) {
+    const paqueteIndex = $('#selectPaqueteInsumo').val();
+    const tipoRelacion = $('#tipoRelacionInsumo').val();
+    const factor = parseFloat($('#factorInsumo').val()) || 1;
+    
+    if (!paqueteIndex) {
+        mostrarNotificacion('Selecciona un paquete.', 'warning');
+        return;
+    }
+    
+    // Generar ID único para el paquete
+    const paqueteId = 'paq_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    
+    // Actualizar el insumo con la información del paquete
+    insumosCotizacion[index].paquete_id = paqueteId;
+    insumosCotizacion[index].tipo_paquete = tipoRelacion;
+    insumosCotizacion[index].factor_paquete = factor;
+    insumosCotizacion[index].sincronizado = true;
+    
+    // Cerrar modal
+    $('#modalConectarInsumo').modal('hide');
+    
+    // Volver a renderizar la tabla
+    renderTablaInsumos();
+    
+    mostrarNotificacion('Insumo conectado al paquete correctamente.', 'success');
+}
+
+// Función para conectar un producto a un paquete inteligente
+function conectarProductoAPaquete(index) {
+    const producto = productosCotizacion[index];
+    if (!producto) return;
+    
+    // Mostrar modal para seleccionar paquete
+    const paquetes = window.PaquetesCotizacion ? window.PaquetesCotizacion.getPaquetes() : [];
+    
+    if (paquetes.length === 0) {
+        mostrarNotificacion('No hay paquetes inteligentes creados. Primero crea un paquete desde "Gestionar paquetes inteligentes".', 'warning');
+        return;
+    }
+    
+    let html = `
+    <div class="modal fade" id="modalConectarProducto" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-link"></i> Conectar producto a paquete</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Producto:</strong> ${producto.nombre}</p>
+                    <div class="mb-3">
+                        <label class="form-label">Seleccionar paquete:</label>
+                        <select class="form-select" id="selectPaqueteProducto">
+                            <option value="">-- Selecciona un paquete --</option>`;
+    
+    paquetes.forEach((paq, idx) => {
+        html += `<option value="${idx}">${paq.nombre}</option>`;
+    });
+    
+    html += `
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de relación:</label>
+                        <select class="form-select" id="tipoRelacionProducto">
+                            <option value="relacionado">Relacionado (se sincroniza con principal)</option>
+                            <option value="principal">Principal (controla las cantidades)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Factor de multiplicación:</label>
+                        <input type="number" class="form-control" id="factorProducto" value="1" min="0.01" step="0.01">
+                        <small class="text-muted">Cantidad que se usará por cada unidad del principal</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="confirmarConexionProducto(${index})">Conectar</button>
+                </div>
+            </div>
+        </div>
+    </div>`;
+    
+    // Remover modal anterior si existe
+    $('#modalConectarProducto').remove();
+    
+    // Agregar modal al DOM
+    $('body').append(html);
+    
+    // Mostrar modal
+    $('#modalConectarProducto').modal('show');
+}
+
+// Función para confirmar la conexión del producto al paquete
+function confirmarConexionProducto(index) {
+    const paqueteIndex = $('#selectPaqueteProducto').val();
+    const tipoRelacion = $('#tipoRelacionProducto').val();
+    const factor = parseFloat($('#factorProducto').val()) || 1;
+    
+    if (!paqueteIndex) {
+        mostrarNotificacion('Selecciona un paquete.', 'warning');
+        return;
+    }
+    
+    // Generar ID único para el paquete
+    const paqueteId = 'paq_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    
+    // Actualizar el producto con la información del paquete
+    productosCotizacion[index].paquete_id = paqueteId;
+    productosCotizacion[index].tipo_paquete = tipoRelacion;
+    productosCotizacion[index].factor_paquete = factor;
+    productosCotizacion[index].sincronizado = true;
+    
+    // Cerrar modal
+    $('#modalConectarProducto').modal('hide');
+    
+    // Volver a renderizar la tabla
+    renderTablaProductos();
+    
+    mostrarNotificacion('Producto conectado al paquete correctamente.', 'success');
+}
+
+// Función para conectar un servicio a un paquete inteligente
+function conectarServicioAPaquete(index) {
+    const servicio = serviciosCotizacion[index];
+    if (!servicio) return;
+    
+    // Mostrar modal para seleccionar paquete
+    const paquetes = window.PaquetesCotizacion ? window.PaquetesCotizacion.getPaquetes() : [];
+    
+    if (paquetes.length === 0) {
+        mostrarNotificacion('No hay paquetes inteligentes creados. Primero crea un paquete desde "Gestionar paquetes inteligentes".', 'warning');
+        return;
+    }
+    
+    let html = `
+    <div class="modal fade" id="modalConectarServicio" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-link"></i> Conectar servicio a paquete</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Servicio:</strong> ${servicio.nombre}</p>
+                    <div class="mb-3">
+                        <label class="form-label">Seleccionar paquete:</label>
+                        <select class="form-select" id="selectPaqueteServicio">
+                            <option value="">-- Selecciona un paquete --</option>`;
+    
+    paquetes.forEach((paq, idx) => {
+        html += `<option value="${idx}">${paq.nombre}</option>`;
+    });
+    
+    html += `
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de relación:</label>
+                        <select class="form-select" id="tipoRelacionServicio">
+                            <option value="relacionado">Relacionado (se sincroniza con principal)</option>
+                            <option value="principal">Principal (controla las cantidades)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Factor de multiplicación:</label>
+                        <input type="number" class="form-control" id="factorServicio" value="1" min="0.01" step="0.01">
+                        <small class="text-muted">Cantidad que se usará por cada unidad del principal</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="confirmarConexionServicio(${index})">Conectar</button>
+                </div>
+            </div>
+        </div>
+    </div>`;
+    
+    // Remover modal anterior si existe
+    $('#modalConectarServicio').remove();
+    
+    // Agregar modal al DOM
+    $('body').append(html);
+    
+    // Mostrar modal
+    $('#modalConectarServicio').modal('show');
+}
+
+// Función para confirmar la conexión del servicio al paquete
+function confirmarConexionServicio(index) {
+    const paqueteIndex = $('#selectPaqueteServicio').val();
+    const tipoRelacion = $('#tipoRelacionServicio').val();
+    const factor = parseFloat($('#factorServicio').val()) || 1;
+    
+    if (!paqueteIndex) {
+        mostrarNotificacion('Selecciona un paquete.', 'warning');
+        return;
+    }
+    
+    // Generar ID único para el paquete
+    const paqueteId = 'paq_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    
+    // Actualizar el servicio con la información del paquete
+    serviciosCotizacion[index].paquete_id = paqueteId;
+    serviciosCotizacion[index].tipo_paquete = tipoRelacion;
+    serviciosCotizacion[index].factor_paquete = factor;
+    serviciosCotizacion[index].sincronizado = true;
+    
+    // Cerrar modal
+    $('#modalConectarServicio').modal('hide');
+    
+    // Volver a renderizar la tabla
+    renderTablaServicios();
+    
+    mostrarNotificacion('Servicio conectado al paquete correctamente.', 'success');
+}
+
 </script>
 </body>
 </html>
