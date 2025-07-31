@@ -771,10 +771,8 @@ function renderTablaProductos() {
     let html = '';
     let subtotal = 0;
     productosCotizacion.forEach((p, i) => {
-        // IVA SIEMPRE APLICADO
-        const subBase = (parseFloat(p.precio) || 0) * (parseFloat(p.cantidad) || 1);
-        const ivaMonto = subBase * 0.16;
-        const sub = subBase + ivaMonto;
+        // IVA REMOVED
+        const sub = (parseFloat(p.precio) || 0) * (parseFloat(p.cantidad) || 1);
         subtotal += sub;
         const esBobina = p.tipo_gestion === 'bobina';
         const step = esBobina ? '0.01' : '1';
@@ -837,8 +835,7 @@ function renderTablaProductos() {
                 </td>
                 <td style='vertical-align:middle;'>
                     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
-                        <span style="font-size:1.15em; font-weight:700; color:#212529;">$${sub.toFixed(2)} <span class="badge bg-warning ms-2">IVA incluido</span></span>
-                        <span style='font-size:0.85em; color:#888; margin-top:2px;'>Base: $${subBase.toFixed(2)}<span style='margin:0 6px;'>|</span>IVA: $${ivaMonto.toFixed(2)}</span>
+                        <span style="font-size:1.15em; font-weight:700; color:#212529;">$${sub.toFixed(2)}</span>
                     </div>
                 </td>
                 <td style="width:70px; text-align:center; vertical-align:middle; padding:0;">
@@ -1885,10 +1882,8 @@ function renderTablaInsumos() {
     let html = '';
     let subtotal = 0;
     insumosCotizacion.forEach((ins, i) => {
-        // IVA SIEMPRE APLICADO
-        const subBase = (parseFloat(ins.precio) || 0) * (parseFloat(ins.cantidad) || 1);
-        const ivaMonto = subBase * 0.16;
-        const sub = subBase + ivaMonto;
+        // IVA REMOVED
+        const sub = (parseFloat(ins.precio) || 0) * (parseFloat(ins.cantidad) || 1);
         subtotal += sub;
         const nombreGoogle = encodeURIComponent(ins.nombre || '');
         let stockStr = '';
@@ -1953,8 +1948,7 @@ function renderTablaInsumos() {
                 </td>
                 <td style='vertical-align:middle;'>
                     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
-                        <span style="font-size:1.15em; font-weight:700; color:#212529;">$${sub.toFixed(2)} <span class="badge bg-warning ms-2">IVA incluido</span></span>
-                        <span style='font-size:0.85em; color:#888; margin-top:2px;'>Base: $${subBase.toFixed(2)}<span style='margin:0 6px;'>|</span>IVA: $${ivaMonto.toFixed(2)}</span>
+                        <span style="font-size:1.15em; font-weight:700; color:#212529;">$${sub.toFixed(2)}</span>
                     </div>
                 </td>
                 <td style="width:70px; text-align:center; vertical-align:middle; padding:0;">
