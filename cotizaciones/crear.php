@@ -13,6 +13,7 @@ $productos = $mysqli->query("
         p.price, 
         p.cost_price,
         p.tipo_gestion,
+        p.image,
         c.name as categoria, 
         s.name as proveedor,
         CASE 
@@ -21,11 +22,11 @@ $productos = $mysqli->query("
             ELSE 
                 p.quantity
         END as stock_disponible
-    FROM products p 
-    LEFT JOIN categories c ON p.category_id = c.category_id 
+    FROM products p
+    LEFT JOIN categories c ON p.category_id = c.category_id
     LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id
     LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
-    GROUP BY p.product_id, p.product_name, p.sku, p.price, p.cost_price, p.tipo_gestion, c.name, s.name, p.quantity
+    GROUP BY p.product_id, p.product_name, p.sku, p.price, p.cost_price, p.tipo_gestion, p.image, c.name, s.name, p.quantity
     ORDER BY p.product_name ASC
 ");
 $productos_array = $productos ? $productos->fetch_all(MYSQLI_ASSOC) : [];
@@ -37,7 +38,7 @@ $servicios = $mysqli->query("SELECT servicio_id, nombre, descripcion, categoria,
 $servicios_array = $servicios ? $servicios->fetch_all(MYSQLI_ASSOC) : [];
 
 // Obtener insumos disponibles
-$insumos = $mysqli->query("SELECT i.insumo_id, i.nombre, i.categoria, s.name as proveedor, i.cantidad as stock, i.precio_unitario as precio
+$insumos = $mysqli->query("SELECT i.insumo_id, i.nombre, i.categoria, i.imagen, s.name as proveedor, i.cantidad as stock, i.precio_unitario as precio, i.cost_price as costo
     FROM insumos i
     LEFT JOIN suppliers s ON i.supplier_id = s.supplier_id
     WHERE i.is_active = 1
@@ -403,7 +404,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                     <div class="col-md-3">
                         <label for="cliente_telefono" class="form-label">Teléfono</label>
-                        <input type="text" class="form-control" name="cliente_telefono" id="cliente_telefono">
+                        <input type="text" class="form-control" name="cliente_telefono" id="cliente_telefono" maxlength="10" pattern="[0-9]{10}" placeholder="1234567890">
                     </div>
                     <div class="col-md-3">
                         <label for="cliente_ubicacion" class="form-label">Ubicación</label>
@@ -508,10 +509,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <table class="table table-striped align-middle" id="tablaProductosCotizacion">
                     <thead class="table-dark">
                         <tr>
+                            <th>Imagen</th>
                             <th>Nombre</th>
                             <th>Enlace</th>
-                            <th>Proveedor</th>
-                            <th>Stock</th>
                             <th>Cantidad</th>
                             <th>Precio</th>
                             <th style="text-align:right; color:#0d6efd; min-width:90px;">Margen</th>
@@ -539,10 +539,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <table class="table table-striped align-middle" id="tablaInsumosCotizacion">
                     <thead class="table-dark">
                         <tr>
+                            <th>Imagen</th>
                             <th style='min-width:180px;'>Nombre</th>
                             <th style='text-align:center;'>Enlace</th>
-                            <th>Proveedor</th>
-                            <th style='color:#198754;'>Stock</th>
                             <th>Cantidad</th>
                             <th>Precio</th>
                             <th style='text-align:right; color:#0d6efd; min-width:90px;'>Margen</th>
@@ -666,9 +665,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <table class="table table-striped align-middle" id="tablaServiciosCotizacion">
                     <thead class="table-dark">
                         <tr>
+                            <th>Imagen</th>
                             <th>Servicio</th>
                             <th>Enlace</th>
-                            <th>Descripción</th>
                             <th>Cantidad</th>
                             <th>Precio</th>
                             <th>Subtotal</th>
@@ -944,10 +943,11 @@ function renderTablaInsumos() {
         const sub = (parseFloat(ins.precio) || 0) * (parseFloat(ins.cantidad) || 1);
         subtotal += sub;
         html += `<tr>
+            <td style="text-align:center; vertical-align:middle; width:80px;">
+                ${ins.imagen ? `<img src="../uploads/insumos/${ins.imagen}" alt="${ins.nombre}" style="width:50px; height:50px; object-fit:cover; border-radius:8px; border:1px solid #ddd;">` : '<i class="bi bi-image text-muted" style="font-size:2em;"></i>'}
+            </td>
             <td>${ins.nombre}</td>
             <td>${ins.insumo_id ? `<a href='../insumos/insumos.php?id=${ins.insumo_id}' target='_blank'><i class='bi bi-link-45deg'></i></a>` : '-'}</td>
-            <td>${ins.proveedor || '-'}</td>
-            <td>${typeof ins.stock !== 'undefined' ? ins.stock : '-'}</td>
             <td><input type='number' class='form-control cantidad-insumo-input' data-index='${i}' value='${ins.cantidad}' min='0.01' step='0.01'></td>
             <td><input type='number' class='form-control precio-insumo-input' data-index='${i}' value='${ins.precio}' min='0' step='0.01'></td>
             <td>${ins.costo ? `$${parseFloat(ins.costo).toFixed(2)}` : '-'}</td>
@@ -1074,7 +1074,7 @@ $('#buscador_producto').on('input', function() {
         });
         
         filtrados.forEach(p => {
-            sugerencias += `<button type='button' class='list-group-item list-group-item-action' data-id='${p.product_id}' data-nombre='${p.product_name}' data-sku='${p.sku}' data-categoria='${p.categoria||''}' data-proveedor='${p.proveedor||''}' data-stock='${p.stock_disponible}' data-precio='${p.price}'>
+            sugerencias += `<button type='button' class='list-group-item list-group-item-action' data-id='${p.product_id}' data-nombre='${p.product_name}' data-sku='${p.sku}' data-categoria='${p.categoria||''}' data-proveedor='${p.proveedor||''}' data-stock='${p.stock_disponible}' data-precio='${p.price}' data-image='${p.image||''}'>
                 <b>${p.product_name}</b> <span class='badge bg-${p.stock_disponible > 0 ? 'success' : 'danger'} ms-2'>Stock: ${p.stock_disponible}</span><br>
                 <small>SKU: ${p.sku || '-'} | $${parseFloat(p.price).toFixed(2)}</small>
             </button>`;
@@ -1094,7 +1094,8 @@ $('#sugerencias_productos').on('click', 'button', function() {
         cantidad: prod && prod.tipo_gestion === 'bobina' ? 1.00 : 1,
         precio: $(this).data('precio'),
         tipo_gestion: prod ? prod.tipo_gestion : 'pieza',
-        cost_price: prod && typeof prod.cost_price !== 'undefined' ? prod.cost_price : ''
+        cost_price: prod && typeof prod.cost_price !== 'undefined' ? prod.cost_price : '',
+        image: $(this).data('image') || (prod ? prod.image : '')
     });
     $('#buscador_producto').val('');
     $('#sugerencias_productos').hide();
@@ -1222,6 +1223,9 @@ function renderTablaProductos() {
         }
         html += `
             <tr style='background:#fff; border-radius:16px; box-shadow:0 2px 12px rgba(18,24,102,0.07); margin-bottom:12px; border:2px solid #f4f6fb; transition:box-shadow 0.2s, border 0.2s;'>
+                <td style="text-align:center; vertical-align:middle; width:80px;">
+                    ${p.image ? `<img src="${p.image.startsWith('uploads/') ? '../' + p.image : '../uploads/products/' + p.image}" alt="${p.nombre}" style="width:50px; height:50px; object-fit:cover; border-radius:8px; border:1px solid #ddd;">` : '<i class="bi bi-image text-muted" style="font-size:2em;"></i>'}
+                </td>
                 <td style='font-weight:700; color:#121866; padding:18px 12px; min-width:180px;'>
                     <div style='display:flex; flex-direction:column;'>
                         <span>${p.nombre}</span>
@@ -1232,8 +1236,6 @@ function renderTablaProductos() {
                 <td style="text-align:center; vertical-align:middle;">
                     ${p.paquete_id ? `<span class='badge bg-info' style='font-size:0.95em;'><input type='checkbox' class='sync-checkbox' data-index='${i}' ${p.sincronizado !== false ? 'checked' : ''} title='Sincronizar con principal' style='margin-right:4px;'> <i class='bi bi-link-45deg'></i> Sync</span>` : ''}
                 </td>
-                <td style='vertical-align:middle;'>${p.proveedor || ''}</td>
-                <td style='color:#198754; font-weight:600; vertical-align:middle;'>${stockStr}</td>
                 <td style='vertical-align:middle;'>
                     <input type="number" min="${min}" step="${step}" value="${p.cantidad}" class="form-control form-control-sm cantidad-input" data-index="${i}" data-paquete-id="${p.paquete_id || ''}" data-tipo-paquete="${p.tipo_paquete || ''}" style="width: 80px; background:#f8f9fa; border-radius:8px; border:1px solid #dbe2ef; box-shadow:0 1px 2px rgba(18,24,102,0.04);">${unidad}
                 </td>
@@ -1444,6 +1446,9 @@ function renderTablaServicios() {
         const sub = (parseFloat(s.precio) || 0) * (parseFloat(s.cantidad) || 1);
         html += `
             <tr>
+                <td style="text-align:center; vertical-align:middle; width:80px;">
+                    ${s.imagen ? `<img src="../uploads/services/${s.imagen}" alt="${s.nombre}" style="width:50px; height:50px; object-fit:cover; border-radius:8px; border:1px solid #ddd;">` : '<i class="bi bi-image text-muted" style="font-size:2em;"></i>'}
+                </td>
                 <td>
                     <strong>${s.nombre}</strong>
                     ${s.tiempo_estimado ? `<br><small class="text-muted">Tiempo estimado: ${s.tiempo_estimado}h</small>` : ''}
@@ -1451,7 +1456,6 @@ function renderTablaServicios() {
                 <td style="text-align:center;">
                     ${s.paquete_id ? `<input type='checkbox' class='sync-checkbox-servicio' data-index='${i}' ${s.sincronizado !== false ? 'checked' : ''} title='Sincronizar con principal'> <i class='bi bi-link-45deg'></i>` : ''}
                 </td>
-                <td>${s.descripcion || ''}</td>
                 <td>
                     <input type="number" 
                            min="1" 
@@ -2305,7 +2309,7 @@ $('#buscador_insumo').on('input', function() {
                 if (typeof ins.cost_price !== 'undefined' && ins.cost_price !== null && ins.cost_price !== '' && !isNaN(parseFloat(ins.cost_price))) {
                     dataCostPrice = `data-cost_price='${ins.cost_price}'`;
                 }
-                sugerencias += `<button type='button' class='list-group-item list-group-item-action' data-id='${ins.insumo_id}' data-nombre='${ins.nombre}' data-categoria='${ins.categoria_nombre||''}' data-proveedor='${ins.proveedor||''}' data-stock='${ins.cantidad}' data-precio='${ins.precio_unitario}' ${dataCosto} ${dataCostPrice}>
+                sugerencias += `<button type='button' class='list-group-item list-group-item-action' data-id='${ins.insumo_id}' data-nombre='${ins.nombre}' data-categoria='${ins.categoria_nombre||''}' data-proveedor='${ins.proveedor||''}' data-stock='${ins.cantidad}' data-precio='${ins.precio_unitario}' data-imagen='${ins.imagen||''}' ${dataCosto} ${dataCostPrice}>
                     <b>${ins.nombre}</b> <span class='badge bg-${ins.cantidad > 0 ? 'success' : 'danger'} ms-2'>Stock: ${ins.cantidad}</span><br>
                     <small>${ins.categoria_nombre || '-'} | ${ins.proveedor || '-'}</small>
                 </button>`;
@@ -2353,7 +2357,8 @@ $('#sugerencias_insumos').on('click', 'button', function() {
         equivalencia: equivalencia,
         equivalenciaStr: equivalenciaStr,
         unidad: unidad,
-        costo: costoUnitario
+        costo: costoUnitario,
+        imagen: $(this).data('imagen') || ''
     };
     // Evitar duplicados
     if (insumosCotizacion.some(i => i.insumo_id == insumo.insumo_id)) {
@@ -2374,10 +2379,7 @@ function renderTablaInsumos() {
         const sub = (parseFloat(ins.precio) || 0) * (parseFloat(ins.cantidad) || 1);
         subtotal += sub;
         const nombreGoogle = encodeURIComponent(ins.nombre || '');
-        let stockStr = '';
-        if (typeof ins.stock !== 'undefined' && ins.stock !== null && ins.stock !== '') {
-            stockStr = parseFloat(ins.stock).toFixed(2);
-        }
+        
         // Margen sobre precio base (costo)
         let costoReal = undefined;
         if (ins.costo !== undefined && ins.costo !== null && ins.costo !== '' && !isNaN(parseFloat(ins.costo))) {
@@ -2398,35 +2400,30 @@ function renderTablaInsumos() {
         } else if (costoReal !== undefined && parseFloat(ins.precio) === 0) {
             margen = '0.00';
         }
+        
+        // Imagen
+        const imagenPath = ins.imagen && ins.imagen.trim() !== '' ? 
+            (ins.imagen.startsWith('uploads/') ? `../${ins.imagen}` : `../uploads/insumos/${ins.imagen}`) : '';
+        const imagenHtml = imagenPath ? 
+            `<img src="${imagenPath}" alt="${ins.nombre}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;" onerror="this.style.display='none'">` : 
+            '<span style="color: #ccc; font-size: 12px;">Sin imagen</span>';
+
         html += `
             <tr style='background:#fff; border-radius:16px; box-shadow:0 2px 12px rgba(18,24,102,0.07); margin-bottom:12px; border:2px solid #f4f6fb; transition:box-shadow 0.2s, border 0.2s;'>
-                <td style='font-weight:700; color:#121866; padding:18px 12px; min-width:180px;'>
-                    <div style='display:flex; flex-direction:column;'>
-                        <span>${ins.nombre}</span>
-                        ${ins.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google" style='margin-top:4px;'><i class="bi bi-search"></i></a>` : ''}
-                    </div>
+                <td style='text-align:center; vertical-align:middle; padding:12px;'>
+                    ${imagenHtml}
                 </td>
-                <td style="text-align:center; vertical-align:middle;"></td>
-                <td style='vertical-align:middle;'>${ins.proveedor || ''}</td>
-                <td style='color:#198754; font-weight:600; vertical-align:middle;'>${stockStr}</td>
+                <td style='font-weight:700; color:#121866; padding:18px 12px; min-width:180px;'>
+                    ${ins.nombre}
+                </td>
+                <td style='text-align:center; vertical-align:middle;'>
+                    ${ins.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google"><i class="bi bi-search"></i></a>` : ''}
+                </td>
                 <td style='vertical-align:middle;'>
                     <input type="number" min="1" step="1" value="${ins.cantidad}" class="form-control form-control-sm cantidad-insumo-input" data-index="${i}" style="width: 80px; background:#f8f9fa; border-radius:8px; border:1px solid #dbe2ef; box-shadow:0 1px 2px rgba(18,24,102,0.04);">
                 </td>
                 <td style='vertical-align:middle;'>
                     <input type="number" min="0" step="0.0001" value="${ins.precio || ''}" class="form-control form-control-sm precio-insumo-input" data-index="${i}" style="width: 110px; background:#f8f9fa; border-radius:8px; border:1px solid #dbe2ef; box-shadow:0 1px 2px rgba(18,24,102,0.04);">
-                    <div style="font-size:0.85em; color:#888; margin-top:2px;">
-                        <span title="Costo real de la base de datos">
-                            Costo: $${
-                                (() => {
-                                    let val = (ins.costo !== undefined && ins.costo !== null && ins.costo !== '' && !isNaN(parseFloat(ins.costo))) ? parseFloat(ins.costo) : undefined;
-                                    if (val === undefined && ins.cost_price !== undefined && ins.cost_price !== null && ins.cost_price !== '' && !isNaN(parseFloat(ins.cost_price))) {
-                                        val = parseFloat(ins.cost_price);
-                                    }
-                                    return (val !== undefined) ? val.toFixed(2) : 'N/A';
-                                })()
-                            }
-                        </span>
-                    </div>
                 </td>
                 <td style='vertical-align:middle;'>
                     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
