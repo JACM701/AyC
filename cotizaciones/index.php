@@ -94,9 +94,10 @@ $cotizaciones = $stmt->get_result();
 $stats_query = "
     SELECT 
         COUNT(*) as total_cotizaciones,
-        SUM(total) as total_valor,
-        AVG(total) as promedio_valor
+        SUM(CASE WHEN estado_id != 4 THEN total ELSE 0 END) as total_valor,
+        AVG(CASE WHEN estado_id != 4 THEN total ELSE NULL END) as promedio_valor
     FROM cotizaciones
+    WHERE estado_id != 4
 ";
 $stats_result = $mysqli->query($stats_query);
 $stats = $stats_result->fetch_assoc();
@@ -262,9 +263,6 @@ $img_files = array_filter(scandir($img_dir), function($f) {
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h2><i class="bi bi-file-earmark-text"></i> Gestión de Cotizaciones</h2>
             <div>
-                <a href="reportes.php" class="btn btn-info me-2">
-                    <i class="bi bi-graph-up"></i> Reportes
-                </a>
                 <a href="crear.php" class="btn btn-primary">
                     <i class="bi bi-plus-circle"></i> Nueva Cotización
                 </a>

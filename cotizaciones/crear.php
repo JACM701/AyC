@@ -792,7 +792,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                     <div class="col-md-1">
                         <label class="form-label">Cantidad</label>
-                        <input type="number" class="form-control" id="nuevo_cantidad_producto" min="0" value="1">
+                        <input type="number" class="form-control" id="nuevo_cantidad_producto" min="0" value="0">
                     </div>
                     <div class="col-md-1">
                         <label class="form-label">Categoría</label>
@@ -951,7 +951,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     </select>
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label">Precio unitario</label>
+                                    <label class="form-label">Precio de venta</label>
                                     <input type="number" step="0.01" min="0" class="form-control" id="nuevo_precio_insumo" placeholder="0.00">
                                 </div>
                                 <div class="col-md-4">
@@ -1395,15 +1395,15 @@ $('#btnAltaRapidaProducto').on('click', function() {
 $('#btnAgregarProductoRapido').on('click', function() {
     const nombre = $('#nuevo_nombre_producto').val();
     const precio = parseFloat($('#nuevo_precio_producto').val()) || 0;
-    const cantidad = parseInt($('#nuevo_cantidad_producto').val()) || 1;
+    const cantidad = parseInt($('#nuevo_cantidad_producto').val()) || 0;
     const sku = $('#nuevo_sku_producto').val();
     const categoria_id = $('#nuevo_categoria_producto').val();
     const proveedor_id = $('#nuevo_proveedor_producto').val();
     const costo = parseFloat($('#nuevo_costo_producto').val()) || 0;
     const agregarInventario = $('#nuevo_agregar_inventario_producto').is(':checked');
     const imagenFile = $('#nuevo_imagen_producto')[0] ? $('#nuevo_imagen_producto')[0].files[0] : null;
-    if (!nombre || !precio || !cantidad) {
-        mostrarNotificacion('Completa nombre, precio y cantidad para el producto.', 'warning');
+    if (!nombre || !precio || cantidad < 0) {
+        mostrarNotificacion('Completa nombre, precio y cantidad (>=0) para el producto.', 'warning');
         return;
     }
     let formData = new FormData();
