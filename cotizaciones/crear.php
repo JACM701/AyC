@@ -410,7 +410,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                     <div class="col-md-1">
                         <label class="form-label">Cantidad</label>
-                        <input type="number" class="form-control" id="nuevo_cantidad_producto" min="1" value="1">
+                        <input type="number" class="form-control" id="nuevo_cantidad_producto" min="0" value="1">
                     </div>
                     <div class="col-md-1">
                         <label class="form-label">Categoría</label>
@@ -429,6 +429,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <option value="<?= $prov['supplier_id'] ?>"><?= htmlspecialchars($prov['name']) ?></option>
                             <?php endwhile; ?>
                         </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Imagen</label>
+                        <input type="file" class="form-control" id="nuevo_imagen_producto" accept="image/*">
+                    </div>
+                    <div class="col-md-2 d-flex align-items-center">
+                        <div class="form-check mt-4">
+                            <input class="form-check-input" type="checkbox" id="nuevo_agregar_inventario_producto">
+                            <label class="form-check-label" for="nuevo_agregar_inventario_producto">Agregar al inventario</label>
+                        </div>
                     </div>
                 </div>
                 <div class="mt-2">
@@ -485,6 +495,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <input type="text" class="form-control" id="buscador_insumo" placeholder="Nombre, categoría o proveedor...">
                 <div id="sugerencias_insumos" class="list-group mt-1"></div>
             </div>
+            <div class="mb-3">
+                <button type="button" class="btn btn-outline-primary" id="btnAltaRapidaInsumo"><i class="bi bi-plus-circle"></i> Alta rápida de insumo</button>
+            </div>
             <div class="table-responsive mt-4">
                 <table class="table table-striped align-middle" id="tablaInsumosCotizacion">
                     <thead class="table-dark">
@@ -502,6 +515,105 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </thead>
                     <tbody></tbody>
                 </table>
+            </div>
+        </div>
+        <!-- Modal Alta Rápida Insumo -->
+        <div class="modal fade" id="modalAltaRapidaInsumo" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-plus-circle"></i> Crear Nuevo Insumo</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="formAltaRapidaInsumo" enctype="multipart/form-data">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label">Nombre del insumo *</label>
+                                    <input type="text" class="form-control" id="nuevo_nombre_insumo" required placeholder="Ej: Cable UTP Cat6">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Categoría *</label>
+                                    <select class="form-select" id="nuevo_categoria_insumo" required>
+                                        <option value="">-- Selecciona una categoría --</option>
+                                        <?php
+                                        $categorias_query = $mysqli->query("SELECT category_id, name FROM categories ORDER BY name");
+                                        while ($categoria = $categorias_query->fetch_assoc()) {
+                                            echo '<option value="' . $categoria['category_id'] . '">' . htmlspecialchars($categoria['name']) . '</option>';
+                                        }
+                                        ?>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Proveedor *</label>
+                                    <select class="form-select" id="nuevo_proveedor_insumo" required>
+                                        <option value="">-- Selecciona un proveedor --</option>
+                                        <?php
+                                        $proveedores_query = $mysqli->query("SELECT supplier_id, name FROM suppliers ORDER BY name");
+                                        while ($proveedor = $proveedores_query->fetch_assoc()) {
+                                            echo '<option value="' . $proveedor['supplier_id'] . '">' . htmlspecialchars($proveedor['name']) . '</option>';
+                                        }
+                                        ?>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Unidad de medida</label>
+                                    <select class="form-select" id="nuevo_unidad_insumo">
+                                        <option value="Pieza" selected>Pieza</option>
+                                        <option value="Metro">Metro</option>
+                                        <option value="Kilogramo">Kilogramo</option>
+                                        <option value="Litro">Litro</option>
+                                        <option value="Caja">Caja</option>
+                                        <option value="Paquete">Paquete</option>
+                                        <option value="Rollo">Rollo</option>
+                                        <option value="Bolsa">Bolsa</option>
+                                        <option value="Unidad">Unidad</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Precio unitario</label>
+                                    <input type="number" step="0.01" min="0" class="form-control" id="nuevo_precio_insumo" placeholder="0.00">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Costo</label>
+                                    <input type="number" step="0.01" min="0" class="form-control" id="nuevo_costo_insumo" placeholder="0.00">
+                                    <small class="text-muted">Costo de compra por unidad</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Cantidad inicial</label>
+                                    <input type="number" step="0.01" min="0" class="form-control" id="nuevo_cantidad_insumo" value="0">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Stock mínimo</label>
+                                    <input type="number" step="0.01" min="0" class="form-control" id="nuevo_minimo_insumo" value="10">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Imagen del insumo</label>
+                                    <input type="file" class="form-control" id="nuevo_imagen_insumo" accept="image/*">
+                                    <div class="mt-2 text-muted">Seleccionar archivo &nbsp;&nbsp;&nbsp; Sin archivos seleccionados</div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="nuevo_agregar_inventario_insumo" checked>
+                                        <label class="form-check-label" for="nuevo_agregar_inventario_insumo">
+                                            Agregar al inventario de insumos
+                                        </label>
+                                    </div>
+                                    <small class="text-muted">Si no está marcado, el insumo solo se agregará a esta cotización</small>
+                                </div>
+                            </div>
+                            <div class="alert alert-info mt-3">
+                                <i class="bi bi-info-circle"></i>
+                                <strong>Información:</strong> Los insumos son materiales independientes para gestión de stock.<br>
+                                Ejemplo: Si tienes 100 conectores, selecciona "Pieza" como unidad y registra 100 piezas.
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-primary" id="btnGuardarInsumoRapido"><i class="bi bi-check-circle"></i> Crear Insumo</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -687,6 +799,177 @@ window.serviciosArray = serviciosArray;
 const insumosArray = <?= json_encode($insumos_array) ?>;
 window.insumosArray = insumosArray;
 let insumosCotizacion = [];
+
+// --- ALTA RÁPIDA INSUMO ---
+$('#btnAltaRapidaInsumo').on('click', function() {
+    $('#modalAltaRapidaInsumo').modal('show');
+});
+
+$('#btnGuardarInsumoRapido').on('click', function() {
+    const nombre = $('#nuevo_nombre_insumo').val().trim();
+    const categoria_id = $('#nuevo_categoria_insumo').val();
+    const proveedor_id = $('#nuevo_proveedor_insumo').val();
+    const unidad = $('#nuevo_unidad_insumo').val();
+    const precio = parseFloat($('#nuevo_precio_insumo').val()) || 0;
+    const costo = parseFloat($('#nuevo_costo_insumo').val()) || 0;
+    const cantidad = parseFloat($('#nuevo_cantidad_insumo').val()) || 0;
+    const minimo = parseFloat($('#nuevo_minimo_insumo').val()) || 0;
+    const agregarInventario = $('#nuevo_agregar_inventario_insumo').is(':checked');
+    const imagenFile = $('#nuevo_imagen_insumo')[0] ? $('#nuevo_imagen_insumo')[0].files[0] : null;
+
+    // Validación básica
+    if (!nombre || !categoria_id || !proveedor_id || !unidad || precio < 0 || cantidad < 0) {
+        mostrarNotificacion('Completa todos los campos obligatorios: nombre, categoría, proveedor, unidad, precio y cantidad (>=0).', 'warning');
+        return;
+    }
+
+    let formData = new FormData();
+    formData.append('nombre', nombre);
+    formData.append('category_id', categoria_id); // CAMBIO
+    formData.append('supplier_id', proveedor_id); // CAMBIO
+    formData.append('unidad', unidad);
+    formData.append('precio_unitario', precio);   // CAMBIO
+    formData.append('cost_price', costo);         // CAMBIO
+    formData.append('cantidad', cantidad);
+    formData.append('minimo', minimo);
+    formData.append('agregar_inventario', agregarInventario ? 1 : 0);
+    if (imagenFile) formData.append('imagen', imagenFile);
+
+    $.ajax({
+        url: 'ajax_add_insumo.php',
+        type: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function(resp) {
+            let res;
+            try { res = JSON.parse(resp); } catch(e) { res = null; }
+            if (res && res.success && res.insumo) {
+                const insumo = {
+                    insumo_id: res.insumo.insumo_id,
+                    nombre: res.insumo.nombre,
+                    categoria: res.insumo.categoria,
+                    proveedor: res.insumo.proveedor,
+                    cantidad: res.insumo.cantidad,
+                    precio: res.insumo.precio,
+                    stock: res.insumo.stock,
+                    unidad: res.insumo.unidad,
+                    imagen: res.insumo.imagen || '',
+                    costo: res.insumo.costo,
+                    agregar_inventario: agregarInventario ? 1 : 0
+                };
+                agregarInsumoATabla(insumo);
+                $('#modalAltaRapidaInsumo').modal('hide');
+                $('#formAltaRapidaInsumo')[0].reset();
+                mostrarNotificacion('Insumo creado y agregado correctamente.', 'success');
+            } else if (res && res.error) {
+                mostrarNotificacion('Error: ' + res.error, 'danger');
+            } else {
+                mostrarNotificacion('Error inesperado al crear insumo. Respuesta: ' + (resp || ''), 'danger');
+            }
+        },
+        error: function(xhr) {
+            let msg = 'Error de conexión al crear insumo.';
+            if (xhr && xhr.responseText) {
+                msg += ' ' + xhr.responseText;
+            }
+            mostrarNotificacion(msg, 'danger');
+        }
+    });
+});
+
+function agregarInsumoATabla(insumo) {
+    insumosCotizacion.push(insumo);
+    renderTablaInsumos();
+    guardarBorrador();
+    recalcularTotales();
+}
+
+$(document).on('click', '.btn-eliminar-insumo', function() {
+    const idx = $(this).data('idx');
+    insumosCotizacion.splice(idx, 1);
+    renderTablaInsumos();
+    guardarBorrador();
+    recalcularTotales();
+});
+
+function renderTablaInsumos() {
+    let html = '';
+    let subtotal = 0;
+    insumosCotizacion.forEach((ins, i) => {
+        const sub = (parseFloat(ins.precio) || 0) * (parseFloat(ins.cantidad) || 1);
+        subtotal += sub;
+        html += `<tr>
+            <td>${ins.nombre}</td>
+            <td>${ins.insumo_id ? `<a href='../insumos/insumos.php?id=${ins.insumo_id}' target='_blank'><i class='bi bi-link-45deg'></i></a>` : '-'}</td>
+            <td>${ins.proveedor || '-'}</td>
+            <td>${typeof ins.stock !== 'undefined' ? ins.stock : '-'}</td>
+            <td><input type='number' class='form-control cantidad-insumo-input' data-index='${i}' value='${ins.cantidad}' min='0.01' step='0.01'></td>
+            <td><input type='number' class='form-control precio-insumo-input' data-index='${i}' value='${ins.precio}' min='0' step='0.01'></td>
+            <td>${ins.costo ? `$${parseFloat(ins.costo).toFixed(2)}` : '-'}</td>
+            <td>$${sub.toFixed(2)}</td>
+            <td><button type='button' class='btn btn-sm btn-danger btn-eliminar-insumo' data-idx='${i}'><i class='bi bi-trash'></i></button></td>
+        </tr>`;
+    });
+    $('#tablaInsumosCotizacion tbody').html(html);
+    recalcularTotales();
+}
+
+$(document).on('input', '.cantidad-insumo-input', function() {
+    const index = parseInt($(this).data('index'));
+    let value = parseFloat($(this).val());
+    if (!value || value <= 0) {
+        $(this).addClass('is-invalid');
+        insumosCotizacion[index].cantidad = 0.01;
+        $(this).val(0.01);
+    } else {
+        $(this).removeClass('is-invalid');
+        insumosCotizacion[index].cantidad = value;
+    }
+    renderTablaInsumos();
+    recalcularTotales();
+});
+
+$(document).on('input', '.precio-insumo-input', function() {
+    const index = parseInt($(this).data('index'));
+    let value = parseFloat($(this).val());
+    if (!value || value < 0) {
+        $(this).addClass('is-invalid');
+        insumosCotizacion[index].precio = 0;
+        $(this).val(0);
+    } else {
+        $(this).removeClass('is-invalid');
+        insumosCotizacion[index].precio = value;
+    }
+    renderTablaInsumos();
+    recalcularTotales();
+});
+
+function recalcularTotales() {
+    let subtotal = 0;
+    productosCotizacion.forEach(p => {
+        subtotal += (parseFloat(p.precio) || 0) * (parseFloat(p.cantidad) || 1);
+    });
+    serviciosCotizacion.forEach(s => {
+        subtotal += (parseFloat(s.precio) || 0) * (parseFloat(s.cantidad) || 1);
+    });
+    insumosCotizacion.forEach(ins => {
+        subtotal += (parseFloat(ins.precio) || 0) * (parseFloat(ins.cantidad) || 1);
+    });
+    $('#subtotal').val(`$${subtotal.toFixed(2)}`);
+    let descuentoPorcentaje = parseFloat($('#descuento_porcentaje').val()) || 0;
+    let descuentoMonto = subtotal * descuentoPorcentaje / 100;
+    $('#descuento_monto').val(`$${descuentoMonto.toFixed(2)}`);
+    let totalSinIVA = subtotal - descuentoMonto;
+    let ivaPorcentaje = parseFloat($('#condicion_iva').val()) || 0;
+    let ivaMonto = totalSinIVA * ivaPorcentaje / 100;
+    let total = totalSinIVA + ivaMonto;
+    $('#total').val(`$${total.toFixed(2)}`);
+}
+
+$('#descuento_porcentaje, #condicion_iva').on('input', function() {
+    recalcularTotales();
+});
 // ... existing code ...
 
 // Función para normalizar texto (quitar acentos y convertir a minúsculas)
@@ -741,27 +1024,62 @@ $('#btnAgregarProductoRapido').on('click', function() {
     const nombre = $('#nuevo_nombre_producto').val();
     const precio = parseFloat($('#nuevo_precio_producto').val()) || 0;
     const cantidad = parseInt($('#nuevo_cantidad_producto').val()) || 1;
+    const sku = $('#nuevo_sku_producto').val();
+    const categoria_id = $('#nuevo_categoria_producto').val();
+    const proveedor_id = $('#nuevo_proveedor_producto').val();
+    const costo = parseFloat($('#nuevo_costo_producto').val()) || 0;
+    const agregarInventario = $('#nuevo_agregar_inventario_producto').is(':checked');
+    const imagenFile = $('#nuevo_imagen_producto')[0] ? $('#nuevo_imagen_producto')[0].files[0] : null;
     if (!nombre || !precio || !cantidad) {
         mostrarNotificacion('Completa nombre, precio y cantidad para el producto.', 'warning');
         return;
     }
-    agregarProductoATabla({
-        product_id: null,
-        nombre: nombre,
-        sku: $('#nuevo_sku_producto').val(),
-        categoria: $('#nuevo_categoria_producto option:selected').text(),
-        category_id: $('#nuevo_categoria_producto').val() || null,
-        proveedor: $('#nuevo_proveedor_producto option:selected').text(),
-        supplier_id: $('#nuevo_proveedor_producto').val() || null,
-        stock: '',
-        cantidad: cantidad,
-        precio: precio,
-        tipo_gestion: 'pieza' // Default to 'pieza'
+    let formData = new FormData();
+    formData.append('nombre', nombre);
+    formData.append('sku', sku);
+    formData.append('categoria_id', categoria_id);
+    formData.append('proveedor_id', proveedor_id);
+    formData.append('precio', precio);
+    formData.append('costo', costo);
+    formData.append('cantidad', cantidad);
+    formData.append('agregar_inventario', agregarInventario ? 1 : 0);
+    if (imagenFile) formData.append('imagen', imagenFile);
+
+    $.ajax({
+        url: 'ajax_add_producto.php',
+        type: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function(resp) {
+            let res;
+            try { res = JSON.parse(resp); } catch(e) { res = null; }
+            if (res && res.success && res.producto) {
+                agregarProductoATabla({
+                    product_id: res.producto.product_id,
+                    nombre: res.producto.nombre,
+                    sku: res.producto.sku,
+                    categoria: res.producto.categoria,
+                    proveedor: res.producto.proveedor,
+                    stock: res.producto.stock,
+                    cantidad: cantidad,
+                    precio: precio,
+                    tipo_gestion: 'pieza',
+                    cost_price: costo,
+                    agregar_inventario: agregarInventario ? 1 : 0
+                });
+                $('#nuevo_nombre_producto, #nuevo_sku_producto, #nuevo_precio_producto, #nuevo_cantidad_producto').val('');
+                $('#nuevo_categoria_producto, #nuevo_proveedor_producto').val('');
+                $('#altaRapidaProductoForm').hide();
+                mostrarNotificacion('Producto creado y agregado correctamente.', 'success');
+            } else {
+                mostrarNotificacion(res && res.error ? res.error : 'Error al crear producto.', 'danger');
+            }
+        },
+        error: function() {
+            mostrarNotificacion('Error de conexión al crear producto.', 'danger');
+        }
     });
-    $('#nuevo_nombre_producto, #nuevo_sku_producto, #nuevo_precio_producto, #nuevo_cantidad_producto').val('');
-    $('#nuevo_categoria_producto, #nuevo_proveedor_producto').val('');
-    $('#altaRapidaProductoForm').hide();
-    mostrarNotificacion('Producto agregado correctamente.', 'success');
 });
 function agregarProductoATabla(prod) {
     if (!prod.tipo_gestion) prod.tipo_gestion = 'pieza';

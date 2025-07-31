@@ -12,8 +12,8 @@ $categoria = $_POST['categoria'] ?? null;
 $proveedor = $_POST['proveedor'] ?? null;
 $description = trim($_POST['descripcion'] ?? ''); // Cambia a $description
 
-if (!$nombre || !$precio || !$cantidad) {
-    echo json_encode(['success' => false, 'message' => 'Faltan datos obligatorios']);
+if (!$nombre || !$precio || $cantidad === null || $cantidad < 0) {
+    echo json_encode(['success' => false, 'message' => 'Faltan datos obligatorios o cantidad inválida']);
     exit;
 }
 
@@ -54,7 +54,7 @@ if (isset($_FILES['imagen']) && $_FILES['imagen']['error'] === UPLOAD_ERR_OK) {
     }
 }
 
-$stmt = $mysqli->prepare("INSERT INTO products (product_name, sku, price, cost_price, quantity, category_id, supplier_id, description, image_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+$stmt = $mysqli->prepare("INSERT INTO products (product_name, sku, price, cost_price, quantity, category_id, supplier_id, description, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
 $stmt->bind_param('ssdiiisss', $nombre, $sku, $precio, $costo, $cantidad, $categoria, $proveedor, $description, $image_path);
 $stmt->execute();
 $product_id = $stmt->insert_id;
@@ -68,6 +68,7 @@ echo json_encode([
         'sku' => $sku,
         'categoria' => $categoria,
         'proveedor' => $proveedor,
-        'stock' => $cantidad
+        'stock' => $cantidad,
+        'imagen' => $image_path
     ]
 ]);
