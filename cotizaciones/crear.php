@@ -545,6 +545,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border-radius: 12px 12px 0 0;
             padding: 20px 24px;
         }
+        
+        /* Mejoras específicas para el modal de paquetes */
+        #modalPaquetes .modal-dialog {
+            max-width: 90vw;
+        }
+        #modalPaquetes .card {
+            transition: transform 0.2s ease;
+            min-height: 280px;
+        }
+        #modalPaquetes .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1) !important;
+        }
+        #modalPaquetes .card-title {
+            max-width: calc(100% - 50px);
+        }
+        #modalPaquetes .list-group-item {
+            border: none !important;
+            padding: 4px 8px !important;
+            margin-bottom: 2px;
+            background: #f8f9fa !important;
+            border-radius: 4px !important;
+        }
+        #modalPaquetes .btn-sm {
+            padding: 4px 8px;
+            font-size: 0.75rem;
+        }
         .alert {
             border-radius: 8px;
             border: none;
@@ -1970,21 +1997,40 @@ function renderPaquetesPanel() {
             html += `<div class="col-md-6 col-lg-4">
                 <div class="card shadow-sm h-100">
                     <div class="card-body d-flex flex-column">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h5 class="card-title mb-0" style="font-size:1.1rem;">${paq.nombre}</h5>
-                            <span class="badge bg-primary">${paq.items.length} productos</span>
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title mb-0 flex-grow-1" style="font-size:1rem; line-height:1.3; overflow-wrap: break-word; word-break: break-word;" title="${paq.nombre}">${paq.nombre.length > 25 ? paq.nombre.substring(0, 25) + '...' : paq.nombre}</h5>
+                            <span class="badge bg-primary ms-2 flex-shrink-0">${paq.items.length}</span>
                         </div>
-                        <ul class="list-group list-group-flush mb-2" style="font-size:0.97rem;">
-                            ${paq.items.map(item => `<li class="list-group-item py-1 px-2 d-flex justify-content-between align-items-center">
-                                <span>${item.nombre || 'Producto'} <span class="text-muted">x${item.factor || 1}</span></span>
-                                <span class="badge bg-light text-dark">${item.tipo === 'principal' ? 'Principal' : 'Relacionado'}</span>
-                            </li>`).join('')}
-                        </ul>
-                        <div class="mt-auto d-flex gap-2 justify-content-end">
-                            <button class="btn btn-sm btn-success" onclick="aplicarPaqueteCotizacion(${idx});"><i class="bi bi-play"></i></button>
-                            <button class="btn btn-sm btn-outline-primary" onclick="editarPaquete(${idx});"><i class="bi bi-pencil"></i></button>
-                            <button class="btn btn-sm btn-outline-secondary" onclick="duplicarPaquete(${idx});"><i class="bi bi-files"></i></button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="eliminarPaquete(${idx});"><i class="bi bi-trash"></i></button>
+                        <div class="mb-2" style="max-height: 150px; overflow-y: auto;">
+                            <ul class="list-group list-group-flush" style="font-size:0.85rem;">
+                                ${paq.items.map(item => {
+                                    const itemName = item.nombre || 'Sin nombre';
+                                    const displayName = itemName.length > 20 ? itemName.substring(0, 20) + '...' : itemName;
+                                    return `<li class="list-group-item py-1 px-2 d-flex justify-content-between align-items-center border-0" style="background: transparent;">
+                                        <span class="flex-grow-1" title="${itemName}">
+                                            <strong>${displayName}</strong> 
+                                            <small class="text-muted">x${item.factor || 1}</small>
+                                        </span>
+                                        <span class="badge ${item.tipo === 'principal' ? 'bg-success' : 'bg-secondary'} ms-1 flex-shrink-0" style="font-size:0.7rem;">
+                                            ${item.tipo === 'principal' ? 'P' : 'R'}
+                                        </span>
+                                    </li>`;
+                                }).join('')}
+                            </ul>
+                        </div>
+                        <div class="mt-auto d-flex gap-1 justify-content-end">
+                            <button class="btn btn-sm btn-success" onclick="aplicarPaqueteCotizacion(${idx});" title="Aplicar paquete">
+                                <i class="bi bi-play-fill"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-primary" onclick="editarPaquete(${idx});" title="Editar">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="duplicarPaquete(${idx});" title="Duplicar">
+                                <i class="bi bi-files"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="eliminarPaquete(${idx});" title="Eliminar">
+                                <i class="bi bi-trash"></i>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -2054,6 +2100,8 @@ function aplicarPaqueteCotizacion(idx, event) {
                     cantidad: prod.tipo_gestion === 'bobina' ? (item.factor || 1.00) : (item.factor || 1),
                     precio: prod.price,
                     tipo_gestion: prod.tipo_gestion,
+                    cost_price: prod.cost_price, // Añadir cost_price para cálculo de margen
+                    image: prod.image, // Añadir imagen
                     paquete_id: paqueteId,
                     tipo_paquete: (item.tipo_item === 'producto' && item.product_id == principalProducto) ? 'principal' : 'relacionado',
                     factor_paquete: item.factor,
@@ -2094,6 +2142,9 @@ function aplicarPaqueteCotizacion(idx, event) {
                     stock: ins.stock,
                     cantidad: item.factor || 1,
                     precio: ins.precio,
+                    costo: ins.costo, // Añadir costo para cálculo de margen
+                    cost_price: ins.costo, // Alias por compatibilidad
+                    imagen: ins.imagen, // Añadir imagen
                     paquete_id: paqueteId,
                     tipo_paquete: (item.tipo_item === 'insumo' && item.insumo_id == principalInsumo) ? 'principal' : 'relacionado',
                     factor_paquete: item.factor,
