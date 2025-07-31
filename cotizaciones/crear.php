@@ -549,6 +549,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
             <div class="row g-3 mt-2">
+                <div class="col-md-4">
+                    <label class="form-label">Condición especial de IVA</label>
+                    <input type="number" id="condicion_iva" name="condicion_iva" class="form-control" min="0" max="100" step="0.01" placeholder="Porcentaje de IVA especial (ejemplo: 16)">
+                    <small class="text-muted">Puedes especificar aquí si el IVA aplica como condición especial (manipulable).</small>
+                </div>
+            </div>
+            <div class="row g-3 mt-2">
                 <div class="col-md-12">
                     <label class="form-label">Observaciones</label>
                     <textarea name="observaciones" class="form-control" rows="2"></textarea>
@@ -1175,6 +1182,15 @@ $('#formCrearCotizacion').on('submit', function(e) {
     $('<input>').attr({type:'hidden', name:'productos_json', value: JSON.stringify(productosCotizacion)}).appendTo(this);
     $('<input>').attr({type:'hidden', name:'servicios_json', value: JSON.stringify(serviciosCotizacion)}).appendTo(this);
     $('<input>').attr({type:'hidden', name:'insumos_json', value: JSON.stringify(insumosCotizacion)}).appendTo(this);
+    // Guardar el IVA especial en observaciones si existe
+    var ivaEspecial = $('#condicion_iva').val();
+    if (ivaEspecial && ivaEspecial.length > 0) {
+        var obs = $('textarea[name="observaciones"]').val() || '';
+        // Elimina cualquier valor anterior
+        obs = obs.replace(/\[IVA_ESPECIAL:[^\]]*\]/g, '');
+        obs += ' [IVA_ESPECIAL:' + ivaEspecial + ']';
+        $('textarea[name="observaciones"]').val(obs);
+    }
     $(this).find('button[type=submit]').prop('disabled', true).text('Guardando...');
 });
 
@@ -2060,38 +2076,60 @@ function recalcularTotales() {
     const subtotalProductos = productosCotizacion.reduce((sum, p) => sum + ((parseFloat(p.precio)||0)*(parseFloat(p.cantidad)||1)), 0);
     const subtotalServicios = serviciosCotizacion.reduce((sum, s) => sum + ((parseFloat(s.precio)||0)*(parseFloat(s.cantidad)||1)), 0);
     const subtotalInsumos = insumosCotizacion.reduce((sum, i) => sum + ((parseFloat(i.precio)||0)*(parseFloat(i.cantidad)||1)), 0);
-    const ivaProductos = productosCotizacion.reduce((sum, p) => {
-        const sub = (parseFloat(p.precio)||0)*(parseFloat(p.cantidad)||1);
-        return sum + (p.iva ? sub * 0.16 : 0);
-    }, 0);
-    const ivaInsumos = insumosCotizacion.reduce((sum, i) => {
-        const sub = (parseFloat(i.precio)||0)*(parseFloat(i.cantidad)||1);
-        return sum + (i.iva ? sub * 0.16 : 0);
-    }, 0);
     const subtotal = subtotalProductos + subtotalServicios + subtotalInsumos;
     const descuentoPorcentaje = parseFloat($('#descuento_porcentaje').val()) || 0;
     const descuentoMonto = subtotal * descuentoPorcentaje / 100;
-    const total = subtotal - descuentoMonto;
-    const totalIVA = ivaProductos + ivaInsumos;
+    let total = subtotal - descuentoMonto;
+    // Obtener el valor del campo de condición especial de IVA
+    let ivaManual = 0;
+    const ivaCondicion = $("#condicion_iva").val();
+    if (ivaCondicion && !isNaN(parseFloat(ivaCondicion))) {
+        let ivaVal = parseFloat(ivaCondicion);
+        // Si el valor es <= 1, se interpreta como porcentaje (ejemplo: 0.16 o 0.08)
+        // Si el valor es > 1 y <= 100, se interpreta como porcentaje (ejemplo: 16 para 16%)
+        // Si el valor es > 100, se interpreta como monto directo
+        if (ivaVal <= 1) {
+            ivaManual = (subtotal - descuentoMonto) * ivaVal;
+        } else if (ivaVal > 1 && ivaVal <= 100) {
+            ivaManual = (subtotal - descuentoMonto) * (ivaVal / 100);
+        } else {
+            ivaManual = ivaVal;
+        }
+    }
+    total += ivaManual;
     $('#subtotal').val(`$${subtotal.toFixed(2)}`);
     $('#descuento_monto').val(`$${descuentoMonto.toFixed(2)}`);
     $('#total').val(`$${total.toFixed(2)}`);
-    // Mostrar IVA total en el resumen si existe el campo
-    if ($('#iva_total').length) {
-        $('#iva_total').val(`$${totalIVA.toFixed(2)}`);
-    }
-// Agregar campo visual de IVA total en el resumen si no existe
-$(document).ready(function() {
-    if ($('#iva_total').length === 0) {
-        const ivaInput = `<div class="col-md-4"><label class="form-label">IVA 16% Total</label><input type="text" id="iva_total" class="form-control" readonly value="$0.00"></div>`;
-        // Busca el resumen y lo inserta antes del total
-        const resumenRow = $('.section-title:contains("Resumen")').parent().find('.row.g-3');
-        if (resumenRow.length) {
-            resumenRow.append(ivaInput);
+    // Mejor visualización: mostrar el IVA especial debajo del total, con icono y texto claro
+    $('#iva_manual_monto').remove();
+    if (ivaManual > 0) {
+        // Si el input está dentro de una celda de tabla, insertar el aviso después de la celda
+        var $totalInput = $('#total');
+        var $td = $totalInput.closest('td');
+        if ($td.length) {
+            $td.after(`
+                <tr id="iva_manual_monto_tr">
+                    <td colspan="4"></td>
+                    <td colspan="1" style="padding-top:0;">
+                        <div id="iva_manual_monto" style="margin-top:0; color:#198754; font-weight:600; background:#e9fbe9; border-radius:6px; padding:6px 14px; font-size:1em; display:flex; align-items:center; gap:8px;">
+                            <i class="bi bi-info-circle" style="font-size:1.2em;"></i>
+                            <span>IVA especial aplicado: <b>$${ivaManual.toFixed(2)}</b></span>
+                        </div>
+                    </td>
+                </tr>
+            `);
+        } else {
+            $totalInput.after(`
+                <div id="iva_manual_monto" style="margin-top:8px; color:#198754; font-weight:600; background:#e9fbe9; border-radius:6px; padding:6px 14px; font-size:1em; display:flex; align-items:center; gap:8px;">
+                    <i class="bi bi-info-circle" style="font-size:1.2em;"></i>
+                    <span>IVA especial aplicado: <b>$${ivaManual.toFixed(2)}</b></span>
+                </div>
+            `);
         }
     }
-});
 }
+// Recalcular totales al cambiar el campo de condición especial de IVA
+$('#condicion_iva').on('input', recalcularTotales);
 
 // Evento para check de sincronización en productos
 $(document).on('change', '.sync-checkbox', function() {

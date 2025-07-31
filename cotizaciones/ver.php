@@ -345,6 +345,27 @@ $insumos = $stmt->get_result();
         </div>
 
         <table class="tabla-cotizacion">
+            <?php
+            // Calcular IVA especial manual antes del tfoot
+            $ivaManual = 0;
+            $ivaVal = null;
+            // Extraer siempre el IVA especial desde observaciones si existe
+            if (!empty($cotizacion['observaciones']) && preg_match('/\[IVA_ESPECIAL:([^\]]+)\]/', $cotizacion['observaciones'], $match)) {
+                $ivaVal = floatval($match[1]);
+            } else if (!empty($cotizacion['condicion_iva']) && is_numeric($cotizacion['condicion_iva']) && floatval($cotizacion['condicion_iva']) > 0) {
+                $ivaVal = floatval($cotizacion['condicion_iva']);
+            }
+            if ($ivaVal !== null && is_numeric($ivaVal) && $ivaVal > 0) {
+                $base = $cotizacion['subtotal'] - $cotizacion['descuento_monto'];
+                if ($ivaVal <= 1) {
+                    $ivaManual = $base * $ivaVal;
+                } else if ($ivaVal > 1 && $ivaVal <= 100) {
+                    $ivaManual = $base * ($ivaVal / 100);
+                } else {
+                    $ivaManual = $ivaVal;
+                }
+            }
+            ?>
             <thead>
                 <tr>
                     <th>ITEM</th>
@@ -487,11 +508,22 @@ $insumos = $stmt->get_result();
                     </tr>
                 <?php endif; ?>
                 <tr>
+                    <td colspan="5" style="text-align:right; color:#198754; font-size:1.05em;">IVA especial</td>
+                    <td colspan="2" style="text-align:center; color:#198754; font-weight:600; background:#e9fbe9; border-radius:6px;">
+                        <?php if (!empty($cotizacion['condicion_iva']) && is_numeric($cotizacion['condicion_iva']) && floatval($cotizacion['condicion_iva']) > 0): ?>
+                            <i class="bi bi-info-circle" style="font-size:1.2em;"></i> $<?= number_format($ivaManual, 2) ?>
+                        <?php else: ?>
+                            <span style="color:#999; font-weight:400;">No aplicado</span>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <tr>
                     <td colspan="5" style="text-align:right; font-size:1.1rem; color:#121866;">TOTAL</td>
-                    <td colspan="2" style="text-align:center; font-size:1.1rem; color:#e53935;">$<?= number_format($cotizacion['total'], 2) ?></td>
+                    <td colspan="2" style="text-align:center; font-size:1.1rem; color:#e53935;">$<?= number_format(($cotizacion['subtotal'] - $cotizacion['descuento_monto']) + $ivaManual, 2) ?></td>
                 </tr>
             </tfoot>
         </table>
+        <!-- RESUMEN card removed as requested -->
 
         <?php if ($cotizacion['condiciones_pago'] || $cotizacion['observaciones']): ?>
             <div class="condiciones">
