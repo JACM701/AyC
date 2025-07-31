@@ -324,7 +324,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="../assets/css/style.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <!-- <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" /> -->
     <style>
         body {
             background: #f8f9fa;
@@ -362,23 +362,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             align-items: center; 
             gap: 10px;
         }
-        .select2-container--default .select2-selection--single { 
-            height: 42px; 
-            border: 2px solid #dee2e6;
-            border-radius: 8px;
-            transition: all 0.3s ease;
+        /* Estilos para select nativo mejorado */
+        #cliente_select {
+            height: 42px !important; 
+            border: 2px solid #dee2e6 !important;
+            border-radius: 8px !important;
+            transition: all 0.3s ease !important;
+            box-shadow: none !important;
+            outline: none !important;
+            background: #fff !important;
+            color: #495057 !important;
+            font-size: 1rem !important;
+            padding: 8px 16px !important;
+            width: 100% !important;
+            cursor: pointer !important;
+            appearance: none !important;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e") !important;
+            background-repeat: no-repeat !important;
+            background-position: right 12px center !important;
+            background-size: 16px !important;
         }
-        .select2-container--default .select2-selection--single:focus,
-        .select2-container--default.select2-container--open .select2-selection--single {
-            border-color: #007bff;
-            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.15);
+        #cliente_select:focus {
+            border-color: #007bff !important;
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.15) !important;
+            outline: none !important;
         }
-        .select2-selection__rendered { 
-            line-height: 40px !important; 
-            color: #495057;
+        #cliente_select:hover {
+            border-color: #80bdff !important;
         }
-        .select2-selection__arrow { 
-            height: 40px !important; 
+        #cliente_select option {
+            padding: 8px 12px !important;
+            background: #fff !important;
+            color: #495057 !important;
         }
         .form-control {
             border: 2px solid #dee2e6;
@@ -716,8 +731,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="section-title"><i class="bi bi-person"></i> Cliente</div>
             <div class="mb-3">
                 <label for="cliente_select" class="form-label">Seleccionar cliente</label>
-                <select class="form-select" id="cliente_select" name="cliente_id">
-                    <option value="">-- Nuevo cliente --</option>
+                <select class="form-control" id="cliente_select" name="cliente_id">
+                    <option value="">-- Selecciona un cliente o deja vacío para nuevo --</option>
                     <?php foreach ($clientes_array as $cl): ?>
                         <option value="<?= $cl['cliente_id'] ?>" data-nombre="<?= htmlspecialchars($cl['nombre']) ?>" data-telefono="<?= htmlspecialchars($cl['telefono']) ?>" data-ubicacion="<?= htmlspecialchars($cl['ubicacion']) ?>" data-email="<?= htmlspecialchars($cl['email']) ?>">
                             <?= htmlspecialchars($cl['nombre']) ?><?= $cl['telefono'] ? ' (' . htmlspecialchars($cl['telefono']) . ')' : '' ?>
@@ -1086,17 +1101,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script src="../assets/js/script.js"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<!-- <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script> -->
 <script src="paquetes.js?v=999"></script>
 <script>
 // --- CLIENTES ---
 const clientesArray = <?= json_encode($clientes_array) ?>;
 $(document).ready(function() {
-    $('#cliente_select').select2({
-        placeholder: 'Selecciona un cliente o deja vacío para nuevo',
-        allowClear: true,
-        width: '100%'
-    });
+    // Select nativo - sin Select2
+    // No necesita inicialización especial
+    
     function toggleCamposCliente() {
         var clienteId = $('#cliente_select').val();
         if (clienteId) {
@@ -1570,6 +1583,15 @@ function renderTablaProductos() {
             $(this).closest('tr').find('td').eq(6).find('span').first().text('$' + subtotal.toFixed(2));
             recalcularTotales();
             guardarBorrador();
+        }
+    });
+    
+    // Evento blur para sincronización de paquetes en productos
+    $('.cantidad-input').off('blur').on('blur', function() {
+        const idx = $(this).data('index');
+        const producto = productosCotizacion[idx];
+        if (producto && producto.paquete_id && producto.tipo_paquete === 'principal') {
+            sincronizarCantidadesPaqueteV2(producto.paquete_id);
         }
     });
 
@@ -2204,12 +2226,21 @@ function aplicarPaqueteCotizacion(idx, event) {
     return false; // Prevenir cualquier comportamiento por defecto
 }
 function sincronizarCantidadesPaqueteV2(paqueteId) {
+    console.log('🔄 Iniciando sincronización del paquete:', paqueteId);
+    
     // Encuentra el principal en productos, servicios o insumos
     let principal = productosCotizacion.find(p => p.paquete_id === paqueteId && p.tipo_paquete === 'principal');
     if (!principal) principal = serviciosCotizacion.find(s => s.paquete_id === paqueteId && s.tipo_paquete === 'principal');
     if (!principal) principal = insumosCotizacion.find(i => i.paquete_id === paqueteId && i.tipo_paquete === 'principal');
-    if (!principal) return;
+    
+    if (!principal) {
+        console.log('❌ No se encontró elemento principal para el paquete:', paqueteId);
+        return;
+    }
+    
     const cantidadPrincipal = parseFloat(principal.cantidad) || 1;
+    console.log('📊 Elemento principal encontrado:', principal.nombre, 'cantidad:', cantidadPrincipal);
+    
     // Sincroniza productos relacionados
     productosCotizacion.forEach((p, idx) => {
         if (p.paquete_id === paqueteId && p.tipo_paquete === 'relacionado' && p.sincronizado !== false) {
@@ -2217,8 +2248,10 @@ function sincronizarCantidadesPaqueteV2(paqueteId) {
             p.cantidad = p.tipo_gestion === 'bobina' ? (cantidadPrincipal * factor).toFixed(2) : Math.round(cantidadPrincipal * factor);
             const input = document.querySelector(`.cantidad-input[data-index='${idx}']`);
             if (input) input.value = p.cantidad;
+            console.log('🔄 Producto sincronizado:', p.nombre, 'nueva cantidad:', p.cantidad, 'factor:', factor);
         }
     });
+    
     // Sincroniza servicios relacionados
     serviciosCotizacion.forEach((s, idx) => {
         if (s.paquete_id === paqueteId && s.tipo_paquete === 'relacionado' && s.sincronizado !== false) {
@@ -2226,8 +2259,10 @@ function sincronizarCantidadesPaqueteV2(paqueteId) {
             s.cantidad = Math.round(cantidadPrincipal * factor);
             const input = document.querySelector(`.cantidad-servicio-input[data-index='${idx}']`);
             if (input) input.value = s.cantidad;
+            console.log('🔄 Servicio sincronizado:', s.nombre, 'nueva cantidad:', s.cantidad, 'factor:', factor);
         }
     });
+    
     // Sincroniza insumos relacionados
     insumosCotizacion.forEach((ins, idx) => {
         if (ins.paquete_id === paqueteId && ins.tipo_paquete === 'relacionado' && ins.sincronizado !== false) {
@@ -2235,11 +2270,15 @@ function sincronizarCantidadesPaqueteV2(paqueteId) {
             ins.cantidad = Math.round(cantidadPrincipal * factor);
             const input = document.querySelector(`.cantidad-insumo-input[data-index='${idx}']`);
             if (input) input.value = ins.cantidad;
+            console.log('🔄 Insumo sincronizado:', ins.nombre, 'nueva cantidad:', ins.cantidad, 'factor:', factor);
         }
     });
+    
+    console.log('✅ Sincronización completada, re-renderizando tablas...');
     renderTablaProductos();
     renderTablaServicios();
     renderTablaInsumos();
+    recalcularTotales();
 }
 function eliminarPaquete(idx, event) {
     // Prevenir que se dispare el submit del formulario solo si hay un evento
@@ -2811,6 +2850,15 @@ function renderTablaInsumos() {
             guardarBorrador();
         }
     });
+    
+    // Evento blur para sincronización de paquetes en insumos
+    $('.cantidad-insumo-input').off('blur').on('blur', function() {
+        const idx = $(this).data('index');
+        const insumo = insumosCotizacion[idx];
+        if (insumo && insumo.paquete_id && insumo.tipo_paquete === 'principal') {
+            sincronizarCantidadesPaqueteV2(insumo.paquete_id);
+        }
+    });
 
     $('.precio-insumo-input').off('input').on('input', function() {
         const idx = $(this).data('index');
@@ -2854,6 +2902,61 @@ function renderTablaInsumos() {
             guardarBorrador();
         }
     });
+// Eventos de delegación para sincronización de paquetes inteligentes
+$(document).on('blur', '.cantidad-input', function() {
+    const idx = parseInt($(this).data('index'));
+    const cantidad = parseFloat($(this).val()) || 1;
+    
+    // Actualizar la cantidad en el array
+    if (productosCotizacion[idx]) {
+        productosCotizacion[idx].cantidad = cantidad;
+    }
+    
+    const producto = productosCotizacion[idx];
+    if (producto && producto.paquete_id && producto.tipo_paquete === 'principal') {
+        console.log('🔄 Sincronizando paquete desde producto principal:', producto.nombre, 'nueva cantidad:', cantidad);
+        setTimeout(() => {
+            sincronizarCantidadesPaqueteV2(producto.paquete_id);
+        }, 100);
+    }
+});
+
+$(document).on('blur', '.cantidad-insumo-input', function() {
+    const idx = parseInt($(this).data('index'));
+    const cantidad = parseFloat($(this).val()) || 1;
+    
+    // Actualizar la cantidad en el array
+    if (insumosCotizacion[idx]) {
+        insumosCotizacion[idx].cantidad = cantidad;
+    }
+    
+    const insumo = insumosCotizacion[idx];
+    if (insumo && insumo.paquete_id && insumo.tipo_paquete === 'principal') {
+        console.log('🔄 Sincronizando paquete desde insumo principal:', insumo.nombre, 'nueva cantidad:', cantidad);
+        setTimeout(() => {
+            sincronizarCantidadesPaqueteV2(insumo.paquete_id);
+        }, 100);
+    }
+});
+
+$(document).on('blur', '.cantidad-servicio-input', function() {
+    const idx = parseInt($(this).data('index'));
+    const cantidad = parseFloat($(this).val()) || 1;
+    
+    // Actualizar la cantidad en el array
+    if (serviciosCotizacion[idx]) {
+        serviciosCotizacion[idx].cantidad = cantidad;
+    }
+    
+    const servicio = serviciosCotizacion[idx];
+    if (servicio && servicio.paquete_id && servicio.tipo_paquete === 'principal') {
+        console.log('🔄 Sincronizando paquete desde servicio principal:', servicio.nombre, 'nueva cantidad:', cantidad);
+        setTimeout(() => {
+            sincronizarCantidadesPaqueteV2(servicio.paquete_id);
+        }, 100);
+    }
+});
+
 // Evento para toggle IVA en productos
 $(document).on('change', '.iva-toggle-producto', function() {
     const index = parseInt($(this).data('index'));
