@@ -82,8 +82,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $cliente_telefono = trim($_POST['cliente_telefono'] ?? '');
     $cliente_ubicacion = trim($_POST['cliente_ubicacion'] ?? '');
     $cliente_email = trim($_POST['cliente_email'] ?? '');
-    if ((!$productos || !is_array($productos) || count($productos) == 0) && (!$servicios || !is_array($servicios) || count($servicios) == 0)) {
-        $error = 'Debes agregar al menos un producto o servicio a la cotización.';
+    $insumos_json = $_POST['insumos_json'] ?? '';
+    $insumos = json_decode($insumos_json, true);
+    if ((!$productos || !is_array($productos) || count($productos) == 0)
+        && (!$servicios || !is_array($servicios) || count($servicios) == 0)
+        && (!$insumos || !is_array($insumos) || count($insumos) == 0)) {
+        $error = 'Debes agregar al menos un producto, servicio o insumo a la cotización.';
     }
     if (!$cliente_id && !$cliente_nombre) {
         $error = 'Debes seleccionar o registrar un cliente.';
@@ -138,14 +142,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $subtotal += floatval($serv['precio']) * floatval($serv['cantidad']);
         }
         
+        // Sumar insumos
+        $insumos_json = $_POST['insumos_json'] ?? '';
+        $insumos = json_decode($insumos_json, true);
+        if ($insumos && is_array($insumos)) {
+            foreach ($insumos as $ins) {
+                $cantidad = floatval($ins['cantidad'] ?? 1);
+                $precio_unitario = floatval($ins['precio'] ?? 0);
+                $subtotal += $cantidad * $precio_unitario;
+            }
+        }
+        
         $descuento_monto = $subtotal * $descuento_porcentaje / 100;
         $total_sin_iva = $subtotal - $descuento_monto;
         $total = $total_sin_iva;
-        // Si hay IVA especial, sumarlo al total
+        
+        // Obtener IVA especial desde el campo condicion_iva
+        $iva_especial = trim($_POST['condicion_iva'] ?? '');
+        $iva_monto = 0;
         if ($iva_especial !== '' && is_numeric($iva_especial) && floatval($iva_especial) > 0) {
-            $iva_monto = $total_sin_iva * (floatval($iva_especial) / 100);
-            $total += $iva_monto;
+            $iva_val = floatval($iva_especial);
+            // Misma lógica que el JavaScript:
+            if ($iva_val <= 1) {
+                $iva_monto = $total_sin_iva * $iva_val;
+            } elseif ($iva_val > 1 && $iva_val <= 100) {
+                $iva_monto = $total_sin_iva * ($iva_val / 100);
+            } else {
+                $iva_monto = $iva_val;
+            }
+            // Agregar IVA especial a las observaciones para registro
+            $observaciones = trim($observaciones);
+            $observaciones = preg_replace('/\[IVA_ESPECIAL:[^\]]*\]/', '', $observaciones);
+            $observaciones .= ' [IVA_ESPECIAL:' . $iva_especial . ']';
+            $observaciones = trim($observaciones);
         }
+        $total += $iva_monto;
+        // Si quieres guardar el monto de IVA explícitamente, puedes agregarlo a observaciones o a otro campo
+
         
         // Generar número de cotización automáticamente
         $year = date('Y');
@@ -157,7 +190,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt_count->fetch();
         $stmt_count->close();
         
-        $next_number = $count + 1;
+        // LOG DE DEPURACIÓN: Verificar cálculos antes de guardar
+        error_log("[COTIZACION] subtotal=$subtotal, descuento_monto=$descuento_monto, total_sin_iva=$total_sin_iva, iva_especial=$iva_especial, iva_monto=$iva_monto, total=$total");
         $numero_cotizacion = sprintf("COT-%s-%04d", $year, $next_number);
         
         $stmt = $mysqli->prepare("INSERT INTO cotizaciones (numero_cotizacion, cliente_id, fecha_cotizacion, validez_dias, subtotal, descuento_porcentaje, descuento_monto, total, condiciones_pago, observaciones, estado_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
@@ -165,7 +199,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($stmt->execute()) {
             $cotizacion_id = $stmt->insert_id;
             $stmt->close();
-            
             // Registrar acción en el historial
             require_once 'helpers.php';
             inicializarAccionesCotizacion($mysqli);
@@ -860,7 +893,8 @@ $('#btnGuardarInsumoRapido').on('click', function() {
                 };
                 agregarInsumoATabla(insumo);
                 $('#modalAltaRapidaInsumo').modal('hide');
-                $('#formAltaRapidaInsumo')[0].reset();
+                const form = $('#formAltaRapidaInsumo')[0];
+                if (form) form.reset();
                 mostrarNotificacion('Insumo creado y agregado correctamente.', 'success');
             } else if (res && res.error) {
                 mostrarNotificacion('Error: ' + res.error, 'danger');
@@ -946,30 +980,62 @@ $(document).on('input', '.precio-insumo-input', function() {
 });
 
 function recalcularTotales() {
-    let subtotal = 0;
-    productosCotizacion.forEach(p => {
-        subtotal += (parseFloat(p.precio) || 0) * (parseFloat(p.cantidad) || 1);
-    });
-    serviciosCotizacion.forEach(s => {
-        subtotal += (parseFloat(s.precio) || 0) * (parseFloat(s.cantidad) || 1);
-    });
-    insumosCotizacion.forEach(ins => {
-        subtotal += (parseFloat(ins.precio) || 0) * (parseFloat(ins.cantidad) || 1);
-    });
+    const subtotalProductos = productosCotizacion.reduce((sum, p) => sum + ((parseFloat(p.precio)||0)*(parseFloat(p.cantidad)||1)), 0);
+    const subtotalServicios = serviciosCotizacion.reduce((sum, s) => sum + ((parseFloat(s.precio)||0)*(parseFloat(s.cantidad)||1)), 0);
+    const subtotalInsumos = insumosCotizacion.reduce((sum, i) => sum + ((parseFloat(i.precio)||0)*(parseFloat(i.cantidad)||1)), 0);
+    const subtotal = subtotalProductos + subtotalServicios + subtotalInsumos;
+    const descuentoPorcentaje = parseFloat($('#descuento_porcentaje').val()) || 0;
+    const descuentoMonto = subtotal * descuentoPorcentaje / 100;
+    let total = subtotal - descuentoMonto;
+    // Obtener el valor del campo de condición especial de IVA
+    let ivaManual = 0;
+    const ivaCondicion = $("#condicion_iva").val();
+    if (ivaCondicion && !isNaN(parseFloat(ivaCondicion))) {
+        let ivaVal = parseFloat(ivaCondicion);
+        // Si el valor es <= 1, se interpreta como porcentaje (ejemplo: 0.16 o 0.08)
+        // Si el valor es > 1 y <= 100, se interpreta como porcentaje (ejemplo: 16 para 16%)
+        // Si el valor es > 100, se interpreta como monto directo
+        if (ivaVal <= 1) {
+            ivaManual = (subtotal - descuentoMonto) * ivaVal;
+        } else if (ivaVal > 1 && ivaVal <= 100) {
+            ivaManual = (subtotal - descuentoMonto) * (ivaVal / 100);
+        } else {
+            ivaManual = ivaVal;
+        }
+    }
+    total += ivaManual;
     $('#subtotal').val(`$${subtotal.toFixed(2)}`);
-    let descuentoPorcentaje = parseFloat($('#descuento_porcentaje').val()) || 0;
-    let descuentoMonto = subtotal * descuentoPorcentaje / 100;
     $('#descuento_monto').val(`$${descuentoMonto.toFixed(2)}`);
-    let totalSinIVA = subtotal - descuentoMonto;
-    let ivaPorcentaje = parseFloat($('#condicion_iva').val()) || 0;
-    let ivaMonto = totalSinIVA * ivaPorcentaje / 100;
-    let total = totalSinIVA + ivaMonto;
     $('#total').val(`$${total.toFixed(2)}`);
+    // Mejor visualización: mostrar el IVA especial debajo del total, con icono y texto claro
+    $('#iva_manual_monto').remove();
+    if (ivaManual > 0) {
+        // Si el input está dentro de una celda de tabla, insertar el aviso después de la celda
+        var $totalInput = $('#total');
+        var $td = $totalInput.closest('td');
+        if ($td.length) {
+            $td.after(`
+                <tr id="iva_manual_monto_tr">
+                    <td colspan="4"></td>
+                    <td colspan="1" style="padding-top:0;">
+                        <div id="iva_manual_monto" style="margin-top:0; color:#198754; font-weight:600; background:#e9fbe9; border-radius:6px; padding:6px 14px; font-size:1em; display:flex; align-items:center; gap:8px;">
+                            <i class="bi bi-info-circle" style="font-size:1.2em;"></i>
+                            <span>IVA especial aplicado: <b>$${ivaManual.toFixed(2)}</b></span>
+                        </div>
+                    </td>
+                </tr>
+            `);
+        } else {
+            $totalInput.after(`
+                <div id="iva_manual_monto" style="margin-top:8px; color:#198754; font-weight:600; background:#e9fbe9; border-radius:6px; padding:6px 14px; font-size:1em; display:flex; align-items:center; gap:8px;">
+                    <i class="bi bi-info-circle" style="font-size:1.2em;"></i>
+                    <span>IVA especial aplicado: <b>$${ivaManual.toFixed(2)}</b></span>
+                </div>
+            `);
+        }
+    }
 }
 
-$('#descuento_porcentaje, #condicion_iva').on('input', function() {
-    recalcularTotales();
-});
 // ... existing code ...
 
 // Función para normalizar texto (quitar acentos y convertir a minúsculas)
@@ -1461,35 +1527,49 @@ $(document).on('focus', '.precio-servicio-input', function() {
     $(this).select();
 });
 
-function recalcularTotales() {
-    const subtotalProductos = productosCotizacion.reduce((sum, p) => sum + ((parseFloat(p.precio)||0)*(parseFloat(p.cantidad)||1)), 0);
-    const subtotalServicios = serviciosCotizacion.reduce((sum, s) => sum + ((parseFloat(s.precio)||0)*(parseFloat(s.cantidad)||1)), 0);
-    const subtotal = subtotalProductos + subtotalServicios;
-    const descuentoPorcentaje = parseFloat($('#descuento_porcentaje').val()) || 0;
-    const descuentoMonto = subtotal * descuentoPorcentaje / 100;
-    const total = subtotal - descuentoMonto;
-    $('#subtotal').val(`$${subtotal.toFixed(2)}`);
-    $('#descuento_monto').val(`$${descuentoMonto.toFixed(2)}`);
-    $('#total').val(`$${total.toFixed(2)}`);
-}
-$('#descuento_porcentaje').on('input', recalcularTotales);
-$('#formCrearCotizacion').on('submit', function(e) {
-    let error = '';
-    const clienteId = $('#cliente_select').val();
-    const nombre = $('#cliente_nombre').val().trim();
-    const telefono = $('#cliente_telefono').val().trim();
-    const ubicacion = $('#cliente_ubicacion').val().trim();
-    const email = $('#cliente_email').val().trim();
+// Función recalcularTotales() duplicada eliminada - se mantiene la versión completa en líneas anteriores
+
+// MOVER EVENTO SUBMIT DENTRO DE $(document).ready()
+$(document).ready(function() {
+    console.log('✅ JavaScript funcionando correctamente');
     
-    // Validar cliente: debe tener ID seleccionado O al menos nombre
-    if (!clienteId && !nombre) {
-        error = 'Debes seleccionar un cliente existente o registrar uno nuevo con al menos el nombre.';
+    // Verificar si el formulario existe
+    const $form = $('#formCrearCotizacion');
+    console.log('🔍 Formulario encontrado:', $form.length);
+    
+    // Depurar clics en el botón submit
+    $('button[type="submit"]').on('click', function(e) {
+        console.log('🔄 BUTTON CLICK DETECTED!');
+        console.log('🔄 Button:', this);
+        console.log('🔄 Event:', e);
+        
+        // Forzar submit del formulario
+        e.preventDefault();
+        console.log('🚀 FORCING SUBMIT...');
+        $form.trigger('submit');
+    });
+    
+    // Vincular evento submit del formulario
+    $form.on('submit', function(e) {
+        console.log('🔥 SUBMIT EVENT TRIGGERED!');
+        alert('SUBMIT FUNCIONA!');
+        let error = '';
+        const clienteId = $('#cliente_select').val();
+        const nombre = $('#cliente_nombre').val().trim();
+        const telefono = $('#cliente_telefono').val().trim();
+        const ubicacion = $('#cliente_ubicacion').val().trim();
+        const email = $('#cliente_email').val().trim();
+        
+        // Validar cliente: debe tener ID seleccionado O al menos nombre
+        if (!clienteId && !nombre) {
+            error = 'Debes seleccionar un cliente existente o registrar uno nuevo con al menos el nombre.';
+        }
+
+    // Permitir guardar si hay al menos un producto, servicio o insumo
+    if (productosCotizacion.length === 0 && serviciosCotizacion.length === 0 && insumosCotizacion.length === 0) {
+        error = 'Debes agregar al menos un producto, servicio o insumo a la cotización.';
     }
-    
-    if (productosCotizacion.length === 0 && serviciosCotizacion.length === 0) {
-        error = 'Debes agregar al menos un producto o servicio a la cotización.';
-    }
-    
+
     // Validar cantidades según tipo
     productosCotizacion.forEach(p => {
         if (p.tipo_gestion === 'bobina') {
@@ -1498,13 +1578,15 @@ $('#formCrearCotizacion').on('submit', function(e) {
             p.cantidad = Math.max(1, Math.round(parseFloat(p.cantidad) || 1));
         }
     });
-    
+
     if (error) {
         e.preventDefault();
         mostrarNotificacion(error, 'danger');
+        // Reactivar el botón si estaba deshabilitado
+        $(this).find('button[type=submit]').prop('disabled', false).text('Guardar Cotización');
         return false;
     }
-    
+
     $('<input>').attr({type:'hidden', name:'productos_json', value: JSON.stringify(productosCotizacion)}).appendTo(this);
     $('<input>').attr({type:'hidden', name:'servicios_json', value: JSON.stringify(serviciosCotizacion)}).appendTo(this);
     $('<input>').attr({type:'hidden', name:'insumos_json', value: JSON.stringify(insumosCotizacion)}).appendTo(this);
@@ -1517,11 +1599,11 @@ $('#formCrearCotizacion').on('submit', function(e) {
         obs += ' [IVA_ESPECIAL:' + ivaEspecial + ']';
         $('textarea[name="observaciones"]').val(obs);
     }
-    $(this).find('button[type=submit]').prop('disabled', true).text('Guardando...');
-});
+        $(this).find('button[type=submit]').prop('disabled', true).text('Guardando...');
+    });
 
-// Prevenir submit por Enter accidental
-$('#formCrearCotizacion').on('keydown', function(e) {
+    // Prevenir submit por Enter accidental
+    $('#formCrearCotizacion').on('keydown', function(e) {
     if (e.key === 'Enter') {
         // Permitir Enter solo si el foco está en el botón de submit
         const isSubmitBtn = document.activeElement && document.activeElement.type === 'submit';
@@ -1530,7 +1612,14 @@ $('#formCrearCotizacion').on('keydown', function(e) {
             return false;
         }
     }
-});
+    });
+    
+    // Vincular eventos para recalcular totales
+    $('#descuento_porcentaje, #condicion_iva').on('input', function() {
+        console.log('💰 Recalculando totales...');
+        recalcularTotales();
+    });
+}); // Cerrar $(document).ready()
 
 document.getElementById('btnGestionarPaquetes').addEventListener('click', function() {
     const modal = new bootstrap.Modal(document.getElementById('modalPaquetes'));
@@ -1590,14 +1679,16 @@ function duplicarPaquete(idx) {
 }
 
 // --- PAQUETES INTELIGENTES ---
-function aplicarPaqueteCotizacion(idx) {
+function aplicarPaqueteCotizacion(idx, event) {
     const paquetes = window.PaquetesCotizacion.getPaquetes();
     const paquete = paquetes[idx];
     if (!paquete) return;
     
-    // Prevenir que se dispare el submit del formulario
-    event.preventDefault();
-    event.stopPropagation();
+    // Prevenir que se dispare el submit del formulario solo si hay un evento
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
     
     // Preservar datos del cliente antes de aplicar paquete
     const clienteSeleccionado = {
@@ -1769,10 +1860,12 @@ function sincronizarCantidadesPaqueteV2(paqueteId) {
     renderTablaServicios();
     renderTablaInsumos();
 }
-function eliminarPaquete(idx) {
-    // Prevenir que se dispare el submit del formulario
-    event.preventDefault();
-    event.stopPropagation();
+function eliminarPaquete(idx, event) {
+    // Prevenir que se dispare el submit del formulario solo si hay un evento
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
     
     const paquetes = window.PaquetesCotizacion.getPaquetes();
     const paquete = paquetes[idx];
@@ -2397,65 +2490,7 @@ $(document).on('click', '.btn-eliminar-insumo', function() {
     renderTablaInsumos();
     guardarBorrador();
 });
-// Incluir insumos en el cálculo de totales
-function recalcularTotales() {
-    const subtotalProductos = productosCotizacion.reduce((sum, p) => sum + ((parseFloat(p.precio)||0)*(parseFloat(p.cantidad)||1)), 0);
-    const subtotalServicios = serviciosCotizacion.reduce((sum, s) => sum + ((parseFloat(s.precio)||0)*(parseFloat(s.cantidad)||1)), 0);
-    const subtotalInsumos = insumosCotizacion.reduce((sum, i) => sum + ((parseFloat(i.precio)||0)*(parseFloat(i.cantidad)||1)), 0);
-    const subtotal = subtotalProductos + subtotalServicios + subtotalInsumos;
-    const descuentoPorcentaje = parseFloat($('#descuento_porcentaje').val()) || 0;
-    const descuentoMonto = subtotal * descuentoPorcentaje / 100;
-    let total = subtotal - descuentoMonto;
-    // Obtener el valor del campo de condición especial de IVA
-    let ivaManual = 0;
-    const ivaCondicion = $("#condicion_iva").val();
-    if (ivaCondicion && !isNaN(parseFloat(ivaCondicion))) {
-        let ivaVal = parseFloat(ivaCondicion);
-        // Si el valor es <= 1, se interpreta como porcentaje (ejemplo: 0.16 o 0.08)
-        // Si el valor es > 1 y <= 100, se interpreta como porcentaje (ejemplo: 16 para 16%)
-        // Si el valor es > 100, se interpreta como monto directo
-        if (ivaVal <= 1) {
-            ivaManual = (subtotal - descuentoMonto) * ivaVal;
-        } else if (ivaVal > 1 && ivaVal <= 100) {
-            ivaManual = (subtotal - descuentoMonto) * (ivaVal / 100);
-        } else {
-            ivaManual = ivaVal;
-        }
-    }
-    total += ivaManual;
-    $('#subtotal').val(`$${subtotal.toFixed(2)}`);
-    $('#descuento_monto').val(`$${descuentoMonto.toFixed(2)}`);
-    $('#total').val(`$${total.toFixed(2)}`);
-    // Mejor visualización: mostrar el IVA especial debajo del total, con icono y texto claro
-    $('#iva_manual_monto').remove();
-    if (ivaManual > 0) {
-        // Si el input está dentro de una celda de tabla, insertar el aviso después de la celda
-        var $totalInput = $('#total');
-        var $td = $totalInput.closest('td');
-        if ($td.length) {
-            $td.after(`
-                <tr id="iva_manual_monto_tr">
-                    <td colspan="4"></td>
-                    <td colspan="1" style="padding-top:0;">
-                        <div id="iva_manual_monto" style="margin-top:0; color:#198754; font-weight:600; background:#e9fbe9; border-radius:6px; padding:6px 14px; font-size:1em; display:flex; align-items:center; gap:8px;">
-                            <i class="bi bi-info-circle" style="font-size:1.2em;"></i>
-                            <span>IVA especial aplicado: <b>$${ivaManual.toFixed(2)}</b></span>
-                        </div>
-                    </td>
-                </tr>
-            `);
-        } else {
-            $totalInput.after(`
-                <div id="iva_manual_monto" style="margin-top:8px; color:#198754; font-weight:600; background:#e9fbe9; border-radius:6px; padding:6px 14px; font-size:1em; display:flex; align-items:center; gap:8px;">
-                    <i class="bi bi-info-circle" style="font-size:1.2em;"></i>
-                    <span>IVA especial aplicado: <b>$${ivaManual.toFixed(2)}</b></span>
-                </div>
-            `);
-        }
-    }
-}
-// Recalcular totales al cambiar el campo de condición especial de IVA
-$('#condicion_iva').on('input', recalcularTotales);
+// Función recalcularTotales() duplicada eliminada - se mantiene la versión unificada en líneas anteriores
 
 // Evento para check de sincronización en productos
 $(document).on('change', '.sync-checkbox', function() {
