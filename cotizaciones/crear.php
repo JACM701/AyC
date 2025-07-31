@@ -395,23 +395,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background: #343a40;
             color: #fff; 
             border: none;
-            padding: 16px;
+            padding: 8px 12px;
             font-weight: 600;
             text-transform: uppercase;
-            font-size: 0.85rem;
-            letter-spacing: 0.5px;
+            font-size: 0.8rem;
+            letter-spacing: 0.3px;
         }
         .th-accion-dark {
             background: #343a40 !important;
             color: #fff !important;
-            width: 70px !important;
+            width: 50px !important;
             text-align: center;
+            padding: 8px 6px !important;
         }
         /* Asegura que los td de la columna Acción tengan el mismo ancho */
         #tablaInsumosCotizacion td:last-child,
         #tablaProductosCotizacion td:last-child {
-            width: 70px !important;
+            width: 50px !important;
             text-align: center;
+            padding: 6px !important;
+        }
+        
+        /* Hacer todas las celdas más compactas */
+        #tablaProductosCotizacion td,
+        #tablaInsumosCotizacion td,
+        #tablaServiciosCotizacion td {
+            padding: 8px 10px !important;
+            vertical-align: middle;
         }
         .badge-stock { 
             font-size: 0.85rem; 
@@ -801,14 +811,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <table class="table table-striped align-middle" id="tablaProductosCotizacion">
                     <thead class="table-dark">
                         <tr>
-                            <th style="border-radius: 12px 0 0 0; padding: 16px; text-align: center;">Imagen</th>
-                            <th style="padding: 16px;">Nombre</th>
-                            <th style="padding: 16px; text-align: center;">Enlace</th>
-                            <th style="padding: 16px; text-align: center;">Cantidad</th>
-                            <th style="padding: 16px; text-align: center;">Precio</th>
-                            <th style="text-align:center; color:#ffffff; min-width:90px; padding: 16px;">Margen</th>
-                            <th style="padding: 16px; text-align: center;">Subtotal</th>
-                            <th style="border-radius: 0 12px 0 0; padding: 16px; text-align: center;">Acción</th>
+                            <th style="border-radius: 8px 0 0 0; padding: 8px 12px; text-align: center; font-size: 0.8rem;">Imagen</th>
+                            <th style="padding: 8px 12px; font-size: 0.8rem;">Nombre</th>
+                            <th style="padding: 8px 12px; text-align: center; font-size: 0.8rem;">Enlace</th>
+                            <th style="padding: 8px 12px; text-align: center; font-size: 0.8rem;">Cantidad</th>
+                            <th style="padding: 8px 12px; text-align: center; font-size: 0.8rem;">Precio</th>
+                            <th style="text-align:center; color:#ffffff; min-width:70px; padding: 8px 12px; font-size: 0.8rem;">Margen</th>
+                            <th style="padding: 8px 12px; text-align: center; font-size: 0.8rem;">Subtotal</th>
+                            <th style="border-radius: 0 8px 0 0; padding: 8px 6px; text-align: center; font-size: 0.8rem; width: 50px;">Acción</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
@@ -1461,56 +1471,56 @@ function renderTablaProductos() {
             margen = '0.00';
         }
         html += `
-            <tr style="background:#ffffff; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.05); margin-bottom:12px; border:none; transition:all 0.3s ease; border-left: 3px solid #007bff;">
-                <td style="text-align:center; vertical-align:middle; width:80px; padding:16px 12px;">
-                    ${p.image ? `<img src="${p.image.startsWith('uploads/') ? '../' + p.image : '../uploads/products/' + p.image}" alt="${p.nombre}" style="width:60px; height:60px; object-fit:cover; border-radius:8px; border:none; box-shadow:0 2px 6px rgba(0,0,0,0.1);">` : '<div style="width:60px; height:60px; background:#f8f9fa; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#6c757d; font-weight:600; font-size:0.8rem; border:1px solid #dee2e6;">Sin img</div>'}
+            <tr style="background:#ffffff; border-radius:6px; box-shadow:0 1px 4px rgba(0,0,0,0.08); margin-bottom:8px; border:none; transition:all 0.3s ease; border-left: 2px solid #007bff;">
+                <td style="text-align:center; vertical-align:middle; width:60px; padding:8px 6px;">
+                    ${p.image ? `<img src="${p.image.startsWith('uploads/') ? '../' + p.image : '../uploads/products/' + p.image}" alt="${p.nombre}" style="width:40px; height:40px; object-fit:cover; border-radius:6px; border:none; box-shadow:0 1px 3px rgba(0,0,0,0.1);">` : '<div style="width:40px; height:40px; background:#f8f9fa; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#6c757d; font-weight:600; font-size:0.7rem; border:1px solid #dee2e6;">Sin img</div>'}
                 </td>
-                <td style="font-weight:600; color:#495057; padding:16px 12px; min-width:180px; vertical-align:middle;">
-                    <div style="display:flex; flex-direction:column; gap:4px;">
-                        <span style="font-size:1.1rem; color:#212529;">${p.nombre}</span>
-                        ${p.sku ? `<small style="color:#6c757d; font-weight:500;">SKU: ${p.sku}</small>` : ''}
-                        ${p.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google" style="margin-top:2px; display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; background:#007bff; color:white; border-radius:50%; text-decoration:none; font-size:0.7rem;"><i class="bi bi-search"></i></a>` : ''}
+                <td style="font-weight:600; color:#495057; padding:8px 10px; min-width:140px; vertical-align:middle;">
+                    <div style="display:flex; flex-direction:column; gap:2px;">
+                        <span style="font-size:0.95rem; color:#212529; line-height:1.2;">${p.nombre}</span>
+                        ${p.sku ? `<small style="color:#6c757d; font-weight:500; font-size:0.75rem;">SKU: ${p.sku}</small>` : ''}
+                        ${p.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google" style="margin-top:1px; display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; background:#007bff; color:white; border-radius:50%; text-decoration:none; font-size:0.6rem;"><i class="bi bi-search"></i></a>` : ''}
                     </div>
                 </td>
-                <td style="text-align:center; vertical-align:middle; padding:16px 12px;">
+                <td style="text-align:center; vertical-align:middle; padding:8px 10px;">
                     ${p.paquete_id ? `
-                        <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
-                            <span class="badge" style="background:#17a2b8; color:white; font-size:0.8rem; padding:6px 10px; border-radius:6px; font-weight:600; display:flex; align-items:center; gap:4px;">
+                        <div style="display:flex; flex-direction:column; align-items:center; gap:3px;">
+                            <span class="badge" style="background:#17a2b8; color:white; font-size:0.7rem; padding:4px 6px; border-radius:4px; font-weight:600; display:flex; align-items:center; gap:3px;">
                                 <i class="bi bi-link-45deg"></i> Conectado
                             </span>
-                            <label style="display:flex; align-items:center; gap:4px; font-size:0.8rem; color:#495057; cursor:pointer;">
-                                <input type="checkbox" class="sync-checkbox" data-index="${i}" ${p.sincronizado !== false ? 'checked' : ''} title="Sincronizar con principal" style="accent-color:#17a2b8;">
+                            <label style="display:flex; align-items:center; gap:3px; font-size:0.7rem; color:#495057; cursor:pointer;">
+                                <input type="checkbox" class="sync-checkbox" data-index="${i}" ${p.sincronizado !== false ? 'checked' : ''} title="Sincronizar con principal" style="accent-color:#17a2b8; transform:scale(0.9);">
                                 Sync
                             </label>
                         </div>
-                    ` : `<button type="button" class="btn btn-sm" onclick="conectarProductoAPaquete(${i})" title="Conectar a paquete inteligente" style="background:#17a2b8; color:white; border:none; border-radius:6px; padding:8px 12px; font-weight:600; transition:all 0.3s ease;"><i class="bi bi-link"></i> Conectar</button>`}
+                    ` : `<button type="button" class="btn btn-sm" onclick="conectarProductoAPaquete(${i})" title="Conectar a paquete inteligente" style="background:#17a2b8; color:white; border:none; border-radius:4px; padding:4px 8px; font-weight:600; transition:all 0.3s ease; font-size:0.75rem;"><i class="bi bi-link"></i> Conectar</button>`}
                 </td>
-                <td style="vertical-align:middle; padding:16px 12px;">
-                    <input type="number" min="${min}" step="${step}" value="${p.cantidad}" class="form-control form-control-sm cantidad-input" data-index="${i}" data-paquete-id="${p.paquete_id || ''}" data-tipo-paquete="${p.tipo_paquete || ''}" style="width:100px; background:#f8f9fa; border:2px solid #dee2e6; border-radius:6px; text-align:center; font-weight:600; padding:8px;">${unidad}
+                <td style="vertical-align:middle; padding:8px 10px;">
+                    <input type="number" min="${min}" step="${step}" value="${p.cantidad}" class="form-control form-control-sm cantidad-input" data-index="${i}" data-paquete-id="${p.paquete_id || ''}" data-tipo-paquete="${p.tipo_paquete || ''}" style="width:80px; background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px; text-align:center; font-weight:600; padding:6px; font-size:0.85rem;">${unidad}
                 </td>
-                <td style="vertical-align:middle; padding:16px 12px;">
-                    <div class="input-group" style="width:130px;">
-                        <span class="input-group-text" style="background:#28a745; color:white; border:none; border-radius:6px 0 0 6px; font-weight:600;">$</span>
-                        <input type="number" min="0" step="0.0001" value="${p.precio || ''}" class="form-control form-control-sm precio-input" data-index="${i}" style="background:#f8f9fa; border:2px solid #dee2e6; border-left:none; border-radius:0 6px 6px 0; text-align:center; font-weight:600;">
+                <td style="vertical-align:middle; padding:8px 10px;">
+                    <div class="input-group" style="width:110px;">
+                        <span class="input-group-text" style="background:#28a745; color:white; border:none; border-radius:4px 0 0 4px; font-weight:600; font-size:0.8rem; padding:6px 8px;">$</span>
+                        <input type="number" min="0" step="0.0001" value="${p.precio || ''}" class="form-control form-control-sm precio-input" data-index="${i}" style="background:#f8f9fa; border:1px solid #dee2e6; border-left:none; border-radius:0 4px 4px 0; text-align:center; font-weight:600; font-size:0.85rem; padding:6px;">
                     </div>
                 </td>
-                <td style="vertical-align:middle; padding:16px 12px;">
-                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
-                        <input type="number" min="-99" max="99" step="0.01" value="${margen}" class="form-control form-control-sm margen-producto-input" data-index="${i}" style="width:80px; text-align:center; font-weight:700; background:${margenNegativo ? '#f8d7da' : '#d4edda'}; color:${margenNegativo ? '#dc3545' : '#28a745'}; border:2px solid ${margenNegativo ? '#f5c6cb' : '#c3e6cb'}; border-radius:6px;" title="Editar margen (%)" ${costoUnitario === undefined ? 'disabled' : ''}>
-                        <span style="font-size:0.8rem; color:#6c757d; font-weight:500;">
+                <td style="vertical-align:middle; padding:8px 10px;">
+                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
+                        <input type="number" min="-99" max="99" step="0.01" value="${margen}" class="form-control form-control-sm margen-producto-input" data-index="${i}" style="width:65px; text-align:center; font-weight:700; background:${margenNegativo ? '#f8d7da' : '#d4edda'}; color:${margenNegativo ? '#dc3545' : '#28a745'}; border:1px solid ${margenNegativo ? '#f5c6cb' : '#c3e6cb'}; border-radius:4px; font-size:0.8rem; padding:4px;" title="Editar margen (%)" ${costoUnitario === undefined ? 'disabled' : ''}>
+                        <span style="font-size:0.7rem; color:#6c757d; font-weight:500;">
                             ${costoUnitario !== undefined && parseFloat(p.precio) > 0 ? `Utilidad: $${(parseFloat(p.precio) - costoUnitario).toFixed(2)}` : ''}
                         </span>
                     </div>
                 </td>
-                <td style="vertical-align:middle; padding:16px 12px;">
-                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
-                        <span style="font-size:1.2rem; font-weight:700; color:#007bff;">$${sub.toFixed(2)}</span>
+                <td style="vertical-align:middle; padding:8px 10px;">
+                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:1px;">
+                        <span style="font-size:1rem; font-weight:700; color:#007bff;">$${sub.toFixed(2)}</span>
                     </div>
                 </td>
-                <td style="width:70px; text-align:center; vertical-align:middle; padding:16px 12px;">
+                <td style="width:50px; text-align:center; vertical-align:middle; padding:6px;">
                     <div style="display:flex; justify-content:center; align-items:center; height:100%;">
-                        <button type="button" class="btn btn-outline-danger btn-sm btn-eliminar-producto" data-idx="${i}" style="width:36px; height:36px; display:flex; justify-content:center; align-items:center; padding:0; border-radius:10px; border:2px solid #dc3545; transition:all 0.3s ease;">
-                            <i class="bi bi-trash" style="font-size:1rem;"></i>
+                        <button type="button" class="btn btn-outline-danger btn-sm btn-eliminar-producto" data-idx="${i}" style="width:30px; height:30px; display:flex; justify-content:center; align-items:center; padding:0; border-radius:6px; border:1px solid #dc3545; transition:all 0.3s ease;">
+                            <i class="bi bi-trash" style="font-size:0.8rem;"></i>
                         </button>
                     </div>
                 </td>
