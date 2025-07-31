@@ -71,26 +71,6 @@ $estados_array = $estados ? $estados->fetch_all(MYSQLI_ASSOC) : [];
 
 $success = $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    
-    // CAPTURAR DEBUG DEL FRONTEND
-    if (isset($_POST['action']) && $_POST['action'] === 'debug_frontend') {
-        $debug_frontend = "[DEBUG FRONTEND] subtotal_frontend: " . ($_POST['subtotal_frontend'] ?? 'NO SET') . 
-                         ", total_frontend: " . ($_POST['total_frontend'] ?? 'NO SET') . 
-                         ", condicion_iva: " . ($_POST['condicion_iva'] ?? 'NO SET');
-        file_put_contents(__DIR__ . '/debug_post.txt', date('Y-m-d H:i:s') . " - " . $debug_frontend . "\n", FILE_APPEND);
-        exit; // Salir inmediatamente para no procesar como cotización
-    }
-    
-    // Log de debugging inicial - TAMBIÉN CREAR ARCHIVO VISIBLE
-    $debug_msg = "[DEBUG INICIAL] POST recibido - cliente_id: " . ($_POST['cliente_id'] ?? 'NO SET') . 
-             ", condicion_iva: " . ($_POST['condicion_iva'] ?? 'NO SET') . 
-             ", subtotal_frontend: " . ($_POST['subtotal_frontend'] ?? 'NO SET') . 
-             ", total_frontend: " . ($_POST['total_frontend'] ?? 'NO SET');
-    error_log($debug_msg);
-    
-    // CREAR ARCHIVO DEBUG VISIBLE
-    file_put_contents(__DIR__ . '/debug_post.txt', date('Y-m-d H:i:s') . " - " . $debug_msg . "\n", FILE_APPEND);
-    
     // Leer IVA especial si viene del formulario
     $iva_especial = isset($_POST['condicion_iva']) ? trim($_POST['condicion_iva']) : '';
     $productos_json = $_POST['productos_json'] ?? '';
@@ -153,13 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $subtotal = floatval($_POST['subtotal_frontend']);
             $descuento_monto = floatval($_POST['descuento_monto_frontend']);
             $total = floatval($_POST['total_frontend']);
-            $frontend_msg = "[FRONTEND TOTALS] subtotal={$subtotal}, descuento_monto={$descuento_monto}, total={$total}";
-            error_log($frontend_msg);
-            file_put_contents(__DIR__ . '/debug_post.txt', date('Y-m-d H:i:s') . " - " . $frontend_msg . "\n", FILE_APPEND);
         } else {
-            $fallback_msg = "[BACKEND FALLBACK] Campos frontend no encontrados, calculando en backend";
-            error_log($fallback_msg);
-            file_put_contents(__DIR__ . '/debug_post.txt', date('Y-m-d H:i:s') . " - " . $fallback_msg . "\n", FILE_APPEND);
             // Calcular totales en backend (fallback)
             $subtotal = 0;
             // Sumar productos
@@ -221,21 +195,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt_count->fetch();
         $stmt_count->close();
         $next_number = $count + 1;
-        // LOG DE DEPURACIÓN: Verificar cálculos antes de guardar
-        $cotizacion_msg = "[COTIZACION] subtotal=$subtotal, descuento_monto=$descuento_monto, total=$total";
-        error_log($cotizacion_msg);
-        file_put_contents(__DIR__ . '/debug_post.txt', date('Y-m-d H:i:s') . " - " . $cotizacion_msg . "\n", FILE_APPEND);
         $numero_cotizacion = sprintf("COT-%s-%04d", $year, $next_number);
         
         $stmt = $mysqli->prepare("INSERT INTO cotizaciones (numero_cotizacion, cliente_id, fecha_cotizacion, validez_dias, subtotal, descuento_porcentaje, descuento_monto, total, condiciones_pago, observaciones, estado_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->bind_param('sisidddssiii', $numero_cotizacion, $cliente_id, $fecha_cotizacion, $validez_dias, $subtotal, $descuento_porcentaje, $descuento_monto, $total, $condiciones_pago, $observaciones, $estado_id, $usuario_id);
         
-        $insert_msg = "[INSERT] Insertando en DB con total=$total";
-        file_put_contents(__DIR__ . '/debug_post.txt', date('Y-m-d H:i:s') . " - " . $insert_msg . "\n", FILE_APPEND);
-        
         if ($stmt->execute()) {
-            $success_msg = "[SUCCESS] Cotización guardada correctamente con ID=" . $stmt->insert_id;
-            file_put_contents(__DIR__ . '/debug_post.txt', date('Y-m-d H:i:s') . " - " . $success_msg . "\n", FILE_APPEND);
             $cotizacion_id = $stmt->insert_id;
             $stmt->close();
             // Registrar acción en el historial
@@ -1058,13 +1023,6 @@ function recalcularTotales() {
     $('#descuento_monto_frontend').val(descuentoMonto.toFixed(2));
     $('#total_frontend').val(total.toFixed(2));
     
-    // Log de debugging para verificar que los campos se actualizan
-    console.log('[FRONTEND] Campos ocultos actualizados:', {
-        subtotal_frontend: $('#subtotal_frontend').val(),
-        descuento_monto_frontend: $('#descuento_monto_frontend').val(),
-        total_frontend: $('#total_frontend').val()
-    });
-    
     // Mejor visualización: mostrar el IVA especial debajo del total, con icono y texto claro
     $('#iva_manual_monto').remove();
     if (ivaManual > 0) {
@@ -1587,38 +1545,19 @@ $(document).on('focus', '.precio-servicio-input', function() {
 
 // Función recalcularTotales() duplicada eliminada - se mantiene la versión completa en líneas anteriores
 
-// MOVER EVENTO SUBMIT DENTRO DE $(document).ready()
+// EVENTO SUBMIT OPTIMIZADO
 $(document).ready(function() {
-    console.log('✅ JavaScript funcionando correctamente');
-    
-    // Verificar si el formulario existe
     const $form = $('#formCrearCotizacion');
-    console.log('🔍 Formulario encontrado:', $form.length);
     
     // Depurar clics en el botón submit
     $('button[type="submit"]').on('click', function(e) {
-        console.log('🔄 BUTTON CLICK DETECTED!');
-        console.log('🔄 Button:', this);
-        console.log('🔄 Event:', e);
-        
-        // Forzar submit del formulario
         e.preventDefault();
-        console.log('🚀 FORCING SUBMIT...');
         $form.trigger('submit');
     });
     
     // Vincular evento submit del formulario
     $form.on('submit', function(e) {
-        e.preventDefault(); // SIEMPRE prevenir el submit por defecto
-        console.log('🔥 SUBMIT EVENT TRIGGERED!');
-        
-        // Verificar campos ocultos antes del submit
-        console.log('📤 Valores a enviar:', {
-            subtotal_frontend: $('#subtotal_frontend').val(),
-            descuento_monto_frontend: $('#descuento_monto_frontend').val(),
-            total_frontend: $('#total_frontend').val(),
-            condicion_iva: $('#condicion_iva').val()
-        });
+        e.preventDefault();
         
         let error = '';
         const clienteId = $('#cliente_select').val();
@@ -1672,45 +1611,6 @@ $(document).ready(function() {
     // Asegurar que los campos ocultos estén actualizados antes del envío
     recalcularTotales();
     
-    // VERIFICACIÓN ADICIONAL: Forzar valores si están vacíos
-    if (!$('#subtotal_frontend').val() || $('#subtotal_frontend').val() === '') {
-        console.warn('⚠️ Campo subtotal_frontend vacío, forzando actualización...');
-        recalcularTotales();
-    }
-    
-    console.log('📝 Enviando formulario con totales:', {
-        subtotal: $('#subtotal_frontend').val(),
-        descuento: $('#descuento_monto_frontend').val(),
-        total: $('#total_frontend').val()
-    });
-    
-    // Log final antes del submit
-    console.log('🚀 ENVIANDO FORMULARIO CON DATOS:', {
-        subtotal_frontend: $('#subtotal_frontend').val(),
-        descuento_monto_frontend: $('#descuento_monto_frontend').val(),
-        total_frontend: $('#total_frontend').val(),
-        condicion_iva: $('#condicion_iva').val()
-    });
-    
-    // Log del frontend en archivo
-    fetch('data:text/plain;charset=utf-8,FRONTEND_SUBMIT - ' + new Date().toISOString() + ' - subtotal:' + $('#subtotal_frontend').val() + ', total:' + $('#total_frontend').val())
-        .catch(() => {}); // Ignore errors
-    
-    // CREAR ARCHIVO DE DEBUG DESDE FRONTEND
-    var debugData = new FormData();
-    debugData.append('action', 'debug_frontend');
-    debugData.append('subtotal_frontend', $('#subtotal_frontend').val() || 'EMPTY');
-    debugData.append('total_frontend', $('#total_frontend').val() || 'EMPTY');
-    debugData.append('condicion_iva', $('#condicion_iva').val() || 'EMPTY');
-    
-    fetch('crear.php', {
-        method: 'POST',
-        body: debugData
-    }).catch(() => {}); // Ignore errors
-    
-    // Limpiar borrador
-    limpiarBorrador();
-    
     $(this).find('button[type=submit]').prop('disabled', true).text('Guardando...');
     
     // ENVIAR POR AJAX PARA CONTROL TOTAL
@@ -1721,8 +1621,6 @@ $(document).ready(function() {
     formData.set('descuento_monto_frontend', $('#descuento_monto_frontend').val());
     formData.set('total_frontend', $('#total_frontend').val());
     formData.set('condicion_iva', $('#condicion_iva').val());
-    
-    console.log('🚀 ENVIANDO VIA AJAX CON DATOS FORZADOS');
     
     // Enviar por AJAX
     fetch('crear.php', {
