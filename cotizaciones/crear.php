@@ -707,8 +707,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="row g-3 mt-2">
                 <div class="col-md-4">
                     <label class="form-label">Condición especial de IVA</label>
-                    <input type="number" id="condicion_iva" name="condicion_iva" class="form-control" min="0" max="100" step="0.01" placeholder="Porcentaje de IVA especial (ejemplo: 16)">
-                    <small class="text-muted">Puedes especificar aquí si el IVA aplica como condición especial (manipulable).</small>
+                    <input type="number" id="condicion_iva" name="condicion_iva" class="form-control" min="0" max="100" step="0.01" placeholder="Porcentaje de IVA especial (ejemplo: 16)" pattern="[0-9]+(\.[0-9]{1,2})?" oninput="this.value = this.value.replace(/[^0-9.]/g, ''); if(parseFloat(this.value) > 100) this.value = 100;">
+                    <small class="text-muted">Solo números del 0 al 100. Ejemplo: 16 para 16% de IVA.</small>
                 </div>
             </div>
             <div class="row g-3 mt-2">
