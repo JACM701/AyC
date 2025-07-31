@@ -568,6 +568,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         /* Animación para inputs */
         .form-control:focus {
             transform: scale(1.01);
+            outline: none;
+        }
+        
+        /* Mejoras para inputs de cantidad y precio */
+        .cantidad-input:focus,
+        .precio-input:focus,
+        .cantidad-insumo-input:focus,
+        .precio-insumo-input:focus,
+        .cantidad-servicio-input:focus,
+        .precio-servicio-input:focus {
+            background: #fff !important;
+            border-color: #007bff !important;
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.15) !important;
+            transform: scale(1.02);
+            z-index: 2;
+            position: relative;
+        }
+        
+        /* Transiciones suaves para los inputs */
+        .cantidad-input,
+        .precio-input,
+        .cantidad-insumo-input,
+        .precio-insumo-input,
+        .cantidad-servicio-input,
+        .precio-servicio-input {
+            transition: all 0.2s ease;
+            cursor: text;
+            /* Mejorar área clickeable */
+            min-height: 38px;
+            display: block;
+            width: 100%;
+            text-align: center;
+        }
+        
+        /* Hover sutil en inputs */
+        .cantidad-input:hover,
+        .precio-input:hover,
+        .cantidad-insumo-input:hover,
+        .precio-insumo-input:hover,
+        .cantidad-servicio-input:hover,
+        .precio-servicio-input:hover {
+            border-color: #80bdff;
+            box-shadow: 0 0 0 1px rgba(0, 123, 255, 0.1);
+            background: #fafbff;
+        }
+        
+        /* Mejorar celdas que contienen inputs */
+        #tablaProductosCotizacion td:has(.cantidad-input),
+        #tablaProductosCotizacion td:has(.precio-input),
+        #tablaInsumosCotizacion td:has(.cantidad-insumo-input),
+        #tablaInsumosCotizacion td:has(.precio-insumo-input),
+        #tablaServiciosCotizacion td:has(.cantidad-servicio-input),
+        #tablaServiciosCotizacion td:has(.precio-servicio-input) {
+            padding: 8px !important;
+            cursor: text;
         }
         /* Loading spinner personalizado */
         .spinner-border {
@@ -1173,36 +1228,6 @@ $(document).on('click', '.btn-eliminar-insumo', function() {
     recalcularTotales();
 });
 
-$(document).on('input', '.cantidad-insumo-input', function() {
-    const index = parseInt($(this).data('index'));
-    let value = parseFloat($(this).val());
-    if (!value || value <= 0) {
-        $(this).addClass('is-invalid');
-        insumosCotizacion[index].cantidad = 0.01;
-        $(this).val(0.01);
-    } else {
-        $(this).removeClass('is-invalid');
-        insumosCotizacion[index].cantidad = value;
-    }
-    renderTablaInsumos();
-    recalcularTotales();
-});
-
-$(document).on('input', '.precio-insumo-input', function() {
-    const index = parseInt($(this).data('index'));
-    let value = parseFloat($(this).val());
-    if (!value || value < 0) {
-        $(this).addClass('is-invalid');
-        insumosCotizacion[index].precio = 0;
-        $(this).val(0);
-    } else {
-        $(this).removeClass('is-invalid');
-        insumosCotizacion[index].precio = value;
-    }
-    renderTablaInsumos();
-    recalcularTotales();
-});
-
 function recalcularTotales() {
     const subtotalProductos = productosCotizacion.reduce((sum, p) => sum + ((parseFloat(p.precio)||0)*(parseFloat(p.cantidad)||1)), 0);
     const subtotalServicios = serviciosCotizacion.reduce((sum, s) => sum + ((parseFloat(s.precio)||0)*(parseFloat(s.cantidad)||1)), 0);
@@ -1436,15 +1461,15 @@ function renderTablaProductos() {
             margen = '0.00';
         }
         html += `
-            <tr style="background:linear-gradient(145deg, #ffffff 0%, #fafbff 100%); border-radius:12px; box-shadow:0 4px 16px rgba(102,126,234,0.08); margin-bottom:16px; border:none; transition:all 0.3s ease; border-left: 4px solid #667eea;">
+            <tr style="background:#ffffff; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.05); margin-bottom:12px; border:none; transition:all 0.3s ease; border-left: 3px solid #007bff;">
                 <td style="text-align:center; vertical-align:middle; width:80px; padding:16px 12px;">
-                    ${p.image ? `<img src="${p.image.startsWith('uploads/') ? '../' + p.image : '../uploads/products/' + p.image}" alt="${p.nombre}" style="width:60px; height:60px; object-fit:cover; border-radius:12px; border:none; box-shadow:0 2px 8px rgba(102,126,234,0.15);">` : '<div style="width:60px; height:60px; background:linear-gradient(135deg, #e1e8ff, #f0f4ff); border-radius:12px; display:flex; align-items:center; justify-content:center; color:#667eea; font-weight:600; font-size:0.8rem;">Sin img</div>'}
+                    ${p.image ? `<img src="${p.image.startsWith('uploads/') ? '../' + p.image : '../uploads/products/' + p.image}" alt="${p.nombre}" style="width:60px; height:60px; object-fit:cover; border-radius:8px; border:none; box-shadow:0 2px 6px rgba(0,0,0,0.1);">` : '<div style="width:60px; height:60px; background:#f8f9fa; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#6c757d; font-weight:600; font-size:0.8rem; border:1px solid #dee2e6;">Sin img</div>'}
                 </td>
-                <td style="font-weight:600; color:#4a5568; padding:16px 12px; min-width:180px; vertical-align:middle;">
+                <td style="font-weight:600; color:#495057; padding:16px 12px; min-width:180px; vertical-align:middle;">
                     <div style="display:flex; flex-direction:column; gap:4px;">
-                        <span style="font-size:1.1rem; color:#2d3748;">${p.nombre}</span>
-                        ${p.sku ? `<small style="color:#718096; font-weight:500;">SKU: ${p.sku}</small>` : ''}
-                        ${p.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google" style="margin-top:2px; display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; background:linear-gradient(135deg, #667eea, #764ba2); color:white; border-radius:50%; text-decoration:none; font-size:0.7rem;"><i class="bi bi-search"></i></a>` : ''}
+                        <span style="font-size:1.1rem; color:#212529;">${p.nombre}</span>
+                        ${p.sku ? `<small style="color:#6c757d; font-weight:500;">SKU: ${p.sku}</small>` : ''}
+                        ${p.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google" style="margin-top:2px; display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; background:#007bff; color:white; border-radius:50%; text-decoration:none; font-size:0.7rem;"><i class="bi bi-search"></i></a>` : ''}
                     </div>
                 </td>
                 <td style="text-align:center; vertical-align:middle; padding:16px 12px;">
@@ -1461,25 +1486,25 @@ function renderTablaProductos() {
                     ` : `<button type="button" class="btn btn-sm" onclick="conectarProductoAPaquete(${i})" title="Conectar a paquete inteligente" style="background:#17a2b8; color:white; border:none; border-radius:6px; padding:8px 12px; font-weight:600; transition:all 0.3s ease;"><i class="bi bi-link"></i> Conectar</button>`}
                 </td>
                 <td style="vertical-align:middle; padding:16px 12px;">
-                    <input type="number" min="${min}" step="${step}" value="${p.cantidad}" class="form-control form-control-sm cantidad-input" data-index="${i}" data-paquete-id="${p.paquete_id || ''}" data-tipo-paquete="${p.tipo_paquete || ''}" style="width:100px; background:#f8faff; border:2px solid #e1e8ff; border-radius:10px; text-align:center; font-weight:600; padding:8px;">${unidad}
+                    <input type="number" min="${min}" step="${step}" value="${p.cantidad}" class="form-control form-control-sm cantidad-input" data-index="${i}" data-paquete-id="${p.paquete_id || ''}" data-tipo-paquete="${p.tipo_paquete || ''}" style="width:100px; background:#f8f9fa; border:2px solid #dee2e6; border-radius:6px; text-align:center; font-weight:600; padding:8px;">${unidad}
                 </td>
                 <td style="vertical-align:middle; padding:16px 12px;">
                     <div class="input-group" style="width:130px;">
-                        <span class="input-group-text" style="background:linear-gradient(135deg, #28a745, #20c997); color:white; border:none; border-radius:10px 0 0 10px; font-weight:600;">$</span>
-                        <input type="number" min="0" step="0.0001" value="${p.precio || ''}" class="form-control form-control-sm precio-input" data-index="${i}" style="background:#f8faff; border:2px solid #e1e8ff; border-left:none; border-radius:0 10px 10px 0; text-align:center; font-weight:600;">
+                        <span class="input-group-text" style="background:#28a745; color:white; border:none; border-radius:6px 0 0 6px; font-weight:600;">$</span>
+                        <input type="number" min="0" step="0.0001" value="${p.precio || ''}" class="form-control form-control-sm precio-input" data-index="${i}" style="background:#f8f9fa; border:2px solid #dee2e6; border-left:none; border-radius:0 6px 6px 0; text-align:center; font-weight:600;">
                     </div>
                 </td>
                 <td style="vertical-align:middle; padding:16px 12px;">
                     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
-                        <input type="number" min="-99" max="99" step="0.01" value="${margen}" class="form-control form-control-sm margen-producto-input" data-index="${i}" style="width:80px; text-align:center; font-weight:700; background:${margenNegativo ? 'linear-gradient(135deg, #ffe6e6, #fff0f0)' : 'linear-gradient(135deg, #e6fff0, #f0fff5)'}; color:${margenNegativo ? '#dc3545' : '#28a745'}; border:2px solid ${margenNegativo ? '#ffc1c1' : '#c1ffc1'}; border-radius:8px;" title="Editar margen (%)" ${costoUnitario === undefined ? 'disabled' : ''}>
-                        <span style="font-size:0.8rem; color:#718096; font-weight:500;">
+                        <input type="number" min="-99" max="99" step="0.01" value="${margen}" class="form-control form-control-sm margen-producto-input" data-index="${i}" style="width:80px; text-align:center; font-weight:700; background:${margenNegativo ? '#f8d7da' : '#d4edda'}; color:${margenNegativo ? '#dc3545' : '#28a745'}; border:2px solid ${margenNegativo ? '#f5c6cb' : '#c3e6cb'}; border-radius:6px;" title="Editar margen (%)" ${costoUnitario === undefined ? 'disabled' : ''}>
+                        <span style="font-size:0.8rem; color:#6c757d; font-weight:500;">
                             ${costoUnitario !== undefined && parseFloat(p.precio) > 0 ? `Utilidad: $${(parseFloat(p.precio) - costoUnitario).toFixed(2)}` : ''}
                         </span>
                     </div>
                 </td>
                 <td style="vertical-align:middle; padding:16px 12px;">
                     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
-                        <span style="font-size:1.2rem; font-weight:700; color:#4c63d2;">$${sub.toFixed(2)}</span>
+                        <span style="font-size:1.2rem; font-weight:700; color:#007bff;">$${sub.toFixed(2)}</span>
                     </div>
                 </td>
                 <td style="width:70px; text-align:center; vertical-align:middle; padding:16px 12px;">
@@ -1495,6 +1520,36 @@ function renderTablaProductos() {
     $('#tablaProductosCotizacion tbody').html(html);
     $('#subtotal').val(`$${subtotal.toFixed(2)}`);
     recalcularTotales();
+    
+    // Eventos para productos - solo cálculos sin auto-selección
+    $('.cantidad-input').off('input').on('input', function() {
+        const idx = $(this).data('index');
+        const cantidad = parseFloat($(this).val()) || 1;
+        if (productosCotizacion[idx]) {
+            productosCotizacion[idx].cantidad = cantidad;
+            // Actualizar subtotal de la fila
+            const precio = parseFloat(productosCotizacion[idx].precio) || 0;
+            const subtotal = cantidad * precio;
+            $(this).closest('tr').find('td').eq(6).find('span').first().text('$' + subtotal.toFixed(2));
+            recalcularTotales();
+            guardarBorrador();
+        }
+    });
+
+    $('.precio-input').off('input').on('input', function() {
+        const idx = $(this).data('index');
+        const precio = parseFloat($(this).val()) || 0;
+        if (productosCotizacion[idx]) {
+            productosCotizacion[idx].precio = precio;
+            // Actualizar subtotal de la fila
+            const cantidad = parseFloat(productosCotizacion[idx].cantidad) || 1;
+            const subtotal = cantidad * precio;
+            $(this).closest('tr').find('td').eq(6).find('span').first().text('$' + subtotal.toFixed(2));
+            recalcularTotales();
+            guardarBorrador();
+        }
+    });
+    
     // Evento para margen editable en productos
     $('.margen-producto-input').off('input').on('input', function() {
         const index = parseInt($(this).data('index'));
@@ -1524,94 +1579,50 @@ function renderTablaProductos() {
     });
 }
 
-// Eventos para cantidad
+// Eventos para cantidad de productos - Simplificados para mejor UX
 $(document).on('input', '.cantidad-input', function() {
     const index = parseInt($(this).data('index'));
-    let value = $(this).val();
-    // Validación visual y actualización segura
-    let esBobina = productosCotizacion[index].tipo_gestion === 'bobina';
-    if (!value || isNaN(value) || parseFloat(value) <= 0) {
-        $(this).addClass('is-invalid');
-        productosCotizacion[index].cantidad = esBobina ? 0.01 : 1;
-        $(this).val(esBobina ? 0.01 : 1);
-    } else {
-        $(this).removeClass('is-invalid');
+    let value = parseFloat($(this).val());
+    const prod = productosCotizacion[index];
+    
+    if (!prod) return;
+    
+    let esBobina = prod.tipo_gestion === 'bobina';
+    
+    // Validación básica sin re-renderizar
+    if (value && !isNaN(value) && value > 0) {
+        // Ajustar valor según tipo
         if (esBobina) {
-            value = Math.max(0.01, parseFloat(value));
-            value = parseFloat(value.toFixed(2));
+            value = Math.max(0.01, parseFloat(value.toFixed(2)));
         } else {
-            value = Math.max(1, Math.round(parseFloat(value)));
-        }
-        productosCotizacion[index].cantidad = value;
-        $(this).val(value);
-    }
-    // Si es principal de paquete, sincronizar relacionados
-    const prod = productosCotizacion[index];
-    if (prod && prod.paquete_id && prod.tipo_paquete === 'principal') {
-        sincronizarCantidadesPaqueteV2(prod.paquete_id);
-    } else {
-        renderTablaProductos();
-    }
-    recalcularTotales();
-});
-
-$(document).on('blur', '.cantidad-input', function() {
-    const index = parseInt($(this).data('index'));
-    let value = $(this).val();
-    const prod = productosCotizacion[index];
-    if (prod) {
-        let esBobina = prod.tipo_gestion === 'bobina';
-        if (!value || isNaN(value) || parseFloat(value) <= 0) {
-            value = esBobina ? 0.01 : 1;
-        } else {
-            if (esBobina) {
-                value = Math.max(0.01, parseFloat(value));
-                value = parseFloat(value.toFixed(2));
-            } else {
-                value = Math.max(1, Math.round(parseFloat(value)));
-            }
+            value = Math.max(1, Math.round(value));
         }
         prod.cantidad = value;
-        $(this).val(value);
-        // Si es principal de paquete, sincronizar relacionados
-        if (prod.paquete_id && prod.tipo_paquete === 'principal') {
-            sincronizarCantidadesPaqueteV2(prod.paquete_id);
-        } else {
-            renderTablaProductos();
-        }
-    }
-});
-
-$(document).on('focus', '.cantidad-input', function() {
-    $(this).select();
-});
-
-// Eventos para precio
-$(document).on('input', '.precio-input', function() {
-    const index = parseInt($(this).data('index'));
-    let value = $(this).val();
-    productosCotizacion[index].precio = value;
-    // Validación visual
-    if (!value || isNaN(value) || value < 0) {
-        $(this).addClass('is-invalid');
-    } else {
         $(this).removeClass('is-invalid');
+    } else {
+        $(this).addClass('is-invalid');
     }
+    
     recalcularTotales();
 });
 
-$(document).on('blur', '.precio-input', function() {
+// Eventos para precio de productos - Simplificados para mejor UX
+$(document).on('input', '.precio-input', function() {
     const index = parseInt($(this).data('index'));
-    let value = $(this).val();
-    value = parseFloat(value) || 0;
-    if (value < 0) value = 0;
-    productosCotizacion[index].precio = value;
-    $(this).val(value);
-    renderTablaProductos();
-});
-
-$(document).on('focus', '.precio-input', function() {
-    $(this).select();
+    let value = parseFloat($(this).val());
+    const prod = productosCotizacion[index];
+    
+    if (!prod) return;
+    
+    // Validación básica sin re-renderizar
+    if (value && !isNaN(value) && value >= 0) {
+        prod.precio = parseFloat(value.toFixed(4));
+        $(this).removeClass('is-invalid');
+    } else {
+        $(this).addClass('is-invalid');
+    }
+    
+    recalcularTotales();
 });
 
 // --- SERVICIOS ---
@@ -1719,6 +1730,35 @@ function renderTablaServicios() {
     });
     $('#tablaServiciosCotizacion tbody').html(html);
     recalcularTotales();
+    
+    // Eventos para servicios - solo cálculos sin auto-selección
+    $('.cantidad-servicio-input').off('input').on('input', function() {
+        const idx = $(this).data('index');
+        const cantidad = parseFloat($(this).val()) || 1;
+        if (serviciosCotizacion[idx]) {
+            serviciosCotizacion[idx].cantidad = cantidad;
+            // Actualizar subtotal de la fila
+            const precio = parseFloat(serviciosCotizacion[idx].precio) || 0;
+            const subtotal = cantidad * precio;
+            $(this).closest('tr').find('td').eq(5).find('span').first().text('$' + subtotal.toFixed(2));
+            recalcularTotales();
+            guardarBorrador();
+        }
+    });
+
+    $('.precio-servicio-input').off('input').on('input', function() {
+        const idx = $(this).data('index');
+        const precio = parseFloat($(this).val()) || 0;
+        if (serviciosCotizacion[idx]) {
+            serviciosCotizacion[idx].precio = precio;
+            // Actualizar subtotal de la fila
+            const cantidad = parseFloat(serviciosCotizacion[idx].cantidad) || 1;
+            const subtotal = cantidad * precio;
+            $(this).closest('tr').find('td').eq(5).find('span').first().text('$' + subtotal.toFixed(2));
+            recalcularTotales();
+            guardarBorrador();
+        }
+    });
 }
 
 // Eventos para cantidad de servicios
@@ -1749,7 +1789,7 @@ $(document).on('blur', '.cantidad-servicio-input', function() {
 });
 
 $(document).on('focus', '.cantidad-servicio-input', function() {
-    $(this).select();
+    // Removido auto-select para permitir edición normal
 });
 
 // Eventos para precio de servicios
@@ -1775,7 +1815,7 @@ $(document).on('blur', '.precio-servicio-input', function() {
 });
 
 $(document).on('focus', '.precio-servicio-input', function() {
-    $(this).select();
+    // Removido auto-select para permitir edición normal
 });
 
 // Función recalcularTotales() duplicada eliminada - se mantiene la versión completa en líneas anteriores
@@ -2640,52 +2680,52 @@ function renderTablaInsumos() {
             '<span style="color: #ccc; font-size: 12px;">Sin imagen</span>';
 
         html += `
-            <tr style="background:linear-gradient(145deg, #ffffff 0%, #fafbff 100%); border-radius:12px; box-shadow:0 4px 16px rgba(102,126,234,0.08); margin-bottom:16px; border:none; transition:all 0.3s ease; border-left: 4px solid #667eea;">
+            <tr style="background:#ffffff; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.05); margin-bottom:12px; border:none; transition:all 0.3s ease; border-left: 3px solid #17a2b8;">
                 <td style="text-align:center; vertical-align:middle; padding:16px 12px;">
-                    ${imagenPath ? `<img src="${imagenPath}" alt="${ins.nombre}" style="width:60px; height:60px; object-fit:cover; border-radius:12px; border:none; box-shadow:0 2px 8px rgba(102,126,234,0.15);">` : '<div style="width:60px; height:60px; background:linear-gradient(135deg, #e1e8ff, #f0f4ff); border-radius:12px; display:flex; align-items:center; justify-content:center; color:#667eea; font-weight:600; font-size:0.8rem;">Sin img</div>'}
+                    ${imagenPath ? `<img src="${imagenPath}" alt="${ins.nombre}" style="width:60px; height:60px; object-fit:cover; border-radius:8px; border:none; box-shadow:0 2px 6px rgba(0,0,0,0.1);">` : '<div style="width:60px; height:60px; background:#f8f9fa; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#6c757d; font-weight:600; font-size:0.8rem; border:1px solid #dee2e6;">Sin img</div>'}
                 </td>
-                <td style="font-weight:600; color:#4a5568; padding:16px 12px; min-width:180px; vertical-align:middle;">
+                <td style="font-weight:600; color:#495057; padding:16px 12px; min-width:180px; vertical-align:middle;">
                     <div style="display:flex; flex-direction:column; gap:4px;">
-                        <span style="font-size:1.1rem; color:#2d3748;">${ins.nombre}</span>
-                        ${ins.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google" style="margin-top:2px; display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; background:linear-gradient(135deg, #667eea, #764ba2); color:white; border-radius:50%; text-decoration:none; font-size:0.7rem;"><i class="bi bi-search"></i></a>` : ''}
+                        <span style="font-size:1.1rem; color:#212529;">${ins.nombre}</span>
+                        ${ins.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google" style="margin-top:2px; display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; background:#007bff; color:white; border-radius:50%; text-decoration:none; font-size:0.7rem;"><i class="bi bi-search"></i></a>` : ''}
                     </div>
                 </td>
                 <td style="text-align:center; vertical-align:middle; padding:16px 12px;">
                     ${ins.paquete_id ? `
                         <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
-                            <span class="badge" style="background:linear-gradient(135deg, #17a2b8, #20c997); color:white; font-size:0.8rem; padding:6px 10px; border-radius:6px; font-weight:600; display:flex; align-items:center; gap:4px;">
+                            <span class="badge" style="background:#17a2b8; color:white; font-size:0.8rem; padding:6px 10px; border-radius:6px; font-weight:600; display:flex; align-items:center; gap:4px;">
                                 <i class="bi bi-link-45deg"></i> Conectado
                             </span>
-                            <label style="display:flex; align-items:center; gap:4px; font-size:0.8rem; color:#4a5568; cursor:pointer;">
-                                <input type="checkbox" class="sync-checkbox-insumo" data-index="${i}" ${ins.sincronizado !== false ? 'checked' : ''} title="Sincronizar con principal" style="accent-color:#20c997;">
+                            <label style="display:flex; align-items:center; gap:4px; font-size:0.8rem; color:#495057; cursor:pointer;">
+                                <input type="checkbox" class="sync-checkbox-insumo" data-index="${i}" ${ins.sincronizado !== false ? 'checked' : ''} title="Sincronizar con principal" style="accent-color:#17a2b8;">
                                 Sync
                             </label>
                         </div>
-                    ` : `<button type="button" class="btn btn-sm" onclick="conectarInsumoAPaquete(${i})" title="Conectar a paquete inteligente" style="background:linear-gradient(135deg, #17a2b8, #20c997); color:white; border:none; border-radius:8px; padding:8px 12px; font-weight:600; transition:all 0.3s ease;"><i class="bi bi-link"></i> Conectar</button>`}
+                    ` : `<button type="button" class="btn btn-sm" onclick="conectarInsumoAPaquete(${i})" title="Conectar a paquete inteligente" style="background:#17a2b8; color:white; border:none; border-radius:6px; padding:8px 12px; font-weight:600; transition:all 0.3s ease;"><i class="bi bi-link"></i> Conectar</button>`}
                 </td>
                 <td style="vertical-align:middle; padding:16px 12px;">
-                    <input type="number" min="1" step="1" value="${ins.cantidad}" class="form-control form-control-sm cantidad-insumo-input" data-index="${i}" style="width:100px; background:#f8faff; border:2px solid #e1e8ff; border-radius:10px; text-align:center; font-weight:600; padding:8px;">
+                    <input type="number" min="0.01" step="0.01" value="${ins.cantidad}" class="form-control form-control-sm cantidad-insumo-input" data-index="${i}" data-paquete-id="${ins.paquete_id || ''}" data-tipo-paquete="${ins.tipo_paquete || ''}" style="width:100px; background:#f8f9fa; border:2px solid #dee2e6; border-radius:6px; text-align:center; font-weight:600; padding:8px;">
                 </td>
                 <td style="vertical-align:middle; padding:16px 12px;">
                     <div class="input-group" style="width:130px;">
-                        <span class="input-group-text" style="background:linear-gradient(135deg, #28a745, #20c997); color:white; border:none; border-radius:10px 0 0 10px; font-weight:600;">$</span>
-                        <input type="number" min="0" step="0.0001" value="${ins.precio || ''}" class="form-control form-control-sm precio-insumo-input" data-index="${i}" style="background:#f8faff; border:2px solid #e1e8ff; border-left:none; border-radius:0 10px 10px 0; text-align:center; font-weight:600;">
+                        <span class="input-group-text" style="background:#28a745; color:white; border:none; border-radius:6px 0 0 6px; font-weight:600;">$</span>
+                        <input type="number" min="0" step="0.0001" value="${ins.precio || ''}" class="form-control form-control-sm precio-insumo-input" data-index="${i}" style="background:#f8f9fa; border:2px solid #dee2e6; border-left:none; border-radius:0 6px 6px 0; text-align:center; font-weight:600;">
                     </div>
                 </td>
                 <td style="vertical-align:middle; padding:16px 12px;">
                     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
-                        <input type="number" min="0" max="99" step="0.01" value="${margen}" class="form-control form-control-sm margen-insumo-input" data-index="${i}" style="width:80px; text-align:center; font-weight:700; background:${margenNegativo ? 'linear-gradient(135deg, #ffe6e6, #fff0f0)' : 'linear-gradient(135deg, #e6fff0, #f0fff5)'}; color:${margenNegativo ? '#dc3545' : '#28a745'}; border:2px solid ${margenNegativo ? '#ffc1c1' : '#c1ffc1'}; border-radius:8px;" title="Editar margen (%)" ${costoReal === undefined ? 'disabled' : ''}>
-                        ${(costoReal === undefined) ? '<span style="font-size:0.8rem; color:#dc3545; font-weight:500;">Sin costo</span>' : '<span style="font-size:0.8rem; color:#718096; font-weight:500;"></span>'}
+                        <input type="number" min="0" max="99" step="0.01" value="${margen}" class="form-control form-control-sm margen-insumo-input" data-index="${i}" style="width:80px; text-align:center; font-weight:700; background:${margenNegativo ? '#f8d7da' : '#d4edda'}; color:${margenNegativo ? '#dc3545' : '#28a745'}; border:2px solid ${margenNegativo ? '#f5c6cb' : '#c3e6cb'}; border-radius:6px;" title="Editar margen (%)" ${costoReal === undefined ? 'disabled' : ''}>
+                        ${(costoReal === undefined) ? '<span style="font-size:0.8rem; color:#dc3545; font-weight:500;">Sin costo</span>' : '<span style="font-size:0.8rem; color:#6c757d; font-weight:500;"></span>'}
                     </div>
                 </td>
                 <td style="vertical-align:middle; padding:16px 12px;">
                     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
-                        <span style="font-size:1.2rem; font-weight:700; color:#4c63d2;">$${sub.toFixed(2)}</span>
+                        <span style="font-size:1.2rem; font-weight:700; color:#007bff;">$${sub.toFixed(2)}</span>
                     </div>
                 </td>
                 <td style="width:70px; text-align:center; vertical-align:middle; padding:16px 12px;">
                     <div style="display:flex; justify-content:center; align-items:center; height:100%;">
-                        <button type="button" class="btn btn-outline-danger btn-sm btn-eliminar-insumo" data-idx="${i}" title="Eliminar insumo" style="width:36px; height:36px; display:flex; justify-content:center; align-items:center; padding:0; border-radius:10px; border:2px solid #dc3545; transition:all 0.3s ease;">
+                        <button type="button" class="btn btn-outline-danger btn-sm btn-eliminar-insumo" data-idx="${i}" title="Eliminar insumo" style="width:36px; height:36px; display:flex; justify-content:center; align-items:center; padding:0; border-radius:6px; border:2px solid #dc3545; transition:all 0.3s ease;">
                             <i class="bi bi-trash" style="font-size:1rem;"></i>
                         </button>
                     </div>
@@ -2695,6 +2735,36 @@ function renderTablaInsumos() {
     });
     $('#tablaInsumosCotizacion tbody').html(html);
     recalcularTotales();
+    
+    // Eventos para insumos - solo cálculos sin auto-selección
+    $('.cantidad-insumo-input').off('input').on('input', function() {
+        const idx = $(this).data('index');
+        const cantidad = parseFloat($(this).val()) || 1;
+        if (insumosCotizacion[idx]) {
+            insumosCotizacion[idx].cantidad = cantidad;
+            // Actualizar subtotal de la fila
+            const precio = parseFloat(insumosCotizacion[idx].precio) || 0;
+            const subtotal = cantidad * precio;
+            $(this).closest('tr').find('td').eq(6).find('span').first().text('$' + subtotal.toFixed(2));
+            recalcularTotales();
+            guardarBorrador();
+        }
+    });
+
+    $('.precio-insumo-input').off('input').on('input', function() {
+        const idx = $(this).data('index');
+        const precio = parseFloat($(this).val()) || 0;
+        if (insumosCotizacion[idx]) {
+            insumosCotizacion[idx].precio = precio;
+            // Actualizar subtotal de la fila
+            const cantidad = parseFloat(insumosCotizacion[idx].cantidad) || 1;
+            const subtotal = cantidad * precio;
+            $(this).closest('tr').find('td').eq(6).find('span').first().text('$' + subtotal.toFixed(2));
+            recalcularTotales();
+            guardarBorrador();
+        }
+    });
+    
     // Evento para margen editable en insumos
     $('.margen-insumo-input').off('input').on('input', function() {
         const index = parseInt($(this).data('index'));
@@ -2738,49 +2808,52 @@ $(document).on('change', '.iva-toggle-insumo', function() {
     guardarBorrador();
 });
 }
+// Eventos para cantidad de insumos - Simplificados para mejor UX
 $(document).on('input', '.cantidad-insumo-input', function() {
     const index = parseInt($(this).data('index'));
-    let value = Math.max(1, Math.round($(this).val()));
-    insumosCotizacion[index].cantidad = value;
-    if (!value || isNaN(value) || value <= 0) {
-        $(this).addClass('is-invalid');
-    } else {
+    let value = parseFloat($(this).val());
+    const ins = insumosCotizacion[index];
+    
+    if (!ins) return;
+    
+    // Validación básica sin re-renderizar
+    if (value && !isNaN(value) && value > 0) {
+        value = Math.max(0.01, parseFloat(value.toFixed(2)));
+        ins.cantidad = value;
         $(this).removeClass('is-invalid');
+    } else {
+        $(this).addClass('is-invalid');
     }
+    
     recalcularTotales();
 });
-$(document).on('blur', '.cantidad-insumo-input', function() {
-    const index = parseInt($(this).data('index'));
-    let value = Math.max(1, Math.round($(this).val()));
-    insumosCotizacion[index].cantidad = value;
-    $(this).val(value);
-    // Si es principal de paquete, sincronizar relacionados
-    const ins = insumosCotizacion[index];
-    if (ins && ins.paquete_id && ins.tipo_paquete === 'principal') {
-        sincronizarCantidadesPaqueteV2(ins.paquete_id);
-    } else {
-        renderTablaInsumos();
-    }
-});
+
+// Eventos para precio de insumos - Simplificados para mejor UX
 $(document).on('input', '.precio-insumo-input', function() {
     const index = parseInt($(this).data('index'));
-    let value = $(this).val();
-    insumosCotizacion[index].precio = value;
-    if (!value || isNaN(value) || value < 0) {
-        $(this).addClass('is-invalid');
-    } else {
+    let value = parseFloat($(this).val());
+    const ins = insumosCotizacion[index];
+    
+    if (!ins) return;
+    
+    // Validación básica sin re-renderizar
+    if (value && !isNaN(value) && value >= 0) {
+        ins.precio = parseFloat(value.toFixed(4));
         $(this).removeClass('is-invalid');
+    } else {
+        $(this).addClass('is-invalid');
     }
+    
     recalcularTotales();
 });
-$(document).on('blur', '.precio-insumo-input', function() {
-    const index = parseInt($(this).data('index'));
-    let value = parseFloat($(this).val()) || 0;
-    if (value < 0) value = 0;
-    insumosCotizacion[index].precio = value;
-    $(this).val(value);
-    renderTablaInsumos();
+
+// Hacer celdas clickeables para enfocar inputs (simplificado)
+$(document).on('click', 'td:has(.cantidad-input), td:has(.precio-input), td:has(.cantidad-insumo-input), td:has(.precio-insumo-input)', function(e) {
+    if (!$(e.target).is('input')) {
+        $(this).find('input').focus();
+    }
 });
+
 $(document).on('click', '.btn-eliminar-insumo', function() {
     const idx = $(this).data('idx');
     insumosCotizacion.splice(idx, 1);
