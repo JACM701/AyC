@@ -327,15 +327,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <style>
         body {
-            background: #f4f6fb;
+            background: #f8f9fa;
+            min-height: 100vh;
         }
         .main-content {
             background: #fff;
-            border-radius: 18px;
-            box-shadow: 0 4px 32px rgba(18,24,102,0.07);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
             margin-top: 40px;
             margin-left: 250px;
-            padding: 24px;
+            padding: 32px;
             width: calc(100vw - 250px);
             box-sizing: border-box;
         }
@@ -344,14 +345,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             width: calc(100vw - 70px) !important;
             transition: margin-left 0.25s cubic-bezier(.4,2,.6,1), width 0.25s;
         }
-        .form-section { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 24px; box-shadow: 0 2px 12px rgba(18,24,102,0.07); }
-        .section-title { font-size: 1.3rem; font-weight: 700; color: #121866; margin-bottom: 18px; display: flex; align-items: center; gap: 8px; }
-        .select2-container--default .select2-selection--single { height: 38px; }
-        .select2-selection__rendered { line-height: 38px !important; }
-        .select2-selection__arrow { height: 38px !important; }
-        .table thead th { background: #121866; color: #fff; }
+        .form-section { 
+            background: #ffffff;
+            border-radius: 12px; 
+            padding: 28px; 
+            margin-bottom: 28px; 
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e9ecef;
+        }
+        .section-title { 
+            font-size: 1.4rem; 
+            font-weight: 700; 
+            color: #2c3e50; 
+            margin-bottom: 20px; 
+            display: flex; 
+            align-items: center; 
+            gap: 10px;
+        }
+        .select2-container--default .select2-selection--single { 
+            height: 42px; 
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        .select2-container--default .select2-selection--single:focus,
+        .select2-container--default.select2-container--open .select2-selection--single {
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.15);
+        }
+        .select2-selection__rendered { 
+            line-height: 40px !important; 
+            color: #495057;
+        }
+        .select2-selection__arrow { 
+            height: 40px !important; 
+        }
+        .form-control {
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            padding: 12px 16px;
+            transition: all 0.3s ease;
+            color: #495057;
+        }
+        .form-control:focus {
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.15);
+        }
+        .table thead th { 
+            background: #343a40;
+            color: #fff; 
+            border: none;
+            padding: 16px;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+        }
         .th-accion-dark {
-            background: #121866 !important;
+            background: #343a40 !important;
             color: #fff !important;
             width: 70px !important;
             text-align: center;
@@ -362,20 +413,205 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             width: 70px !important;
             text-align: center;
         }
-        .badge-stock { font-size: 0.85rem; }
+        .badge-stock { 
+            font-size: 0.85rem; 
+        }
         /* Icono de búsqueda discreto en la tabla */
         .icon-buscar-google {
-            color: #888;
+            color: #6c757d;
             font-size: 1.05em;
             margin-left: 6px;
             opacity: 0;
             cursor: pointer;
-            transition: opacity 0.15s;
+            transition: all 0.3s ease;
             vertical-align: middle;
         }
         #tablaProductosCotizacion td:hover .icon-buscar-google,
         #tablaInsumosCotizacion td:hover .icon-buscar-google {
             opacity: 1;
+            color: #007bff;
+            transform: scale(1.1);
+        }
+        .btn-primary {
+            background: #007bff;
+            border: #007bff;
+            border-radius: 8px;
+            padding: 12px 24px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0, 123, 255, 0.25);
+        }
+        .btn-primary:hover {
+            background: #0056b3;
+            border-color: #0056b3;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.35);
+        }
+        .btn-outline-primary {
+            border: 2px solid #007bff;
+            color: #007bff;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .btn-outline-primary:hover {
+            background: #007bff;
+            border-color: #007bff;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 123, 255, 0.25);
+        }
+        .btn-outline-info {
+            border: 2px solid #17a2b8;
+            color: #17a2b8;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .btn-outline-info:hover {
+            background: #17a2b8;
+            border-color: #17a2b8;
+            transform: translateY(-1px);
+        }
+        .btn-success {
+            background: #28a745;
+            border: #28a745;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .btn-success:hover {
+            background: #218838;
+            border-color: #218838;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.25);
+        }
+        .btn-outline-danger {
+            border: 2px solid #dc3545;
+            color: #dc3545;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        .btn-outline-danger:hover {
+            background: #dc3545;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(220, 53, 69, 0.25);
+        }
+        .badge {
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-weight: 600;
+        }
+        .badge.bg-info {
+            background: #17a2b8 !important;
+        }
+        .badge.bg-success {
+            background: #28a745 !important;
+        }
+        .badge.bg-danger {
+            background: #dc3545 !important;
+        }
+        .list-group-item {
+            border: 2px solid transparent;
+            border-radius: 8px;
+            margin-bottom: 4px;
+            transition: all 0.3s ease;
+        }
+        .list-group-item:hover {
+            border-color: #007bff;
+            background: #f8f9fa;
+            transform: translateX(4px);
+        }
+        .modal-content {
+            border-radius: 12px;
+            border: none;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+        }
+        .modal-header {
+            background: #343a40;
+            color: white;
+            border-radius: 12px 12px 0 0;
+            padding: 20px 24px;
+        }
+        .alert {
+            border-radius: 8px;
+            border: none;
+            padding: 16px 20px;
+        }
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        .table-responsive {
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+        /* Efectos de hover para las filas de las tablas */
+        #tablaProductosCotizacion tbody tr:hover,
+        #tablaInsumosCotizacion tbody tr:hover,
+        #tablaServiciosCotizacion tbody tr:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+            border-left: 4px solid #007bff !important;
+        }
+        /* Efectos de animación para botones */
+        .btn:hover {
+            transform: translateY(-1px);
+        }
+        .btn-outline-danger:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(220, 53, 69, 0.25);
+        }
+        /* Animación para inputs */
+        .form-control:focus {
+            transform: scale(1.01);
+        }
+        /* Loading spinner personalizado */
+        .spinner-border {
+            border-color: #007bff;
+            border-top-color: transparent;
+        }
+        /* Mejoras para notificaciones */
+        .alert {
+            border-left: 4px solid;
+        }
+        .alert-success {
+            background: #d4edda;
+            border-left-color: #28a745;
+            color: #155724;
+        }
+        .alert-danger {
+            background: #f8d7da;
+            border-left-color: #dc3545;
+            color: #721c24;
+        }
+        .alert-warning {
+            background: #fff3cd;
+            border-left-color: #ffc107;
+            color: #856404;
+        }
+        /* Mejoras para select2 */
+        .select2-container--default .select2-results__option--highlighted[aria-selected] {
+            background: #007bff;
+            color: white;
+        }
+        /* Scrollbar personalizado */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f3f4;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #6c757d;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #495057;
         }
     </style>
 </head>
@@ -510,14 +746,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <table class="table table-striped align-middle" id="tablaProductosCotizacion">
                     <thead class="table-dark">
                         <tr>
-                            <th>Imagen</th>
-                            <th>Nombre</th>
-                            <th>Enlace</th>
-                            <th>Cantidad</th>
-                            <th>Precio</th>
-                            <th style="text-align:right; color:#0d6efd; min-width:90px;">Margen</th>
-                            <th>Subtotal</th>
-                            <th>Acción</th>
+                            <th style="border-radius: 12px 0 0 0; padding: 16px; text-align: center;">Imagen</th>
+                            <th style="padding: 16px;">Nombre</th>
+                            <th style="padding: 16px; text-align: center;">Enlace</th>
+                            <th style="padding: 16px; text-align: center;">Cantidad</th>
+                            <th style="padding: 16px; text-align: center;">Precio</th>
+                            <th style="text-align:center; color:#ffffff; min-width:90px; padding: 16px;">Margen</th>
+                            <th style="padding: 16px; text-align: center;">Subtotal</th>
+                            <th style="border-radius: 0 12px 0 0; padding: 16px; text-align: center;">Acción</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
@@ -540,14 +776,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <table class="table table-striped align-middle" id="tablaInsumosCotizacion">
                     <thead class="table-dark">
                         <tr>
-                            <th>Imagen</th>
-                            <th style='min-width:180px;'>Nombre</th>
-                            <th style='text-align:center;'>Enlace</th>
-                            <th>Cantidad</th>
-                            <th>Precio</th>
-                            <th style='text-align:right; color:#0d6efd; min-width:90px;'>Margen</th>
-                            <th>Subtotal</th>
-                            <th class="th-accion-dark">Acción</th>
+                            <th style="border-radius: 12px 0 0 0; padding: 16px; text-align: center;">Imagen</th>
+                            <th style="min-width:180px; padding: 16px;">Nombre</th>
+                            <th style="text-align:center; padding: 16px;">Enlace</th>
+                            <th style="padding: 16px; text-align: center;">Cantidad</th>
+                            <th style="padding: 16px; text-align: center;">Precio</th>
+                            <th style="text-align:center; color:#ffffff; min-width:90px; padding: 16px;">Margen</th>
+                            <th style="padding: 16px; text-align: center;">Subtotal</th>
+                            <th class="th-accion-dark" style="border-radius: 0 12px 0 0; padding: 16px;">Acción</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
@@ -666,13 +902,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <table class="table table-striped align-middle" id="tablaServiciosCotizacion">
                     <thead class="table-dark">
                         <tr>
-                            <th>Imagen</th>
-                            <th>Servicio</th>
-                            <th>Enlace</th>
-                            <th>Cantidad</th>
-                            <th>Precio</th>
-                            <th>Subtotal</th>
-                            <th>Acción</th>
+                            <th style="border-radius: 12px 0 0 0; padding: 16px; text-align: center;">Imagen</th>
+                            <th style="padding: 16px;">Servicio</th>
+                            <th style="padding: 16px; text-align: center;">Enlace</th>
+                            <th style="padding: 16px; text-align: center;">Cantidad</th>
+                            <th style="padding: 16px; text-align: center;">Precio</th>
+                            <th style="padding: 16px; text-align: center;">Subtotal</th>
+                            <th style="border-radius: 0 12px 0 0; padding: 16px; text-align: center;">Acción</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
@@ -1200,43 +1436,56 @@ function renderTablaProductos() {
             margen = '0.00';
         }
         html += `
-            <tr style='background:#fff; border-radius:16px; box-shadow:0 2px 12px rgba(18,24,102,0.07); margin-bottom:12px; border:2px solid #f4f6fb; transition:box-shadow 0.2s, border 0.2s;'>
-                <td style="text-align:center; vertical-align:middle; width:80px;">
-                    ${p.image ? `<img src="${p.image.startsWith('uploads/') ? '../' + p.image : '../uploads/products/' + p.image}" alt="${p.nombre}" style="width:50px; height:50px; object-fit:cover; border-radius:8px; border:1px solid #ddd;">` : '<i class="bi bi-image text-muted" style="font-size:2em;"></i>'}
+            <tr style="background:linear-gradient(145deg, #ffffff 0%, #fafbff 100%); border-radius:12px; box-shadow:0 4px 16px rgba(102,126,234,0.08); margin-bottom:16px; border:none; transition:all 0.3s ease; border-left: 4px solid #667eea;">
+                <td style="text-align:center; vertical-align:middle; width:80px; padding:16px 12px;">
+                    ${p.image ? `<img src="${p.image.startsWith('uploads/') ? '../' + p.image : '../uploads/products/' + p.image}" alt="${p.nombre}" style="width:60px; height:60px; object-fit:cover; border-radius:12px; border:none; box-shadow:0 2px 8px rgba(102,126,234,0.15);">` : '<div style="width:60px; height:60px; background:linear-gradient(135deg, #e1e8ff, #f0f4ff); border-radius:12px; display:flex; align-items:center; justify-content:center; color:#667eea; font-weight:600; font-size:0.8rem;">Sin img</div>'}
                 </td>
-                <td style='font-weight:700; color:#121866; padding:18px 12px; min-width:180px;'>
-                    <div style='display:flex; flex-direction:column;'>
-                        <span>${p.nombre}</span>
-                        ${p.sku ? `<small class='text-muted'>SKU: ${p.sku}</small>` : ''}
-                        ${p.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google" style='margin-top:4px;'><i class="bi bi-search"></i></a>` : ''}
+                <td style="font-weight:600; color:#4a5568; padding:16px 12px; min-width:180px; vertical-align:middle;">
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <span style="font-size:1.1rem; color:#2d3748;">${p.nombre}</span>
+                        ${p.sku ? `<small style="color:#718096; font-weight:500;">SKU: ${p.sku}</small>` : ''}
+                        ${p.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google" style="margin-top:2px; display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; background:linear-gradient(135deg, #667eea, #764ba2); color:white; border-radius:50%; text-decoration:none; font-size:0.7rem;"><i class="bi bi-search"></i></a>` : ''}
                     </div>
                 </td>
-                <td style="text-align:center; vertical-align:middle;">
-                    ${p.paquete_id ? `<span class='badge bg-info' style='font-size:0.95em;'><input type='checkbox' class='sync-checkbox' data-index='${i}' ${p.sincronizado !== false ? 'checked' : ''} title='Sincronizar con principal' style='margin-right:4px;'> <i class='bi bi-link-45deg'></i> Sync</span>` : `<button type='button' class='btn btn-sm btn-outline-primary' onclick='conectarProductoAPaquete(${i})' title='Conectar a paquete inteligente'><i class='bi bi-link'></i></button>`}
+                <td style="text-align:center; vertical-align:middle; padding:16px 12px;">
+                    ${p.paquete_id ? `
+                        <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+                            <span class="badge" style="background:#17a2b8; color:white; font-size:0.8rem; padding:6px 10px; border-radius:6px; font-weight:600; display:flex; align-items:center; gap:4px;">
+                                <i class="bi bi-link-45deg"></i> Conectado
+                            </span>
+                            <label style="display:flex; align-items:center; gap:4px; font-size:0.8rem; color:#495057; cursor:pointer;">
+                                <input type="checkbox" class="sync-checkbox" data-index="${i}" ${p.sincronizado !== false ? 'checked' : ''} title="Sincronizar con principal" style="accent-color:#17a2b8;">
+                                Sync
+                            </label>
+                        </div>
+                    ` : `<button type="button" class="btn btn-sm" onclick="conectarProductoAPaquete(${i})" title="Conectar a paquete inteligente" style="background:#17a2b8; color:white; border:none; border-radius:6px; padding:8px 12px; font-weight:600; transition:all 0.3s ease;"><i class="bi bi-link"></i> Conectar</button>`}
                 </td>
-                <td style='vertical-align:middle;'>
-                    <input type="number" min="${min}" step="${step}" value="${p.cantidad}" class="form-control form-control-sm cantidad-input" data-index="${i}" data-paquete-id="${p.paquete_id || ''}" data-tipo-paquete="${p.tipo_paquete || ''}" style="width: 80px; background:#f8f9fa; border-radius:8px; border:1px solid #dbe2ef; box-shadow:0 1px 2px rgba(18,24,102,0.04);">${unidad}
+                <td style="vertical-align:middle; padding:16px 12px;">
+                    <input type="number" min="${min}" step="${step}" value="${p.cantidad}" class="form-control form-control-sm cantidad-input" data-index="${i}" data-paquete-id="${p.paquete_id || ''}" data-tipo-paquete="${p.tipo_paquete || ''}" style="width:100px; background:#f8faff; border:2px solid #e1e8ff; border-radius:10px; text-align:center; font-weight:600; padding:8px;">${unidad}
                 </td>
-                <td style='vertical-align:middle;'>
-                    <input type="number" min="0" step="0.0001" value="${p.precio || ''}" class="form-control form-control-sm precio-input" data-index="${i}" style="width: 110px; background:#f8f9fa; border-radius:8px; border:1px solid #dbe2ef; box-shadow:0 1px 2px rgba(18,24,102,0.04);">
+                <td style="vertical-align:middle; padding:16px 12px;">
+                    <div class="input-group" style="width:130px;">
+                        <span class="input-group-text" style="background:linear-gradient(135deg, #28a745, #20c997); color:white; border:none; border-radius:10px 0 0 10px; font-weight:600;">$</span>
+                        <input type="number" min="0" step="0.0001" value="${p.precio || ''}" class="form-control form-control-sm precio-input" data-index="${i}" style="background:#f8faff; border:2px solid #e1e8ff; border-left:none; border-radius:0 10px 10px 0; text-align:center; font-weight:600;">
+                    </div>
                 </td>
-                <td style='vertical-align:middle;'>
-                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
-                        <input type="number" min="-99" max="99" step="0.01" value="${margen}" class="form-control form-control-sm margen-producto-input" data-index="${i}" style="width:70px; text-align:right; font-size:1em; font-weight:600; color:${margenNegativo ? '#d63333' : '#198754'};" title="Editar margen (%)" ${costoUnitario === undefined ? 'disabled' : ''}>
-                        <span style="font-size:0.9em; color:#888;">
+                <td style="vertical-align:middle; padding:16px 12px;">
+                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+                        <input type="number" min="-99" max="99" step="0.01" value="${margen}" class="form-control form-control-sm margen-producto-input" data-index="${i}" style="width:80px; text-align:center; font-weight:700; background:${margenNegativo ? 'linear-gradient(135deg, #ffe6e6, #fff0f0)' : 'linear-gradient(135deg, #e6fff0, #f0fff5)'}; color:${margenNegativo ? '#dc3545' : '#28a745'}; border:2px solid ${margenNegativo ? '#ffc1c1' : '#c1ffc1'}; border-radius:8px;" title="Editar margen (%)" ${costoUnitario === undefined ? 'disabled' : ''}>
+                        <span style="font-size:0.8rem; color:#718096; font-weight:500;">
                             ${costoUnitario !== undefined && parseFloat(p.precio) > 0 ? `Utilidad: $${(parseFloat(p.precio) - costoUnitario).toFixed(2)}` : ''}
                         </span>
                     </div>
                 </td>
-                <td style='vertical-align:middle;'>
+                <td style="vertical-align:middle; padding:16px 12px;">
                     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
-                        <span style="font-size:1.15em; font-weight:700; color:#212529;">$${sub.toFixed(2)}</span>
+                        <span style="font-size:1.2rem; font-weight:700; color:#4c63d2;">$${sub.toFixed(2)}</span>
                     </div>
                 </td>
-                <td style="width:70px; text-align:center; vertical-align:middle; padding:0;">
+                <td style="width:70px; text-align:center; vertical-align:middle; padding:16px 12px;">
                     <div style="display:flex; justify-content:center; align-items:center; height:100%;">
-                        <button type="button" class="btn btn-danger btn-sm btn-eliminar-producto" data-idx="${i}" style="width:32px; height:32px; display:flex; justify-content:center; align-items:center; padding:0; border-radius:10px; box-shadow:0 1px 4px rgba(214,51,51,0.08);">
-                            <i class="bi bi-trash" style="font-size:1.15em;"></i>
+                        <button type="button" class="btn btn-outline-danger btn-sm btn-eliminar-producto" data-idx="${i}" style="width:36px; height:36px; display:flex; justify-content:center; align-items:center; padding:0; border-radius:10px; border:2px solid #dc3545; transition:all 0.3s ease;">
+                            <i class="bi bi-trash" style="font-size:1rem;"></i>
                         </button>
                     </div>
                 </td>
@@ -1422,43 +1671,47 @@ function renderTablaServicios() {
     let html = '';
     serviciosCotizacion.forEach((s, i) => {
         const sub = (parseFloat(s.precio) || 0) * (parseFloat(s.cantidad) || 1);
+        
         html += `
-            <tr>
-                <td style="text-align:center; vertical-align:middle; width:80px;">
-                    ${s.imagen ? `<img src="../uploads/services/${s.imagen}" alt="${s.nombre}" style="width:50px; height:50px; object-fit:cover; border-radius:8px; border:1px solid #ddd;">` : '<i class="bi bi-image text-muted" style="font-size:2em;"></i>'}
+            <tr style="background:#ffffff; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.05); margin-bottom:12px; border:none; transition:all 0.3s ease; border-left: 3px solid #17a2b8;">
+                <td style="text-align:center; vertical-align:middle; padding:16px 12px;">
+                    ${s.imagen ? `<img src="../uploads/services/${s.imagen}" alt="${s.nombre}" style="width:60px; height:60px; object-fit:cover; border-radius:8px; border:none; box-shadow:0 2px 6px rgba(0,0,0,0.1);" onerror="this.style.display='none'">` : '<div style="width:60px; height:60px; background:#f8f9fa; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#6c757d; font-weight:600; font-size:0.8rem; border:1px solid #dee2e6;">Sin img</div>'}
                 </td>
-                <td>
-                    <strong>${s.nombre}</strong>
-                    ${s.tiempo_estimado ? `<br><small class="text-muted">Tiempo estimado: ${s.tiempo_estimado}h</small>` : ''}
+                <td style="font-weight:600; color:#495057; padding:16px 12px; min-width:180px; vertical-align:middle;">
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <span style="font-size:1.1rem; color:#212529;">${s.nombre}</span>
+                        ${s.tiempo_estimado ? `<small style="color:#6c757d; font-weight:500;">Tiempo: ${s.tiempo_estimado}h</small>` : ''}
+                    </div>
                 </td>
-                <td style="text-align:center;">
-                    ${s.paquete_id ? `<span class='badge bg-info' style='font-size:0.95em;'><input type='checkbox' class='sync-checkbox-servicio' data-index='${i}' ${s.sincronizado !== false ? 'checked' : ''} title='Sincronizar con principal' style='margin-right:4px;'> <i class='bi bi-link-45deg'></i> Sync</span>` : `<button type='button' class='btn btn-sm btn-outline-primary' onclick='conectarServicioAPaquete(${i})' title='Conectar a paquete inteligente'><i class='bi bi-link'></i></button>`}
+                <td style="text-align:center; vertical-align:middle; padding:16px 12px;">
+                    ${s.paquete_id ? `
+                        <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+                            <span class="badge" style="background:#17a2b8; color:white; font-size:0.8rem; padding:6px 10px; border-radius:6px; font-weight:600; display:flex; align-items:center; gap:4px;">
+                                <i class="bi bi-link-45deg"></i> Conectado
+                            </span>
+                            <label style="display:flex; align-items:center; gap:4px; font-size:0.8rem; color:#495057; cursor:pointer;">
+                                <input type="checkbox" class="sync-checkbox-servicio" data-index="${i}" ${s.sincronizado !== false ? 'checked' : ''} title="Sincronizar con principal" style="accent-color:#17a2b8;">
+                                Sync
+                            </label>
+                        </div>
+                    ` : `<button type="button" class="btn btn-sm" onclick="conectarServicioAPaquete(${i})" title="Conectar a paquete inteligente" style="background:#17a2b8; color:white; border:none; border-radius:6px; padding:8px 12px; font-weight:600; transition:all 0.3s ease;"><i class="bi bi-link"></i> Conectar</button>`}
                 </td>
-                <td>
-                    <input type="number" 
-                           min="1" 
-                           step="1" 
-                           value="${Math.round(s.cantidad)}" 
-                           class="form-control form-control-sm cantidad-servicio-input" 
-                           data-index="${i}"
-                           data-paquete-id="${s.paquete_id || ''}"
-                           data-tipo-paquete="${s.tipo_paquete || ''}"
-                           style="width: 80px; display:inline-block;">
+                <td style="vertical-align:middle; padding:16px 12px;">
+                    <input type="number" min="1" step="1" value="${Math.round(s.cantidad)}" class="form-control form-control-sm cantidad-servicio-input" data-index="${i}" data-paquete-id="${s.paquete_id || ''}" data-tipo-paquete="${s.tipo_paquete || ''}" style="width:100px; background:#f8f9fa; border:2px solid #dee2e6; border-radius:6px; text-align:center; font-weight:600; padding:8px;">
                     ${s.unidad_medida ? ` ${s.unidad_medida}` : ''}
                 </td>
-                <td>
-                    <input type="number" 
-                           min="0" 
-                           step="0.01" 
-                           value="${s.precio}" 
-                           class="form-control form-control-sm precio-servicio-input" 
-                           data-index="${i}" 
-                           style="width: 110px;">
+                <td style="vertical-align:middle; padding:16px 12px;">
+                    <div class="input-group" style="width:130px;">
+                        <span class="input-group-text" style="background:#28a745; color:white; border:none; border-radius:6px 0 0 6px; font-weight:600;">$</span>
+                        <input type="number" min="0" step="0.01" value="${s.precio || ''}" class="form-control form-control-sm precio-servicio-input" data-index="${i}" style="background:#f8f9fa; border:2px solid #dee2e6; border-left:none; border-radius:0 6px 6px 0; text-align:center; font-weight:600;">
+                    </div>
                 </td>
-                <td>$${sub.toFixed(2)}</td>
-                <td>
-                    <button type="button" class="btn btn-danger btn-sm btn-eliminar-servicio" data-idx="${i}">
-                        <i class="bi bi-trash"></i>
+                <td style="font-weight:700; color:#007bff; padding:16px 12px; text-align:right; vertical-align:middle;">
+                    <span style="font-size:1.2rem;">$${sub.toFixed(2)}</span>
+                </td>
+                <td style="text-align:center; vertical-align:middle; width:70px; padding:16px 12px;">
+                    <button type="button" class="btn btn-outline-danger btn-sm btn-eliminar-servicio" data-idx="${i}" title="Eliminar servicio" style="width:36px; height:36px; display:flex; justify-content:center; align-items:center; padding:0; border-radius:6px; border:2px solid #dc3545; transition:all 0.3s ease;">
+                        <i class="bi bi-trash" style="font-size:1rem;"></i>
                     </button>
                 </td>
             </tr>
@@ -2387,40 +2640,53 @@ function renderTablaInsumos() {
             '<span style="color: #ccc; font-size: 12px;">Sin imagen</span>';
 
         html += `
-            <tr style='background:#fff; border-radius:16px; box-shadow:0 2px 12px rgba(18,24,102,0.07); margin-bottom:12px; border:2px solid #f4f6fb; transition:box-shadow 0.2s, border 0.2s;'>
-                <td style='text-align:center; vertical-align:middle; padding:12px;'>
-                    ${imagenHtml}
+            <tr style="background:linear-gradient(145deg, #ffffff 0%, #fafbff 100%); border-radius:12px; box-shadow:0 4px 16px rgba(102,126,234,0.08); margin-bottom:16px; border:none; transition:all 0.3s ease; border-left: 4px solid #667eea;">
+                <td style="text-align:center; vertical-align:middle; padding:16px 12px;">
+                    ${imagenPath ? `<img src="${imagenPath}" alt="${ins.nombre}" style="width:60px; height:60px; object-fit:cover; border-radius:12px; border:none; box-shadow:0 2px 8px rgba(102,126,234,0.15);">` : '<div style="width:60px; height:60px; background:linear-gradient(135deg, #e1e8ff, #f0f4ff); border-radius:12px; display:flex; align-items:center; justify-content:center; color:#667eea; font-weight:600; font-size:0.8rem;">Sin img</div>'}
                 </td>
-                <td style='font-weight:700; color:#121866; padding:18px 12px; min-width:180px;'>
-                    <div style='display:flex; flex-direction:column;'>
-                        <span>${ins.nombre}</span>
-                        ${ins.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google" style='margin-top:4px;'><i class="bi bi-search"></i></a>` : ''}
+                <td style="font-weight:600; color:#4a5568; padding:16px 12px; min-width:180px; vertical-align:middle;">
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <span style="font-size:1.1rem; color:#2d3748;">${ins.nombre}</span>
+                        ${ins.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google" style="margin-top:2px; display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; background:linear-gradient(135deg, #667eea, #764ba2); color:white; border-radius:50%; text-decoration:none; font-size:0.7rem;"><i class="bi bi-search"></i></a>` : ''}
                     </div>
                 </td>
-                <td style='text-align:center; vertical-align:middle;'>
-                    ${ins.paquete_id ? `<span class='badge bg-info' style='font-size:0.95em;'><input type='checkbox' class='sync-checkbox-insumo' data-index='${i}' ${ins.sincronizado !== false ? 'checked' : ''} title='Sincronizar con principal' style='margin-right:4px;'> <i class='bi bi-link-45deg'></i> Sync</span>` : `<button type='button' class='btn btn-sm btn-outline-primary' onclick='conectarInsumoAPaquete(${i})' title='Conectar a paquete inteligente'><i class='bi bi-link'></i></button>`}
+                <td style="text-align:center; vertical-align:middle; padding:16px 12px;">
+                    ${ins.paquete_id ? `
+                        <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+                            <span class="badge" style="background:linear-gradient(135deg, #17a2b8, #20c997); color:white; font-size:0.8rem; padding:6px 10px; border-radius:6px; font-weight:600; display:flex; align-items:center; gap:4px;">
+                                <i class="bi bi-link-45deg"></i> Conectado
+                            </span>
+                            <label style="display:flex; align-items:center; gap:4px; font-size:0.8rem; color:#4a5568; cursor:pointer;">
+                                <input type="checkbox" class="sync-checkbox-insumo" data-index="${i}" ${ins.sincronizado !== false ? 'checked' : ''} title="Sincronizar con principal" style="accent-color:#20c997;">
+                                Sync
+                            </label>
+                        </div>
+                    ` : `<button type="button" class="btn btn-sm" onclick="conectarInsumoAPaquete(${i})" title="Conectar a paquete inteligente" style="background:linear-gradient(135deg, #17a2b8, #20c997); color:white; border:none; border-radius:8px; padding:8px 12px; font-weight:600; transition:all 0.3s ease;"><i class="bi bi-link"></i> Conectar</button>`}
                 </td>
-                <td style='vertical-align:middle;'>
-                    <input type="number" min="1" step="1" value="${ins.cantidad}" class="form-control form-control-sm cantidad-insumo-input" data-index="${i}" style="width: 80px; background:#f8f9fa; border-radius:8px; border:1px solid #dbe2ef; box-shadow:0 1px 2px rgba(18,24,102,0.04);">
+                <td style="vertical-align:middle; padding:16px 12px;">
+                    <input type="number" min="1" step="1" value="${ins.cantidad}" class="form-control form-control-sm cantidad-insumo-input" data-index="${i}" style="width:100px; background:#f8faff; border:2px solid #e1e8ff; border-radius:10px; text-align:center; font-weight:600; padding:8px;">
                 </td>
-                <td style='vertical-align:middle;'>
-                    <input type="number" min="0" step="0.0001" value="${ins.precio || ''}" class="form-control form-control-sm precio-insumo-input" data-index="${i}" style="width: 110px; background:#f8f9fa; border-radius:8px; border:1px solid #dbe2ef; box-shadow:0 1px 2px rgba(18,24,102,0.04);">
+                <td style="vertical-align:middle; padding:16px 12px;">
+                    <div class="input-group" style="width:130px;">
+                        <span class="input-group-text" style="background:linear-gradient(135deg, #28a745, #20c997); color:white; border:none; border-radius:10px 0 0 10px; font-weight:600;">$</span>
+                        <input type="number" min="0" step="0.0001" value="${ins.precio || ''}" class="form-control form-control-sm precio-insumo-input" data-index="${i}" style="background:#f8faff; border:2px solid #e1e8ff; border-left:none; border-radius:0 10px 10px 0; text-align:center; font-weight:600;">
+                    </div>
                 </td>
-                <td style='vertical-align:middle;'>
+                <td style="vertical-align:middle; padding:16px 12px;">
+                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+                        <input type="number" min="0" max="99" step="0.01" value="${margen}" class="form-control form-control-sm margen-insumo-input" data-index="${i}" style="width:80px; text-align:center; font-weight:700; background:${margenNegativo ? 'linear-gradient(135deg, #ffe6e6, #fff0f0)' : 'linear-gradient(135deg, #e6fff0, #f0fff5)'}; color:${margenNegativo ? '#dc3545' : '#28a745'}; border:2px solid ${margenNegativo ? '#ffc1c1' : '#c1ffc1'}; border-radius:8px;" title="Editar margen (%)" ${costoReal === undefined ? 'disabled' : ''}>
+                        ${(costoReal === undefined) ? '<span style="font-size:0.8rem; color:#dc3545; font-weight:500;">Sin costo</span>' : '<span style="font-size:0.8rem; color:#718096; font-weight:500;"></span>'}
+                    </div>
+                </td>
+                <td style="vertical-align:middle; padding:16px 12px;">
                     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
-                        <input type="number" min="0" max="99" step="0.01" value="${margen}" class="form-control form-control-sm margen-insumo-input" data-index="${i}" style="width:70px; text-align:right; font-size:1em; font-weight:600; color:${margenNegativo ? '#d63333' : '#198754'};" title="Editar margen (%)" ${costoReal === undefined ? 'disabled' : ''}>
-                        ${(costoReal === undefined) ? '<span style="font-size:0.9em; color:#d63333;">Sin costo</span>' : '<span style="font-size:0.9em; color:#888;"></span>'}
+                        <span style="font-size:1.2rem; font-weight:700; color:#4c63d2;">$${sub.toFixed(2)}</span>
                     </div>
                 </td>
-                <td style='vertical-align:middle;'>
-                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
-                        <span style="font-size:1.15em; font-weight:700; color:#212529;">$${sub.toFixed(2)}</span>
-                    </div>
-                </td>
-                <td style="width:70px; text-align:center; vertical-align:middle; padding:0;">
+                <td style="width:70px; text-align:center; vertical-align:middle; padding:16px 12px;">
                     <div style="display:flex; justify-content:center; align-items:center; height:100%;">
-                        <button type="button" class="btn btn-danger btn-sm btn-eliminar-insumo" data-idx="${i}" title="Eliminar insumo" style="border-radius:6px; padding:4px 8px;">
-                            <i class="bi bi-trash"></i>
+                        <button type="button" class="btn btn-outline-danger btn-sm btn-eliminar-insumo" data-idx="${i}" title="Eliminar insumo" style="width:36px; height:36px; display:flex; justify-content:center; align-items:center; padding:0; border-radius:10px; border:2px solid #dc3545; transition:all 0.3s ease;">
+                            <i class="bi bi-trash" style="font-size:1rem;"></i>
                         </button>
                     </div>
                 </td>
@@ -2822,6 +3088,30 @@ function confirmarConexionServicio(index) {
     renderTablaServicios();
     
     mostrarNotificacion('Servicio conectado al paquete correctamente.', 'success');
+}
+
+// Inicializar el objeto PaquetesCotizacion si no existe
+if (typeof window.PaquetesCotizacion === 'undefined') {
+    window.PaquetesCotizacion = {
+        getPaquetes: function() {
+            return JSON.parse(localStorage.getItem('cotiz_paquetes') || '[]');
+        },
+        addPaquete: function(paquete) {
+            const paquetes = this.getPaquetes();
+            paquetes.push(paquete);
+            localStorage.setItem('cotiz_paquetes', JSON.stringify(paquetes));
+        },
+        updatePaquete: function(index, paquete) {
+            const paquetes = this.getPaquetes();
+            paquetes[index] = paquete;
+            localStorage.setItem('cotiz_paquetes', JSON.stringify(paquetes));
+        },
+        deletePaquete: function(index) {
+            const paquetes = this.getPaquetes();
+            paquetes.splice(index, 1);
+            localStorage.setItem('cotiz_paquetes', JSON.stringify(paquetes));
+        }
+    };
 }
 
 </script>
