@@ -29,7 +29,7 @@ if (!$cotizacion) {
 
 // Obtener productos de la cotización
 $stmt = $mysqli->prepare("
-    SELECT cp.*, p.product_name, p.sku, p.image as product_image, p.cost_price, p.tipo_gestion,
+    SELECT cp.*, p.product_name, p.description, p.sku, p.image as product_image, p.cost_price, p.tipo_gestion,
            CASE 
                WHEN p.tipo_gestion = 'bobina' THEN 
                    COALESCE(SUM(b.metros_actuales), 0)
@@ -40,7 +40,7 @@ $stmt = $mysqli->prepare("
     LEFT JOIN products p ON cp.product_id = p.product_id
     LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
     WHERE cp.cotizacion_id = ?
-    GROUP BY cp.cotizacion_producto_id, cp.cotizacion_id, cp.product_id, cp.cantidad, cp.precio_unitario, cp.precio_total, p.product_name, p.sku, p.image, p.cost_price, p.tipo_gestion, p.quantity
+    GROUP BY cp.cotizacion_producto_id, cp.cotizacion_id, cp.product_id, cp.cantidad, cp.precio_unitario, cp.precio_total, p.product_name, p.description, p.sku, p.image, p.cost_price, p.tipo_gestion, p.quantity
     ORDER BY cp.cotizacion_producto_id
 ");
 $stmt->bind_param('i', $cotizacion_id);
@@ -383,8 +383,9 @@ $insumos = $stmt->get_result();
                         <td><?= $i++ ?></td>
                         <td class="descripcion">
                             <?php
-                            $nombre = $producto['product_name'] ?? $producto['descripcion'] ?? 'Producto sin nombre';
-                            echo htmlspecialchars($nombre);
+                            // Mostrar descripción si existe, si no mostrar el nombre del producto
+                            $descripcion = $producto['description'] ?? $producto['product_name'] ?? $producto['descripcion'] ?? 'Producto sin descripción';
+                            echo htmlspecialchars($descripcion);
                             
                             // Mostrar badge "Sin stock" si el stock actual es menor que la cantidad requerida
                             if ($producto['product_id'] && $producto['stock_actual'] < $producto['cantidad']) {
