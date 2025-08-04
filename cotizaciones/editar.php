@@ -766,6 +766,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $(document).ready(function() {
         $('#cliente_select, #producto_select').select2();
         
+        console.log('Productos existentes desde PHP:', productosExistentes);
+        
         // Convertir productos existentes al formato moderno
         productosExistentes.forEach(producto => {
             const esBobina = producto.tipo_gestion === 'bobina';
@@ -935,6 +937,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Función moderna para renderizar tabla de productos
     function renderTablaProductos() {
+        console.log('Renderizando productos:', productosCotizacion);
         let html = '';
         let subtotal = 0;
         
@@ -1265,6 +1268,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Eliminar servicios e insumos
     document.addEventListener('click', function(e) {
+        // Eliminar productos
+        if (e.target.closest('.btn-remove-product')) {
+            const index = parseInt(e.target.closest('.btn-remove-product').dataset.index);
+            productosCotizacion.splice(index, 1);
+            renderTablaProductos();
+            recalcularTotales();
+        }
+        
         if (e.target.closest('.btn-remove-servicio')) {
             const index = parseInt(e.target.closest('.btn-remove-servicio').dataset.index);
             serviciosCotizacion.splice(index, 1);
@@ -1286,9 +1297,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         // Calcular subtotal desde el array de productos modernos
         productosCotizacion.forEach(prod => {
+            const esBobina = prod.tipo_gestion === 'bobina';
             const cantidad = parseFloat(prod.cantidad) || 0;
             const precio = parseFloat(prod.precio) || 0;
-            const totalProducto = cantidad * precio;
+            
+            let totalProducto;
+            if (esBobina && prod._modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA) {
+                // Para bobinas en modo bobina: número de bobinas × precio por bobina
+                const bobinasCompletas = Math.round(cantidad / PRECIO_CONFIG.metrosPorBobina);
+                totalProducto = bobinasCompletas * (precio * PRECIO_CONFIG.metrosPorBobina);
+            } else {
+                // Para metros o productos normales: cantidad × precio
+                totalProducto = cantidad * precio;
+            }
+            
             subtotal += totalProducto;
         });
         
@@ -1303,13 +1325,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         insumosCotizacion.forEach(ins => {
             const cantidad = parseFloat(ins.cantidad) || 0;
             const precio = parseFloat(ins.precio) || 0;
-            subtotal += cantidad * precio;
-        });
-        
-        // Agregar productos desde tabla tradicional si existen
-        document.querySelectorAll('#tablaProductos tbody tr').forEach(row => {
-            const cantidad = parseFloat(row.querySelector('.cantidad-input')?.value) || 0;
-            const precio = parseFloat(row.querySelector('.precio-input')?.value) || 0;
             subtotal += cantidad * precio;
         });
         

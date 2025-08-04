@@ -425,6 +425,12 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                 <div><strong><?= htmlspecialchars($cotizacion['numero_cotizacion']) ?></strong></div>
                 <div>Fecha: <?= date('d/m/Y', strtotime($cotizacion['fecha_cotizacion'])) ?></div>
                 <div>Válida hasta: <?= date('d/m/Y', strtotime($cotizacion['fecha_cotizacion'] . ' + ' . $cotizacion['validez_dias'] . ' days')) ?></div>
+                
+                <!-- Nota de garantía -->
+                <div style="margin-top: 8px; padding: 6px 10px; background-color: rgba(255,255,255,0.2); border-radius: 4px; font-size: 0.85rem; font-weight: bold;">
+                    ⚡ 1 AÑO DE GARANTÍA POR DEFECTOS DE FÁBRICA
+                </div>
+                
                 <br>
                 <div class="logos-dinamicos"></div>
             </div>
