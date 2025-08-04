@@ -84,10 +84,11 @@ while ($producto = $productos_temp->fetch_assoc()) {
     $cantidad = floatval($producto['cantidad'] ?? 0);
     
     // Detectar si es un cable/bobina para ajustar el cálculo del costo
-    $es_cable_costo = stripos($producto['product_name'] ?? '', 'cable') !== false || 
-                     stripos($producto['product_name'] ?? '', 'utp') !== false ||
-                     stripos($producto['product_name'] ?? '', 'saxxon') !== false ||
-                     stripos($producto['description'] ?? '', 'cable') !== false;
+    $tipo_gestion = $producto['tipo_gestion'] ?? '';
+    $es_cable_costo = ($tipo_gestion === 'bobina') || 
+                     (stripos($producto['product_name'] ?? '', 'bobina') !== false) ||
+                     (stripos($producto['product_name'] ?? '', 'cable utp') !== false) ||
+                     (stripos($producto['product_name'] ?? '', 'saxxon out') !== false);
     
     if ($es_cable_costo && $cost_price > 0) {
         $precio_unitario = floatval($producto['precio_unitario'] ?? 0);
@@ -652,11 +653,12 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                             $cantidad_mostrar = $producto['cantidad'];
                             $unidad = '';
                             
-                            // Detectar si es un cable/bobina (lógica similar a crear.php)
-                            $es_cable = stripos($producto['product_name'] ?? '', 'cable') !== false || 
-                                       stripos($producto['product_name'] ?? '', 'utp') !== false ||
-                                       stripos($producto['product_name'] ?? '', 'saxxon') !== false ||
-                                       stripos($producto['description'] ?? '', 'cable') !== false;
+                            // Detectar si es un cable/bobina usando tipo_gestion primero, luego nombre específico
+                            $tipo_gestion = $producto['tipo_gestion'] ?? '';
+                            $es_cable = ($tipo_gestion === 'bobina') || 
+                                       (stripos($producto['product_name'] ?? '', 'bobina') !== false) ||
+                                       (stripos($producto['product_name'] ?? '', 'cable utp') !== false) ||
+                                       (stripos($producto['product_name'] ?? '', 'saxxon out') !== false);
                             
                             if ($es_cable) {
                                 $metros_por_bobina = 305; // Misma constante que crear.php PRECIO_CONFIG
