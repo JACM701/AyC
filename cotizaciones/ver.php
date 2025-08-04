@@ -262,6 +262,7 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
             body { background: #fff; } 
             .cotizacion-container { box-shadow: none; border-radius: 0; margin: 0; padding: 0; } 
             th.costo-total, td.costo-total { display: none !important; }
+            .fila-costo-total, .fila-ganancia { display: none !important; }
             .badge.bg-danger { display: none !important; }
             .text-muted { display: none !important; }
             .acciones-cotizacion { display: none !important; }
@@ -614,7 +615,7 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                                     <span class="fw-bold">$<?= number_format($cotizacion['subtotal'], 2) ?></span>
                                 </td>
                             </tr>
-                            <tr>
+                            <tr class="fila-costo-total">
                                 <td class="text-end fw-bold" style="padding: 12px; color: #6c757d;">COSTO TOTAL</td>
                                 <td class="text-end" style="padding: 12px;">
                                     <span class="fw-bold text-warning">$<?= number_format($costo_total, 2) ?></span>
@@ -647,7 +648,7 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                                     <span>$<?= number_format($cotizacion['total'], 2) ?></span>
                                 </td>
                             </tr>
-                            <tr class="border-top" style="background: #e8f5e8;">
+                            <tr class="border-top fila-ganancia" style="background: #e8f5e8;">
                                 <td class="text-end fw-bold" style="padding: 12px; color: #198754;">GANANCIA</td>
                                 <td class="text-end fw-bold" style="padding: 12px; color: #198754;">
                                     <span>$<?= number_format($cotizacion['total'] - $costo_total, 2) ?></span>
@@ -659,16 +660,6 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                     <div class="mt-3 p-3" style="background: #e9ecef; border-radius: 8px; border: 1px solid #dee2e6;">
                         <div class="row g-2">
                             <div class="col-12">
-                                <strong>CONDICIONES DE PAGO:</strong>
-                                <div class="text-dark mt-1">
-                                    <?php if ($cotizacion['condiciones_pago']): ?>
-                                        <?= htmlspecialchars($cotizacion['condiciones_pago']) ?>
-                                    <?php else: ?>
-                                        <em class="text-muted">EN CASO DE REQUERIR FACTURA SE AGREGA IVA</em>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                            <div class="col-12 mt-2">
                                 <strong>OBSERVACIONES:</strong>
                                 <div class="text-dark mt-1">
                                     <?php 
