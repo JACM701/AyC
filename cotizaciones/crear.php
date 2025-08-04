@@ -134,6 +134,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $estado_id = isset($_POST['estado_id']) ? intval($_POST['estado_id']) : 2;
         $usuario_id = $_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? null;
         
+        // Si hay datos calculados en frontend, usarlos (más precisos)
+        if (isset($_POST['descuento_porcentaje_frontend']) && !empty($_POST['descuento_porcentaje_frontend'])) {
+            $descuento_porcentaje = floatval($_POST['descuento_porcentaje_frontend']);
+        }
+        
         // Tomar totales del frontend si están disponibles, sino calcular en backend
         if (isset($_POST['subtotal_frontend']) && isset($_POST['descuento_monto_frontend']) && isset($_POST['total_frontend'])) {
             // Usar valores calculados por el frontend
@@ -1109,6 +1114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         <!-- Campos ocultos para enviar totales calculados por el frontend -->
         <input type="hidden" name="subtotal_frontend" id="subtotal_frontend">
+        <input type="hidden" name="descuento_porcentaje_frontend" id="descuento_porcentaje_frontend">
         <input type="hidden" name="descuento_monto_frontend" id="descuento_monto_frontend">
         <input type="hidden" name="total_frontend" id="total_frontend">
         
@@ -1331,6 +1337,7 @@ function recalcularTotales() {
     
     // Actualizar campos ocultos para enviar al backend
     $('#subtotal_frontend').val(subtotal.toFixed(2));
+    $('#descuento_porcentaje_frontend').val(descuentoPorcentaje.toFixed(2));
     $('#descuento_monto_frontend').val(descuentoMonto.toFixed(2));
     $('#total_frontend').val(total.toFixed(2));
     
@@ -1909,6 +1916,13 @@ $(document).ready(function() {
             name: 'subtotal_frontend'
         }).appendTo('#formCrearCotizacion');
     }
+    if ($('#descuento_porcentaje_frontend').length === 0) {
+        $('<input>').attr({
+            type: 'hidden',
+            name: 'descuento_porcentaje_frontend',
+            id: 'descuento_porcentaje_frontend'
+        }).appendTo('#formCrearCotizacion');
+    }
     if ($('#descuento_monto_frontend').length === 0) {
         $('<input>').attr({
             type: 'hidden',
@@ -1962,6 +1976,7 @@ $(document).ready(function() {
 
         // Asegurarse de que los campos ocultos tengan los valores más recientes
         formData.set('subtotal_frontend', $('#subtotal_frontend').val());
+        formData.set('descuento_porcentaje_frontend', $('#descuento_porcentaje_frontend').val());
         formData.set('descuento_monto_frontend', $('#descuento_monto_frontend').val());
         formData.set('total_frontend', $('#total_frontend').val());
         

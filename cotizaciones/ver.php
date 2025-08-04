@@ -574,20 +574,33 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                 <div style="margin-top:10px; font-size:0.97rem; color:#888;">
                     <i class="bi bi-info-circle" style="color:#198754;"></i>
                     <?php
-                    $base = $cotizacion['subtotal'] - $cotizacion['descuento_monto'];
-                    $diferencia = $cotizacion['total'] - $base;
-                    if ($base > 0) {
-                        $porcentaje = ($diferencia / $base) * 100;
-                        if ($porcentaje < 0) {
-                            echo 'El <strong>total</strong> es menor al <strong>subtotal</strong> por un descuento aplicado de <strong>' . number_format(abs($porcentaje), 2) . '%</strong>.';
-                        } else if ($porcentaje > 0) {
-                            echo 'El <strong>total</strong> es mayor al <strong>subtotal</strong> por un cargo adicional (ej. IVA especial) de <strong>' . number_format($porcentaje, 2) . '%</strong>.';
-                        } else {
-                            echo 'El <strong>total</strong> coincide con el <strong>subtotal</strong>.';
-                        }
-                    } else {
-                        echo 'El <strong>total</strong> puede diferir del <strong>subtotal</strong> por descuentos o cargos adicionales.';
+                    $subtotal_base = $cotizacion['subtotal'];
+                    $descuento_monto = $cotizacion['descuento_monto'];
+                    $subtotal_con_descuento = $subtotal_base - $descuento_monto;
+                    $total_final = $cotizacion['total'];
+                    $iva_calculado = $total_final - $subtotal_con_descuento;
+                    
+                    $mensaje = '';
+                    
+                    if ($descuento_monto > 0) {
+                        $mensaje .= 'Se aplicó un descuento de <strong>' . $cotizacion['descuento_porcentaje'] . '%</strong> ($' . number_format($descuento_monto, 2) . '). ';
                     }
+                    
+                    if ($iva_calculado > 0) {
+                        // Calcular el porcentaje de IVA
+                        $porcentaje_iva = ($iva_calculado / $subtotal_con_descuento) * 100;
+                        $mensaje .= 'Se aplicó un IVA especial de <strong>' . number_format($porcentaje_iva, 2) . '%</strong> ($' . number_format($iva_calculado, 2) . ').';
+                    }
+                    
+                    if (empty($mensaje)) {
+                        if (abs($total_final - $subtotal_con_descuento) < 0.01) {
+                            $mensaje = 'El <strong>total</strong> coincide con el <strong>subtotal</strong>.';
+                        } else {
+                            $mensaje = 'El <strong>total</strong> puede diferir del <strong>subtotal</strong> por descuentos o cargos adicionales.';
+                        }
+                    }
+                    
+                    echo $mensaje;
                     ?>
                 </div>
             </div>
@@ -615,11 +628,16 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                                 </td>
                             </tr>
                             <?php endif; ?>
-                            <?php if ($ivaManual > 0): ?>
+                            <?php 
+                            // Calcular IVA especial basado en la diferencia
+                            $subtotal_con_descuento = $cotizacion['subtotal'] - $cotizacion['descuento_monto'];
+                            $iva_especial_calculado = $cotizacion['total'] - $subtotal_con_descuento;
+                            if ($iva_especial_calculado > 0.01): 
+                            ?>
                             <tr>
                                 <td class="text-end fw-bold" style="padding: 12px; color:#198754;">IVA ESPECIAL</td>
                                 <td class="text-end" style="padding: 12px;">
-                                    <span class="fw-bold" style="color:#198754;">$<?= number_format($ivaManual, 2) ?></span>
+                                    <span class="fw-bold" style="color:#198754;">$<?= number_format($iva_especial_calculado, 2) ?></span>
                                 </td>
                             </tr>
                             <?php endif; ?>
