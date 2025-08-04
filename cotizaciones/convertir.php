@@ -91,6 +91,18 @@ $stmt = $mysqli->prepare("
 $stmt->bind_param('i', $cotizacion_id);
 $stmt->execute();
 $insumos = $stmt->get_result();
+
+// Obtener servicios de la cotización para mostrar
+$stmt = $mysqli->prepare("
+    SELECT cs.*, s.nombre as servicio_nombre, s.descripcion as servicio_descripcion, s.categoria as servicio_categoria
+    FROM cotizaciones_servicios cs
+    LEFT JOIN servicios s ON cs.servicio_id = s.servicio_id
+    WHERE cs.cotizacion_id = ?
+    ORDER BY cs.cotizacion_servicio_id
+");
+$stmt->bind_param('i', $cotizacion_id);
+$stmt->execute();
+$servicios = $stmt->get_result();
 ?>
 
 <!DOCTYPE html>
@@ -237,6 +249,38 @@ $insumos = $stmt->get_result();
                                     <i class="bi bi-info-circle"></i> Sin stock
                                 </div>
                             <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            <?php endwhile; ?>
+        </div>
+
+        <div class="conversion-card">
+            <h5 class="mb-3"><i class="bi bi-gear"></i> Servicios en la Cotización</h5>
+            <p class="text-muted mb-3">Los servicios no afectan inventario y se incluyen en la conversión.</p>
+            
+            <?php while ($servicio = $servicios->fetch_assoc()): ?>
+                <div class="producto-item">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <h6 class="mb-1"><?= htmlspecialchars($servicio['nombre_servicio']) ?></h6>
+                            <?php if ($servicio['descripcion']): ?>
+                                <small class="text-muted"><?= htmlspecialchars($servicio['descripcion']) ?></small>
+                            <?php endif; ?>
+                            <?php if ($servicio['servicio_categoria']): ?>
+                                <br><span class="badge bg-info mt-1" style="font-size: 0.7rem;"><?= htmlspecialchars($servicio['servicio_categoria']) ?></span>
+                            <?php endif; ?>
+                        </div>
+                        <div class="col-md-2">
+                            <strong>Cantidad: <?= number_format($servicio['cantidad'], 0) ?></strong>
+                        </div>
+                        <div class="col-md-2">
+                            <strong>$<?= number_format($servicio['precio_total'], 2) ?></strong>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="text-success">
+                                <i class="bi bi-check-circle"></i> Servicio
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -266,6 +266,12 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
             .badge.bg-danger { display: none !important; }
             .text-muted { display: none !important; }
             .acciones-cotizacion { display: none !important; }
+            .col-md-8 { display: none !important; } /* Ocultar mensaje del total */
+            .pagado-watermark {
+                position: absolute;
+                color: rgba(40, 167, 69, 0.25) !important;
+                font-size: 6rem;
+            }
         }
         .alert.shadow.rounded-4 {
             box-shadow: 0 4px 24px rgba(18,24,102,0.10) !important;
@@ -292,10 +298,45 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
         #modalConfirmarEstado .btn-success:hover {
             background: #388e3c;
         }
+        
+        /* Marca de agua PAGADO para cotizaciones convertidas */
+        .pagado-watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 8rem;
+            font-weight: 900;
+            color: rgba(40, 167, 69, 0.25);
+            z-index: 1000;
+            pointer-events: none;
+            user-select: none;
+            text-transform: uppercase;
+            letter-spacing: 0.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .cotizacion-container.pagado {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        @media print {
+            .pagado-watermark {
+                position: absolute;
+                color: rgba(40, 167, 69, 0.4) !important;
+                font-size: 6rem;
+                z-index: 1;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="cotizacion-container">
+    <div class="cotizacion-container<?= $cotizacion['nombre_estado'] === 'Convertida' ? ' pagado' : '' ?>">
+        <?php if ($cotizacion['nombre_estado'] === 'Convertida'): ?>
+            <div class="paid-watermark">PAGADO</div>
+        <?php endif; ?>
+        
         <?php if (isset($_SESSION['success'])): ?>
             <div class="alert alert-success alert-dismissible fade show shadow rounded-4" role="alert" style="font-size:1.08rem;">
                 <i class="bi bi-check-circle-fill me-2"></i> <?= 
@@ -370,7 +411,17 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                 <p>Mérida, Yucatán</p>
             </div>
             <div class="cotizacion-info">
-                <div class="titulo-cot">Cotización</div>
+                <div class="titulo-cot quote-title">
+                    <?php
+                    if ($cotizacion['nombre_estado'] === 'Aprobada') {
+                        echo 'Nota de pago';
+                    } elseif ($cotizacion['nombre_estado'] === 'Convertida') {
+                        echo 'Factura';
+                    } else {
+                        echo 'Cotización';
+                    }
+                    ?>
+                </div>
                 <div><strong><?= htmlspecialchars($cotizacion['numero_cotizacion']) ?></strong></div>
                 <div>Fecha: <?= date('d/m/Y', strtotime($cotizacion['fecha_cotizacion'])) ?></div>
                 <div>Válida hasta: <?= date('d/m/Y', strtotime($cotizacion['fecha_cotizacion'] . ' + ' . $cotizacion['validez_dias'] . ' days')) ?></div>
@@ -671,9 +722,6 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                                         <?= htmlspecialchars($observaciones_valor) ?>
                                     <?php else: ?>
                                         <em class="text-muted">Sin observaciones</em>
-                                        <?php if (!isset($cotizacion['observaciones'])): ?>
-                                            <small class="text-danger d-block">(Campo 'observaciones' no encontrado en BD)</small>
-                                        <?php endif; ?>
                                     <?php endif; ?>
                                 </div>
                             </div>
