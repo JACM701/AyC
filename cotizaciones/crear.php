@@ -128,7 +128,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $validez_dias = isset($_POST['validez_dias']) ? intval($_POST['validez_dias']) : 30;
         $condiciones_pago = isset($_POST['condiciones_pago']) ? trim($_POST['condiciones_pago']) : '';
         $condiciones_pago = $condiciones_pago ?: (isset($_POST['condiciones_pago_forced']) ? trim($_POST['condiciones_pago_forced']) : '');
-        
         $observaciones = isset($_POST['observaciones']) ? trim($_POST['observaciones']) : '';
         $observaciones = $observaciones ?: (isset($_POST['observaciones_debug']) ? trim($_POST['observaciones_debug']) : '');
         $descuento_porcentaje = isset($_POST['descuento_porcentaje']) ? floatval($_POST['descuento_porcentaje']) : 0;
@@ -322,13 +321,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             
-            header("Location: ver.php?id=$cotizacion_id");
+            // Enviar respuesta JSON para AJAX
+            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+                echo json_encode(['success' => true, 'redirect_url' => "ver.php?id=$cotizacion_id"]);
+            } else {
+                header("Location: ver.php?id=$cotizacion_id");
+            }
             exit;
             
         } else {
             $error = 'Error al guardar la cotización: ' . $stmt->error;
         }
         }
+    }
+    // Si hay un error, y es una petición AJAX, devolver el error en JSON
+    if ($error && !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+        echo json_encode(['success' => false, 'error' => $error]);
+        exit;
     }
 }
 ?>
@@ -1890,109 +1899,138 @@ $(document).on('focus', '.precio-servicio-input', function() {
     // Removido auto-select para permitir edición normal
 });
 
-// Función recalcularTotales() duplicada eliminada - se mantiene la versión completa en líneas anteriores
-
-// EVENTO SUBMIT OPTIMIZADO
+// EVENTO SUBMIT CON AJAX
 $(document).ready(function() {
-    const $form = $('#formCrearCotizacion');
-    
-    // Depurar clics en el botón submit
+    // Asegurarse de que los campos ocultos existan
+    if ($('#subtotal_frontend').length === 0) {
+        $('<input>').attr({
+            type: 'hidden',
+            id: 'subtotal_frontend',
+            name: 'subtotal_frontend'
+        }).appendTo('#formCrearCotizacion');
+    }
+    if ($('#descuento_monto_frontend').length === 0) {
+        $('<input>').attr({
+            type: 'hidden',
+            id: 'descuento_monto_frontend',
+            name: 'descuento_monto_frontend'
+        }).appendTo('#formCrearCotizacion');
+    }
+    if ($('#total_frontend').length === 0) {
+        $('<input>').attr({
+            type: 'hidden',
+            id: 'total_frontend',
+            name: 'total_frontend'
+        }).appendTo('#formCrearCotizacion');
+    }
+
+    // Manejador de clic en el botón de guardar
     $('button[type="submit"]').on('click', function(e) {
         e.preventDefault();
-        $form.trigger('submit');
+        $('#formCrearCotizacion').trigger('submit');
     });
-    
-    // Vincular evento submit del formulario
-    $form.on('submit', function(e) {
-        // *** NO PREVENIR EL SUBMIT - NECESITAMOS QUE LLEGUE AL BACKEND ***
+
+    // Manejador de envío del formulario
+    $('#formCrearCotizacion').on('submit', function(e) {
+        e.preventDefault();
+        
+        const $submitButton = $(this).find('button[type="submit"]');
+        $submitButton.prop('disabled', true).html('<i class="bi bi-arrow-repeat"></i> Guardando...');
         
         let error = '';
-        const clienteId = $('#cliente_select').val();
         const nombre = $('#cliente_nombre').val().trim();
-        const telefono = $('#cliente_telefono').val().trim();
-        const ubicacion = $('#cliente_ubicacion').val().trim();
-        const email = $('#cliente_email').val().trim();
-        
-        // *** TEMPORALMENTE SALTAR VALIDACIÓN DE CLIENTE PARA DEBUG ***
-        // Validar cliente: debe tener ID seleccionado O al menos nombre
-        // if (!clienteId && !nombre) {
-        //     error = 'Debes seleccionar un cliente existente o registrar uno nuevo con al menos el nombre.';
-        // }
-
-    // *** TEMPORALMENTE SALTAR VALIDACIÓN DE PRODUCTOS PARA DEBUGG ***
-    // Permitir guardar si hay al menos un producto, servicio o insumo
-    // if (productosCotizacion.length === 0 && serviciosCotizacion.length === 0 && insumosCotizacion.length === 0) {
-    //     error = 'Debes agregar al menos un producto, servicio o insumo a la cotización.';
-    // }
-
-    // Validar cantidades según tipo
-    productosCotizacion.forEach(p => {
-        if (p.tipo_gestion === 'bobina') {
-            p.cantidad = parseFloat(p.cantidad) || 0.01;
-        } else {
-            p.cantidad = Math.max(1, Math.round(parseFloat(p.cantidad) || 1));
+        const clienteId = $('#cliente_id').val(); // Get the client ID from the hidden input
+        if ((!clienteId || clienteId === '') && !nombre) {
+            error = 'Debes seleccionar un cliente existente o registrar uno nuevo con al menos el nombre.';
         }
-    });
 
-    if (error) {
-        e.preventDefault();
-        mostrarNotificacion(error, 'danger');
-        // Reactivar el botón si estaba deshabilitado
-        $(this).find('button[type=submit]').prop('disabled', false).text('Guardar Cotización');
-        return false;
-    }
+        if (productosCotizacion.length === 0 && serviciosCotizacion.length === 0 && insumosCotizacion.length === 0) {
+            error = 'Debes agregar al menos un producto, servicio o insumo a la cotización.';
+        }
 
-    // Si no hay errores, continuar con el submit
-    $('<input>').attr({type:'hidden', name:'productos_json', value: JSON.stringify(productosCotizacion)}).appendTo(this);
-    $('<input>').attr({type:'hidden', name:'servicios_json', value: JSON.stringify(serviciosCotizacion)}).appendTo(this);
-    $('<input>').attr({type:'hidden', name:'insumos_json', value: JSON.stringify(insumosCotizacion)}).appendTo(this);
-    
-    // Guardar el IVA especial en observaciones si existe
-    var ivaEspecial = $('#condicion_iva').val();
-    if (ivaEspecial && ivaEspecial.length > 0) {
-        var obs = $('textarea[name="observaciones"]').val() || '';
-        // Elimina cualquier valor anterior
-        obs = obs.replace(/\[IVA_ESPECIAL:[^\]]*\]/g, '');
-        obs += ' [IVA_ESPECIAL:' + ivaEspecial + ']';
-        $('textarea[name="observaciones"]').val(obs);
-    }
-    
-    // Asegurar que los campos ocultos estén actualizados antes del envío
-    recalcularTotales();
-    
-    $(this).find('button[type=submit]').prop('disabled', true).text('Guardando...');
-    
-    // Eliminar el textarea y crear input hidden
-    var observacionesValue = $('textarea[name="observaciones"]').val() || '';
-    
-    // ELIMINAR COMPLETAMENTE EL TEXTAREA ORIGINAL
-    $('textarea[name="observaciones"]').remove();
-    
-    // CREAR UN INPUT HIDDEN CON EL VALOR CORRECTO
-    $('<input>').attr({type:'hidden', name:'observaciones', value: observacionesValue}).appendTo(this);
-    
-    $(this).find('button[type=submit]').prop('disabled', true).text('Guardando...');
-    
-    return true;
+        // Asegurarse de que los totales estén actualizados
+        recalcularTotales();
+
+        if (error) {
+            mostrarNotificacion(error, 'danger');
+            $submitButton.prop('disabled', false).html('<i class="bi bi-check-circle"></i> Guardar Cotización');
+            return;
+        }
+
+        // Crear FormData a partir del formulario
+        const formData = new FormData(this);
+
+        // Asegurarse de que los campos ocultos tengan los valores más recientes
+        formData.set('subtotal_frontend', $('#subtotal_frontend').val());
+        formData.set('descuento_monto_frontend', $('#descuento_monto_frontend').val());
+        formData.set('total_frontend', $('#total_frontend').val());
+        
+        // Asegurarse de que el campo observaciones esté incluido
+        formData.set('observaciones', $('#observaciones').val());
+
+        // Añadir los datos de las tablas que están en arrays de JS
+        formData.append('productos_json', JSON.stringify(productosCotizacion));
+        formData.append('servicios_json', JSON.stringify(serviciosCotizacion));
+        formData.append('insumos_json', JSON.stringify(insumosCotizacion));
+        
+        // Depuración: Mostrar el contenido de FormData
+        console.log('Contenido de FormData:');
+        for (let [key, value] of formData.entries()) {
+            console.log(key + ': ' + value);
+        }
+        
+        fetch('crear.php', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: formData
+        })
+        .then(response => {
+            console.log("Respuesta del servidor recibida:", response);
+            if (!response.ok) {
+                throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
+            }
+            return response.text();
+        })
+        .then(text => {
+            console.log("Texto de la respuesta:", text);
+            try {
+                const json = JSON.parse(text);
+                console.log("JSON parseado:", json);
+                if (json.success && json.redirect_url) {
+                    window.location.href = json.redirect_url;
+                } else {
+                    throw new Error(json.error || 'El servidor devolvió un error desconocido.');
+                }
+            } catch (e) {
+                console.error("Error al parsear JSON:", e);
+                throw new Error("La respuesta del servidor no es válida. Revise la consola para más detalles.");
+            }
+        })
+        .catch(error => {
+            console.error("Error en el proceso de guardado:", error);
+            mostrarNotificacion('Error al guardar: ' + error.message, 'danger');
+            $submitButton.prop('disabled', false).html('<i class="bi bi-check-circle"></i> Guardar Cotización');
+        });
     });
 
     // Prevenir submit por Enter accidental
     $('#formCrearCotizacion').on('keydown', function(e) {
-    if (e.key === 'Enter') {
-        // Permitir Enter solo si el foco está en el botón de submit
-        const isSubmitBtn = document.activeElement && document.activeElement.type === 'submit';
-        if (!isSubmitBtn) {
-            e.preventDefault();
-            return false;
+        if (e.key === 'Enter') {
+            const isSubmitBtn = document.activeElement && document.activeElement.type === 'submit';
+            if (!isSubmitBtn) {
+                e.preventDefault();
+                return false;
+            }
         }
-    }
     });
-    
+
     // Vincular eventos para recalcular totales
     $('#descuento_porcentaje, #condicion_iva').on('input', function() {
         recalcularTotales();
     });
-    
+
     // Llamada inicial para establecer los campos ocultos
     recalcularTotales();
 }); // Cerrar $(document).ready()
