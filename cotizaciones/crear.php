@@ -808,6 +808,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <label class="form-label">Nombre</label>
                         <input type="text" class="form-control" id="nuevo_nombre_producto">
                     </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Descripción</label>
+                        <input type="text" class="form-control" id="nuevo_descripcion_producto" placeholder="Descripción breve...">
+                    </div>
                     <div class="col-md-2">
                         <label class="form-label">SKU</label>
                         <input type="text" class="form-control" id="nuevo_sku_producto">
@@ -820,11 +824,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <label class="form-label">Costo</label>
                         <input type="number" class="form-control" id="nuevo_costo_producto" min="0" step="0.01">
                     </div>
+                </div>
+                <div class="row g-3 align-items-end mt-2">
                     <div class="col-md-1">
                         <label class="form-label">Cantidad</label>
                         <input type="number" class="form-control" id="nuevo_cantidad_producto" min="0" value="0">
                     </div>
-                    <div class="col-md-1">
+                    <div class="col-md-2">
                         <label class="form-label">Categoría</label>
                         <select class="form-select" id="nuevo_categoria_producto">
                             <option value="">-</option>
@@ -833,7 +839,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <?php endwhile; ?>
                         </select>
                     </div>
-                    <div class="col-md-1">
+                    <div class="col-md-2">
                         <label class="form-label">Proveedor</label>
                         <select class="form-select" id="nuevo_proveedor_producto">
                             <option value="">-</option>
@@ -846,15 +852,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <label class="form-label">Imagen</label>
                         <input type="file" class="form-control" id="nuevo_imagen_producto" accept="image/*">
                     </div>
-                    <div class="col-md-2 d-flex align-items-center">
+                    <div class="col-md-3 d-flex align-items-center">
                         <div class="form-check mt-4">
                             <input class="form-check-input" type="checkbox" id="nuevo_agregar_inventario_producto">
                             <label class="form-check-label" for="nuevo_agregar_inventario_producto">Agregar al inventario</label>
                         </div>
                     </div>
-                </div>
-                <div class="mt-2">
-                    <button type="button" class="btn btn-success" id="btnAgregarProductoRapido"><i class="bi bi-check-circle"></i> Agregar producto</button>
+                    <div class="col-md-2">
+                        <button type="button" class="btn btn-success" id="btnAgregarProductoRapido"><i class="bi bi-check-circle"></i> Agregar producto</button>
+                    </div>
                 </div>
             </div>
             <div class="mb-3">
@@ -1614,6 +1620,7 @@ $('#btnAltaRapidaProducto').on('click', function() {
 });
 $('#btnAgregarProductoRapido').on('click', function() {
     const nombre = $('#nuevo_nombre_producto').val();
+    const descripcion = $('#nuevo_descripcion_producto').val();
     const precio = parseFloat($('#nuevo_precio_producto').val()) || 0;
     const cantidad = parseInt($('#nuevo_cantidad_producto').val()) || 0;
     const sku = $('#nuevo_sku_producto').val();
@@ -1628,6 +1635,7 @@ $('#btnAgregarProductoRapido').on('click', function() {
     }
     let formData = new FormData();
     formData.append('nombre', nombre);
+    formData.append('descripcion', descripcion);
     formData.append('sku', sku);
     formData.append('categoria_id', categoria_id);
     formData.append('proveedor_id', proveedor_id);
@@ -1650,6 +1658,7 @@ $('#btnAgregarProductoRapido').on('click', function() {
                 agregarProductoATabla({
                     product_id: res.producto.product_id,
                     nombre: res.producto.nombre,
+                    descripcion: descripcion, // ✅ Usar descripción del formulario
                     sku: res.producto.sku,
                     categoria: res.producto.categoria,
                     proveedor: res.producto.proveedor,
@@ -1660,7 +1669,7 @@ $('#btnAgregarProductoRapido').on('click', function() {
                     cost_price: costo,
                     agregar_inventario: agregarInventario ? 1 : 0
                 });
-                $('#nuevo_nombre_producto, #nuevo_sku_producto, #nuevo_precio_producto, #nuevo_cantidad_producto').val('');
+                $('#nuevo_nombre_producto, #nuevo_descripcion_producto, #nuevo_sku_producto, #nuevo_precio_producto, #nuevo_cantidad_producto').val('');
                 $('#nuevo_categoria_producto, #nuevo_proveedor_producto').val('');
                 $('#altaRapidaProductoForm').hide();
                 mostrarNotificacion('Producto creado y agregado correctamente.', 'success');
