@@ -1201,6 +1201,25 @@ const productosArray = <?= json_encode($productos_array) ?>.map(p => ({
 }));
 let productosCotizacion = [];
 
+// Variable global para rastrear paquetes promocionales
+window.paquetesPromocionales = [];
+
+// Función para limpiar paquetes promocionales cuando se eliminan items
+function limpiarPaquetesPromocionales() {
+    if (!window.paquetesPromocionales) return;
+    
+    window.paquetesPromocionales = window.paquetesPromocionales.filter(paquete => {
+        // Verificar si todos los items del paquete aún existen
+        const itemsExistentes = [
+            ...productosCotizacion.filter(p => p.paquete_id === paquete.id),
+            ...serviciosCotizacion.filter(s => s.paquete_id === paquete.id),
+            ...insumosCotizacion.filter(i => i.paquete_id === paquete.id)
+        ];
+        
+        return itemsExistentes.length > 0;
+    });
+}
+
 // --- SERVICIOS ---
 const serviciosArray = <?= json_encode($servicios_array) ?>;
 let serviciosCotizacion = [];
@@ -1301,16 +1320,79 @@ function agregarInsumoATabla(insumo) {
 $(document).on('click', '.btn-eliminar-insumo', function() {
     const idx = $(this).data('idx');
     insumosCotizacion.splice(idx, 1);
+    limpiarPaquetesPromocionales();
     renderTablaInsumos();
-    guardarBorrador();
     recalcularTotales();
+    guardarBorrador();
 });
 
 function recalcularTotales() {
-    const subtotalProductos = productosCotizacion.reduce((sum, p) => sum + ((parseFloat(p.precio)||0)*(parseFloat(p.cantidad)||1)), 0);
-    const subtotalServicios = serviciosCotizacion.reduce((sum, s) => sum + ((parseFloat(s.precio)||0)*(parseFloat(s.cantidad)||1)), 0);
-    const subtotalInsumos = insumosCotizacion.reduce((sum, i) => sum + ((parseFloat(i.precio)||0)*(parseFloat(i.cantidad)||1)), 0);
-    const subtotal = subtotalProductos + subtotalServicios + subtotalInsumos;
+    let subtotalProductos = 0;
+    let subtotalServicios = 0;
+    let subtotalInsumos = 0;
+    
+    // Agrupar items por paquetes promocionales
+    const paquetesPromocionales = window.paquetesPromocionales || [];
+    const itemsPorPaquete = {};
+    
+    // Calcular subtotal de productos
+    productosCotizacion.forEach(p => {
+        if (p.es_promocional && p.paquete_promocional) {
+            // Es parte de un paquete promocional
+            const paqueteId = p.paquete_promocional.id;
+            if (!itemsPorPaquete[paqueteId]) {
+                itemsPorPaquete[paqueteId] = {
+                    precio_promocional: p.paquete_promocional.precio_promocional,
+                    procesado: false
+                };
+            }
+        } else {
+            // Producto normal
+            subtotalProductos += ((parseFloat(p.precio)||0)*(parseFloat(p.cantidad)||1));
+        }
+    });
+    
+    // Calcular subtotal de servicios
+    serviciosCotizacion.forEach(s => {
+        if (s.es_promocional && s.paquete_promocional) {
+            // Es parte de un paquete promocional
+            const paqueteId = s.paquete_promocional.id;
+            if (!itemsPorPaquete[paqueteId]) {
+                itemsPorPaquete[paqueteId] = {
+                    precio_promocional: s.paquete_promocional.precio_promocional,
+                    procesado: false
+                };
+            }
+        } else {
+            // Servicio normal
+            subtotalServicios += ((parseFloat(s.precio)||0)*(parseFloat(s.cantidad)||1));
+        }
+    });
+    
+    // Calcular subtotal de insumos
+    insumosCotizacion.forEach(i => {
+        if (i.es_promocional && i.paquete_promocional) {
+            // Es parte de un paquete promocional
+            const paqueteId = i.paquete_promocional.id;
+            if (!itemsPorPaquete[paqueteId]) {
+                itemsPorPaquete[paqueteId] = {
+                    precio_promocional: i.paquete_promocional.precio_promocional,
+                    procesado: false
+                };
+            }
+        } else {
+            // Insumo normal
+            subtotalInsumos += ((parseFloat(i.precio)||0)*(parseFloat(i.cantidad)||1));
+        }
+    });
+    
+    // Agregar precios de paquetes promocionales (una vez por paquete)
+    let subtotalPaquetesPromocionales = 0;
+    Object.values(itemsPorPaquete).forEach(paquete => {
+        subtotalPaquetesPromocionales += paquete.precio_promocional;
+    });
+    
+    const subtotal = subtotalProductos + subtotalServicios + subtotalInsumos + subtotalPaquetesPromocionales;
     const descuentoPorcentaje = parseFloat($('#descuento_porcentaje').val()) || 0;
     const descuentoMonto = subtotal * descuentoPorcentaje / 100;
     let total = subtotal - descuentoMonto;
@@ -1343,6 +1425,8 @@ function recalcularTotales() {
     
     // Mejor visualización: mostrar el IVA especial debajo del total, con icono y texto claro
     $('#iva_manual_monto').remove();
+    $('#paquetes_promocionales_resumen').remove();
+    
     if (ivaManual > 0) {
         // Si el input está dentro de una celda de tabla, insertar el aviso después de la celda
         var $totalInput = $('#total');
@@ -1364,6 +1448,57 @@ function recalcularTotales() {
                 <div id="iva_manual_monto" style="margin-top:8px; color:#198754; font-weight:600; background:#e9fbe9; border-radius:6px; padding:6px 14px; font-size:1em; display:flex; align-items:center; gap:8px;">
                     <i class="bi bi-info-circle" style="font-size:1.2em;"></i>
                     <span>IVA especial aplicado: <b>$${ivaManual.toFixed(2)}</b></span>
+                </div>
+            `);
+        }
+    }
+    
+    // Mostrar resumen de paquetes promocionales si hay alguno
+    if (Object.keys(itemsPorPaquete).length > 0) {
+        let ahorroTotal = 0;
+        let resumenHtml = '';
+        
+        // Calcular ahorro total y crear resumen
+        Object.values(itemsPorPaquete).forEach(paquete => {
+            const paqueteInfo = (window.paquetesPromocionales || []).find(p => p.precio_promocional === paquete.precio_promocional);
+            if (paqueteInfo) {
+                const ahorro = paqueteInfo.precio_original - paqueteInfo.precio_promocional;
+                ahorroTotal += ahorro;
+                resumenHtml += `<div style="margin-bottom:4px;"><strong>${paqueteInfo.nombre}:</strong> $${paqueteInfo.precio_promocional.toFixed(2)} (ahorro: $${ahorro.toFixed(2)})</div>`;
+            }
+        });
+        
+        var $totalInput = $('#total');
+        var $td = $totalInput.closest('td');
+        if ($td.length) {
+            $td.after(`
+                <tr id="paquetes_promocionales_resumen_tr">
+                    <td colspan="4"></td>
+                    <td colspan="1" style="padding-top:8px;">
+                        <div id="paquetes_promocionales_resumen" style="color:#28a745; font-weight:600; background:#d4edda; border-radius:6px; padding:8px 14px; font-size:0.9em;">
+                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                                <i class="bi bi-percent" style="font-size:1.2em;"></i>
+                                <span>Paquetes promocionales aplicados</span>
+                            </div>
+                            ${resumenHtml}
+                            <div style="border-top:1px solid #28a745; padding-top:4px; margin-top:6px; font-size:1em;">
+                                <strong>Ahorro total: $${ahorroTotal.toFixed(2)}</strong>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            `);
+        } else {
+            $totalInput.after(`
+                <div id="paquetes_promocionales_resumen" style="margin-top:8px; color:#28a745; font-weight:600; background:#d4edda; border-radius:6px; padding:8px 14px; font-size:0.9em;">
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                        <i class="bi bi-percent" style="font-size:1.2em;"></i>
+                        <span>Paquetes promocionales aplicados</span>
+                    </div>
+                    ${resumenHtml}
+                    <div style="border-top:1px solid #28a745; padding-top:4px; margin-top:6px; font-size:1em;">
+                        <strong>Ahorro total: $${ahorroTotal.toFixed(2)}</strong>
+                    </div>
                 </div>
             `);
         }
@@ -1498,7 +1633,9 @@ function agregarProductoATabla(prod) {
 $(document).on('click', '.btn-eliminar-producto', function() {
     const idx = $(this).data('idx');
     productosCotizacion.splice(idx, 1);
+    limpiarPaquetesPromocionales();
     renderTablaProductos();
+    recalcularTotales();
     guardarBorrador();
 });
 function renderTablaProductos() {
@@ -1539,8 +1676,14 @@ function renderTablaProductos() {
         } else if (costoUnitario !== undefined && parseFloat(p.precio) === 0) {
             margen = '0.00';
         }
+        
+        // Verificar si es parte de un paquete promocional
+        const esPromocional = p.es_promocional && p.paquete_promocional;
+        const borderColor = esPromocional ? '#28a745' : '#007bff';
+        const borderStyle = esPromocional ? '3px solid' : '2px solid';
+        
         html += `
-            <tr style="background:#ffffff; border-radius:6px; box-shadow:0 1px 4px rgba(0,0,0,0.08); margin-bottom:8px; border:none; transition:all 0.3s ease; border-left: 2px solid #007bff;">
+            <tr style="background:#ffffff; border-radius:6px; box-shadow:0 1px 4px rgba(0,0,0,0.08); margin-bottom:8px; border:none; transition:all 0.3s ease; border-left: ${borderStyle} ${borderColor};">
                 <td style="text-align:center; vertical-align:middle; width:60px; padding:8px 6px;">
                     ${p.image ? `<img src="${p.image.startsWith('uploads/') ? '../' + p.image : '../uploads/products/' + p.image}" alt="${p.nombre}" style="width:40px; height:40px; object-fit:cover; border-radius:6px; border:none; box-shadow:0 1px 3px rgba(0,0,0,0.1);">` : '<div style="width:40px; height:40px; background:#f8f9fa; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#6c757d; font-weight:600; font-size:0.7rem; border:1px solid #dee2e6;">Sin img</div>'}
                 </td>
@@ -1548,6 +1691,7 @@ function renderTablaProductos() {
                     <div style="display:flex; flex-direction:column; gap:2px;">
                         <span style="font-size:0.95rem; color:#212529; line-height:1.2;">${p.nombre}</span>
                         ${p.sku ? `<small style="color:#6c757d; font-weight:500; font-size:0.75rem;">SKU: ${p.sku}</small>` : ''}
+                        ${esPromocional ? `<small style="color:#28a745; font-weight:600; font-size:0.7rem;"><i class="bi bi-percent"></i> Paquete promocional: ${p.paquete_promocional.nombre}</small>` : ''}
                         ${p.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google" style="margin-top:1px; display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; background:#007bff; color:white; border-radius:50%; text-decoration:none; font-size:0.6rem;"><i class="bi bi-search"></i></a>` : ''}
                     </div>
                 </td>
@@ -1762,7 +1906,9 @@ function agregarServicioATabla(servicio) {
 $(document).on('click', '.btn-eliminar-servicio', function() {
     const idx = $(this).data('idx');
     serviciosCotizacion.splice(idx, 1);
+    limpiarPaquetesPromocionales();
     renderTablaServicios();
+    recalcularTotales();
     guardarBorrador();
 });
 
@@ -1771,8 +1917,13 @@ function renderTablaServicios() {
     serviciosCotizacion.forEach((s, i) => {
         const sub = (parseFloat(s.precio) || 0) * (parseFloat(s.cantidad) || 1);
         
+        // Verificar si es parte de un paquete promocional
+        const esPromocional = s.es_promocional && s.paquete_promocional;
+        const borderColor = esPromocional ? '#28a745' : '#17a2b8';
+        const borderStyle = esPromocional ? '3px solid' : '3px solid';
+        
         html += `
-            <tr style="background:#ffffff; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.05); margin-bottom:12px; border:none; transition:all 0.3s ease; border-left: 3px solid #17a2b8;">
+            <tr style="background:#ffffff; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.05); margin-bottom:12px; border:none; transition:all 0.3s ease; border-left: ${borderStyle} ${borderColor};">
                 <td style="text-align:center; vertical-align:middle; padding:16px 12px;">
                     ${s.imagen ? `<img src="../uploads/services/${s.imagen}" alt="${s.nombre}" style="width:60px; height:60px; object-fit:cover; border-radius:8px; border:none; box-shadow:0 2px 6px rgba(0,0,0,0.1);" onerror="this.style.display='none'">` : '<div style="width:60px; height:60px; background:#f8f9fa; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#6c757d; font-weight:600; font-size:0.8rem; border:1px solid #dee2e6;">Sin img</div>'}
                 </td>
@@ -1780,6 +1931,7 @@ function renderTablaServicios() {
                     <div style="display:flex; flex-direction:column; gap:4px;">
                         <span style="font-size:1.1rem; color:#212529;">${s.nombre}</span>
                         ${s.tiempo_estimado ? `<small style="color:#6c757d; font-weight:500;">Tiempo: ${s.tiempo_estimado}h</small>` : ''}
+                        ${esPromocional ? `<small style="color:#28a745; font-weight:600; font-size:0.7rem;"><i class="bi bi-percent"></i> Paquete promocional: ${s.paquete_promocional.nombre}</small>` : ''}
                     </div>
                 </td>
                 <td style="text-align:center; vertical-align:middle; padding:16px 12px;">
@@ -2276,27 +2428,45 @@ function aplicarPaqueteCotizacion(idx, event) {
         });
     }, 200);
     
-    // Si es un paquete promocional, aplicar el precio especial
+    // Si es un paquete promocional, configurar el precio especial
     if (paquete.es_promocional && paquete.precio_personalizado) {
-        // Aplicar precio promocional al primer producto principal
-        const productoPrincipal = productosCotizacion.find(p => p.paquete_id === paqueteId && p.tipo_paquete === 'principal');
-        if (productoPrincipal) {
-            productoPrincipal.precio = parseFloat(paquete.precio_personalizado);
-            productoPrincipal.es_promocional = true;
-            // Recalcular
-            renderTablaProductos();
-            mostrarNotificacion(`Aplicado precio promocional: $${parseFloat(paquete.precio_personalizado).toFixed(2)}`, 'info');
-        } else {
-            // Si no hay producto principal, aplicar al primer servicio principal
-            const servicioPrincipal = serviciosCotizacion.find(s => s.paquete_id === paqueteId && s.tipo_paquete === 'principal');
-            if (servicioPrincipal) {
-                servicioPrincipal.precio = parseFloat(paquete.precio_personalizado);
-                servicioPrincipal.es_promocional = true;
-                renderTablaServicios();
-                mostrarNotificacion(`Aplicado precio promocional: $${parseFloat(paquete.precio_personalizado).toFixed(2)}`, 'info');
-            }
-        }
+        // Marcar todos los items del paquete como promocionales y guardar datos del paquete
+        const paqueteInfo = {
+            id: paqueteId,
+            nombre: paquete.nombre,
+            precio_promocional: parseFloat(paquete.precio_personalizado),
+            precio_original: 0 // Se calculará después
+        };
+        
+        // Calcular precio original del paquete (suma de todos los items)
+        let precioOriginal = 0;
+        productosCotizacion.filter(p => p.paquete_id === paqueteId).forEach(p => {
+            precioOriginal += (parseFloat(p.precio) || 0) * (parseFloat(p.cantidad) || 1);
+            p.es_promocional = true;
+            p.paquete_promocional = paqueteInfo;
+        });
+        serviciosCotizacion.filter(s => s.paquete_id === paqueteId).forEach(s => {
+            precioOriginal += (parseFloat(s.precio) || 0) * (parseFloat(s.cantidad) || 1);
+            s.es_promocional = true;
+            s.paquete_promocional = paqueteInfo;
+        });
+        insumosCotizacion.filter(i => i.paquete_id === paqueteId).forEach(i => {
+            precioOriginal += (parseFloat(i.precio) || 0) * (parseFloat(i.cantidad) || 1);
+            i.es_promocional = true;
+            i.paquete_promocional = paqueteInfo;
+        });
+        
+        paqueteInfo.precio_original = precioOriginal;
+        
+        // Guardar información del paquete promocional globalmente
+        if (!window.paquetesPromocionales) window.paquetesPromocionales = [];
+        window.paquetesPromocionales.push(paqueteInfo);
+        
+        mostrarNotificacion(`Aplicado paquete promocional "${paquete.nombre}": $${parseFloat(paquete.precio_personalizado).toFixed(2)} (Original: $${precioOriginal.toFixed(2)})`, 'info');
     }
+    
+    // Recalcular totales para aplicar precios promocionales
+    recalcularTotales();
     
     const modal = bootstrap.Modal.getInstance(document.getElementById('modalPaquetes'));
     if (modal) modal.hide();
@@ -2864,14 +3034,20 @@ function renderTablaInsumos() {
             `<img src="${imagenPath}" alt="${ins.nombre}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;" onerror="this.style.display='none'">` : 
             '<span style="color: #ccc; font-size: 12px;">Sin imagen</span>';
 
+        // Verificar si es parte de un paquete promocional
+        const esPromocional = ins.es_promocional && ins.paquete_promocional;
+        const borderColor = esPromocional ? '#28a745' : '#17a2b8';
+        const borderStyle = esPromocional ? '3px solid' : '2px solid';
+
         html += `
-            <tr style="background:#ffffff; border-radius:6px; box-shadow:0 1px 4px rgba(0,0,0,0.08); margin-bottom:8px; border:none; transition:all 0.3s ease; border-left: 2px solid #17a2b8;">
+            <tr style="background:#ffffff; border-radius:6px; box-shadow:0 1px 4px rgba(0,0,0,0.08); margin-bottom:8px; border:none; transition:all 0.3s ease; border-left: ${borderStyle} ${borderColor};">
                 <td style="text-align:center; vertical-align:middle; padding:8px 6px;">
                     ${imagenPath ? `<img src="${imagenPath}" alt="${ins.nombre}" style="width:40px; height:40px; object-fit:cover; border-radius:6px; border:none; box-shadow:0 1px 3px rgba(0,0,0,0.1);">` : '<div style="width:40px; height:40px; background:#f8f9fa; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#6c757d; font-weight:600; font-size:0.7rem; border:1px solid #dee2e6;">Sin img</div>'}
                 </td>
                 <td style="font-weight:600; color:#495057; padding:8px 10px; min-width:140px; vertical-align:middle;">
                     <div style="display:flex; flex-direction:column; gap:2px;">
                         <span style="font-size:0.95rem; color:#212529; line-height:1.2;">${ins.nombre}</span>
+                        ${esPromocional ? `<small style="color:#28a745; font-weight:600; font-size:0.7rem;"><i class="bi bi-percent"></i> Paquete promocional: ${ins.paquete_promocional.nombre}</small>` : ''}
                         ${ins.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google" style="margin-top:1px; display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; background:#007bff; color:white; border-radius:50%; text-decoration:none; font-size:0.6rem;"><i class="bi bi-search"></i></a>` : ''}
                     </div>
                 </td>
