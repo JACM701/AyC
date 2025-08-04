@@ -747,7 +747,8 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                                 // Para cables/bobinas, el cost_price es por BOBINA COMPLETA (como en crear.php)
                                 if ($es_cable) {
                                     $metros_por_bobina = 305;
-                                    $bobinas_completas = round($cantidad_para_costo / $metros_por_bobina);
+                                    // 🎯 PERMITIR FRACCIONES DE BOBINAS PARA CÁLCULO CORRECTO DEL COSTO
+                                    $bobinas_completas = $cantidad_para_costo / $metros_por_bobina;
                                     $costo_total_producto = $producto['cost_price'] * $bobinas_completas;
                                 } else {
                                     // Productos normales: cost_price por unidad
