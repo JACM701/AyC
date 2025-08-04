@@ -3433,6 +3433,61 @@ if (typeof window.PaquetesCotizacion === 'undefined') {
     };
 }
 
+// Evento delegado global para manejar el toggle promocional de paquetes
+$(document).on('change', '#paqEsPromocional', function() {
+    const precioContainer = document.getElementById('paqPrecioContainer');
+    if (precioContainer) {
+        precioContainer.style.display = this.checked ? 'block' : 'none';
+        
+        // Actualizar el objeto en edición
+        if (window._paqEdit) {
+            window._paqEdit.es_promocional = this.checked;
+            if (!this.checked) {
+                window._paqEdit.precio_personalizado = null;
+                const precioInput = document.getElementById('paqPrecioPersonalizado');
+                if (precioInput) precioInput.value = '';
+            }
+        }
+    }
+});
+
+// MutationObserver moderno para detectar cuando se renderizan los paquetes
+const paqueteObserver = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+        if (mutation.type === 'childList') {
+            mutation.addedNodes.forEach(function(node) {
+                if (node.nodeType === 1) { // Element node
+                    // Buscar toggle promocional en el nodo agregado o sus hijos
+                    const toggle = node.id === 'paqEsPromocional' ? node : node.querySelector && node.querySelector('#paqEsPromocional');
+                    const container = node.id === 'paqPrecioContainer' ? node : node.querySelector && node.querySelector('#paqPrecioContainer');
+                    
+                    if (toggle && container) {
+                        // Configurar estado inicial
+                        container.style.display = toggle.checked ? 'block' : 'none';
+                    } else if (toggle) {
+                        // Si solo encontramos el toggle, buscar el container
+                        setTimeout(() => {
+                            const cont = document.getElementById('paqPrecioContainer');
+                            if (cont) {
+                                cont.style.display = toggle.checked ? 'block' : 'none';
+                            }
+                        }, 10);
+                    }
+                }
+            });
+        }
+    });
+});
+
+// Observar cambios en el panel de paquetes
+const paquetesPanel = document.getElementById('paquetesPanel');
+if (paquetesPanel) {
+    paqueteObserver.observe(paquetesPanel, {
+        childList: true,
+        subtree: true
+    });
+}
+
 </script>
 </body>
 </html>

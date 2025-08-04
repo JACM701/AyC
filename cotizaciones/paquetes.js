@@ -28,18 +28,6 @@ function deletePaquete(index) {
     savePaquetes(paquetes);
 }
 
-function updatePaquete(index, paquete) {
-    const paquetes = getPaquetes();
-    paquetes[index] = paquete;
-    savePaquetes(paquetes);
-}
-
-function deletePaquete(index) {
-    const paquetes = getPaquetes();
-    paquetes.splice(index, 1);
-    savePaquetes(paquetes);
-}
-
 // Estructura de un paquete:
 // {
 //   nombre: 'Kit Cámaras',
@@ -166,7 +154,19 @@ window.renderPaqueteForm = function({productos, paquete, onSave, onCancel}) {
         <button class='btn btn-success' id='btnGuardarPaquete'><i class='bi bi-check-circle'></i> Guardar</button>
         <button class='btn btn-secondary' id='btnCancelarPaquete'><i class='bi bi-x-circle'></i> Cancelar</button>
     </div>`;
+    
     return html;
+};
+
+// Función auxiliar para configurar el toggle promocional después del render
+window.configurarTogglePromocional = function() {
+    setTimeout(() => {
+        const toggle = document.getElementById('paqEsPromocional');
+        const container = document.getElementById('paqPrecioContainer');
+        if (toggle && container) {
+            container.style.display = toggle.checked ? 'block' : 'none';
+        }
+    }, 50);
 };
 
 window.removePaqueteItem = function(idx) {
@@ -228,28 +228,8 @@ window.editarPaquete = function(idx) {
             onCancel: renderPaquetesPanel
         });
         
-        // Event listener para toggle promocional
-        const togglePromocional = document.getElementById('paqEsPromocional');
-        if (togglePromocional) {
-            // Configurar el estado inicial del campo de precio
-            const precioContainer = document.getElementById('paqPrecioContainer');
-            if (precioContainer) {
-                precioContainer.style.display = togglePromocional.checked ? 'block' : 'none';
-            }
-            
-            togglePromocional.addEventListener('change', function() {
-                const precioContainer = document.getElementById('paqPrecioContainer');
-                if (precioContainer) {
-                    precioContainer.style.display = this.checked ? 'block' : 'none';
-                }
-                window._paqEdit.es_promocional = this.checked;
-                if (!this.checked) {
-                    window._paqEdit.precio_personalizado = null;
-                    const precioInput = document.getElementById('paqPrecioPersonalizado');
-                    if (precioInput) precioInput.value = '';
-                }
-            });
-        }
+        // Configurar toggle promocional
+        window.configurarTogglePromocional();
         
         // Agregar producto o servicio al paquete
         if (typeof window._paqRender === 'function') {
@@ -383,28 +363,8 @@ function nuevoPaquete() {
             onCancel: renderPaquetesPanel
         });
         
-        // Event listener para toggle promocional
-        const togglePromocional = document.getElementById('paqEsPromocional');
-        if (togglePromocional) {
-            // Configurar el estado inicial del campo de precio
-            const precioContainer = document.getElementById('paqPrecioContainer');
-            if (precioContainer) {
-                precioContainer.style.display = togglePromocional.checked ? 'block' : 'none';
-            }
-            
-            togglePromocional.addEventListener('change', function() {
-                const precioContainer = document.getElementById('paqPrecioContainer');
-                if (precioContainer) {
-                    precioContainer.style.display = this.checked ? 'block' : 'none';
-                }
-                window._paqEdit.es_promocional = this.checked;
-                if (!this.checked) {
-                    window._paqEdit.precio_personalizado = null;
-                    const precioInput = document.getElementById('paqPrecioPersonalizado');
-                    if (precioInput) precioInput.value = '';
-                }
-            });
-        }
+        // Configurar toggle promocional
+        window.configurarTogglePromocional();
         
         // --- AGREGAR PRODUCTO ---
         const prodSel = document.getElementById('paqProductoSelect');
