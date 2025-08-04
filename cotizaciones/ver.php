@@ -675,14 +675,18 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                                     // Redondear a 1 decimal para mostrar fracciones como 1.5
                                     $cantidad_mostrar = round($bobinas_completas, 1);
                                     $unidad = $cantidad_mostrar !== 1 ? ' bobinas' : ' bobina';
+                                    echo number_format($cantidad_mostrar, 1) . $unidad;
                                 } else {
                                     // MODO POR METROS (como crear.php línea 1587)
                                     $cantidad_mostrar = $cantidad;
                                     $unidad = ' m';
+                                    echo number_format($cantidad_mostrar, 2) . $unidad;
                                 }
+                            } else {
+                                // Para productos normales (no bobinas/cables): mostrar solo enteros
+                                $cantidad_mostrar = round($producto['cantidad']);
+                                echo number_format($cantidad_mostrar, 0);
                             }
-                            
-                            echo number_format($cantidad_mostrar, $unidad === ' m' ? 2 : 1) . $unidad;
                             ?>
                         </td>
                         <td>
