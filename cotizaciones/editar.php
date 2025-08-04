@@ -145,7 +145,9 @@ $productos = $mysqli->query("
 ");
 $productos_array = $productos ? $productos->fetch_all(MYSQLI_ASSOC) : [];
 $categorias = $mysqli->query("SELECT category_id, name FROM categories ORDER BY name ASC");
+$categorias_array = $categorias ? $categorias->fetch_all(MYSQLI_ASSOC) : [];
 $proveedores = $mysqli->query("SELECT supplier_id, name FROM suppliers ORDER BY name ASC");
+$proveedores_array = $proveedores ? $proveedores->fetch_all(MYSQLI_ASSOC) : [];
 
 // Verificar si existen estados de cotización, si no, crearlos
 $estados = $mysqli->query("SELECT est_cot_id, nombre_estado FROM est_cotizacion ORDER BY est_cot_id ASC");
@@ -352,15 +354,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             width: calc(100vw - 70px) !important;
             transition: margin-left 0.25s cubic-bezier(.4,2,.6,1), width 0.25s;
         }
-        .form-section { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 24px; box-shadow: 0 2px 12px rgba(18,24,102,0.07); }
-        .section-title { font-size: 1.3rem; font-weight: 700; color: #121866; margin-bottom: 18px; display: flex; align-items: center; gap: 8px; }
-        .select2-container--default .select2-selection--single { height: 38px; }
-        .select2-selection__rendered { line-height: 38px !important; }
-        .select2-selection__arrow { height: 38px !important; }
-        .table thead th { background: #121866; color: #fff; }
-        .badge-stock { font-size: 0.85rem; }
-        .btn-remove-product { color: #dc3545; cursor: pointer; }
-        .btn-remove-product:hover { color: #c82333; }
+        .form-section { 
+            background: #fff; 
+            border-radius: 12px; 
+            padding: 24px; 
+            margin-bottom: 24px; 
+            box-shadow: 0 2px 12px rgba(18,24,102,0.07); 
+        }
+        .section-title { 
+            font-size: 1.3rem; 
+            font-weight: 700; 
+            color: #121866; 
+            margin-bottom: 18px; 
+            display: flex; 
+            align-items: center; 
+            gap: 8px; 
+        }
+        .select2-container--default .select2-selection--single { 
+            height: 38px; 
+        }
+        .select2-selection__rendered { 
+            line-height: 38px !important; 
+        }
+        .select2-selection__arrow { 
+            height: 38px !important; 
+        }
+        .table thead th { 
+            background: #121866; 
+            color: #fff; 
+            font-size: 0.9rem;
+            padding: 12px 8px;
+        }
+        .table tbody td {
+            padding: 8px;
+            vertical-align: middle;
+        }
+        .badge-stock { 
+            font-size: 0.85rem; 
+        }
+        .btn-remove-product { 
+            color: #dc3545; 
+            cursor: pointer; 
+        }
+        .btn-remove-product:hover { 
+            color: #c82333; 
+        }
+        .form-control-sm {
+            font-size: 0.875rem;
+        }
+        .cantidad-input, .precio-input {
+            text-align: center;
+        }
+        .total-fila {
+            font-weight: 600;
+            color: #121866;
+        }
     </style>
 </head>
 <body>
@@ -458,6 +506,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <tr>
                             <th>Producto</th>
                             <th>SKU</th>
+                            <th>Tipo</th>
                             <th>Cantidad</th>
                             <th>Precio Unit.</th>
                             <th>Total</th>
@@ -468,6 +517,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <!-- Los productos se cargarán dinámicamente con JavaScript -->
                     </tbody>
                 </table>
+            </div>
+            
+            <!-- Alta rápida de productos -->
+            <div class="mt-4 p-3 border rounded" style="background-color: #f8f9fa;">
+                <h6 class="mb-3"><i class="bi bi-plus-circle text-success"></i> Alta rápida de producto</h6>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-3">
+                        <label class="form-label small">Nombre *</label>
+                        <input type="text" class="form-control form-control-sm" id="nuevo_nombre_producto" placeholder="Nombre del producto">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small">Descripción</label>
+                        <input type="text" class="form-control form-control-sm" id="nuevo_descripcion_producto" placeholder="Descripción">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">SKU</label>
+                        <input type="text" class="form-control form-control-sm" id="nuevo_sku_producto" placeholder="SKU">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Precio *</label>
+                        <input type="number" class="form-control form-control-sm" id="nuevo_precio_producto" placeholder="0.00" step="0.01" min="0">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Costo</label>
+                        <input type="number" class="form-control form-control-sm" id="nuevo_costo_producto" placeholder="0.00" step="0.01" min="0">
+                    </div>
+                </div>
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-2">
+                        <label class="form-label small">Cantidad</label>
+                        <input type="number" class="form-control form-control-sm" id="nuevo_cantidad_producto" value="1" min="1">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Categoría</label>
+                        <select class="form-select form-select-sm" id="nuevo_categoria_producto">
+                            <option value="">Seleccionar...</option>
+                            <?php foreach ($categorias_array as $categoria): ?>
+                                <option value="<?= $categoria['category_id'] ?>"><?= htmlspecialchars($categoria['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Proveedor</label>
+                        <select class="form-select form-select-sm" id="nuevo_proveedor_producto">
+                            <option value="">Seleccionar...</option>
+                            <?php foreach ($proveedores_array as $proveedor): ?>
+                                <option value="<?= $proveedor['supplier_id'] ?>"><?= htmlspecialchars($proveedor['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Imagen</label>
+                        <input type="file" class="form-control form-control-sm" id="nuevo_imagen_producto" accept="image/*">
+                    </div>
+                    <div class="col-md-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="nuevo_agregar_cotizacion">
+                            <label class="form-check-label small" for="nuevo_agregar_cotizacion">
+                                Agregar a cotización
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="button" class="btn btn-success btn-sm w-100" id="btn_crear_producto">
+                            <i class="bi bi-plus"></i> Crear Producto
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -624,20 +741,108 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script>
     document.querySelector('.sidebar-cotizaciones').classList.add('active');
     
+    // Configuración de precios para bobinas
+    const PRECIO_CONFIG = {
+        metrosPorBobina: 305,
+        tolerancia: 10,
+        modosPrecio: {
+            POR_BOBINA: 'POR_BOBINA',
+            POR_METRO: 'POR_METRO'
+        }
+    };
+    
     // Productos existentes de PHP
     const productosExistentes = <?= json_encode($productos_existentes) ?>;
+    const serviciosExistentes = <?= json_encode($servicios_existentes) ?>;
+    const insumosExistentes = <?= json_encode($insumos_existentes) ?>;
+    
+    // Variables globales para el sistema de precios
+    let productos = [];
+    let productosCotizacion = [];
+    let serviciosCotizacion = [];
+    let insumosCotizacion = [];
     
     // Inicializar Select2
     $(document).ready(function() {
         $('#cliente_select, #producto_select').select2();
         
-        // Cargar productos existentes
+        // Convertir productos existentes al formato moderno
         productosExistentes.forEach(producto => {
-            agregarProducto(producto);
+            const esBobina = producto.tipo_gestion === 'bobina';
+            let productoModerno = {
+                product_id: producto.product_id,
+                nombre: producto.nombre,
+                sku: producto.sku,
+                cantidad: parseFloat(producto.cantidad) || 1,
+                precio: parseFloat(producto.precio) || 0,
+                imagen: producto.imagen,
+                tipo_gestion: producto.tipo_gestion || 'normal'
+            };
+            
+            // Para bobinas, configurar precio base
+            if (esBobina) {
+                // Detectar si el precio almacenado es por bobina completa o por metro
+                if (productoModerno.precio > 50) {
+                    // Precio por bobina completa
+                    productoModerno._precioBobinaOriginal = productoModerno.precio;
+                    productoModerno._precioBase = productoModerno.precio / PRECIO_CONFIG.metrosPorBobina;
+                    productoModerno.precio = productoModerno._precioBase; // Mostrar precio por metro
+                } else {
+                    // Precio por metro
+                    productoModerno._precioBase = productoModerno.precio;
+                    productoModerno._precioBobinaOriginal = productoModerno.precio * PRECIO_CONFIG.metrosPorBobina;
+                }
+                
+                // Determinar modo inicial
+                const bobinasCompletas = Math.round(productoModerno.cantidad / PRECIO_CONFIG.metrosPorBobina);
+                const metrosEsperados = bobinasCompletas * PRECIO_CONFIG.metrosPorBobina;
+                const diferencia = Math.abs(productoModerno.cantidad - metrosEsperados);
+                
+                if (bobinasCompletas > 0 && diferencia <= PRECIO_CONFIG.tolerancia) {
+                    productoModerno._modoPrecio = PRECIO_CONFIG.modosPrecio.POR_BOBINA;
+                } else {
+                    productoModerno._modoPrecio = PRECIO_CONFIG.modosPrecio.POR_METRO;
+                }
+            }
+            
+            productosCotizacion.push(productoModerno);
         });
         
+        // Renderizar productos con sistema moderno
+        renderTablaProductos();
+        
+        // Cargar servicios existentes
+        serviciosExistentes.forEach(servicio => {
+            serviciosCotizacion.push({
+                servicio_id: servicio.servicio_id,
+                nombre: servicio.nombre,
+                categoria: servicio.categoria,
+                descripcion: servicio.descripcion,
+                cantidad: parseFloat(servicio.cantidad) || 1,
+                precio: parseFloat(servicio.precio) || 0,
+                imagen: servicio.imagen
+            });
+        });
+        
+        // Cargar insumos existentes
+        insumosExistentes.forEach(insumo => {
+            insumosCotizacion.push({
+                insumo_id: insumo.insumo_id,
+                nombre: insumo.nombre,
+                categoria: insumo.categoria,
+                proveedor: insumo.proveedor,
+                stock: parseFloat(insumo.stock) || 0,
+                cantidad: parseFloat(insumo.cantidad) || 1,
+                precio: parseFloat(insumo.precio) || 0
+            });
+        });
+        
+        // Renderizar tablas
+        renderTablaServicios();
+        renderTablaInsumos();
+        
         // Actualizar totales iniciales
-        actualizarTotales();
+        recalcularTotales();
     });
 
     // Manejo del cliente
@@ -655,77 +860,456 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     document.getElementById('producto_select').addEventListener('change', function() {
         const selectedOption = this.options[this.selectedIndex];
         if (this.value) {
-            agregarProducto({
+            // Buscar información completa del producto
+            const productData = <?= json_encode($productos_array) ?>.find(p => p.product_id == this.value);
+            const tipoGestion = productData ? productData.tipo_gestion : '';
+            const precio = parseFloat(selectedOption.dataset.precio) || 0;
+            const esBobina = tipoGestion === 'bobina';
+            
+            // Configurar cantidad y modo inicial para bobinas
+            let cantidadInicial, precioInicial, modoInicial, precioBase;
+            if (esBobina) {
+                if (precio > 50) {
+                    // Precio por bobina completa - convertir a precio por metro
+                    precioBase = precio / PRECIO_CONFIG.metrosPorBobina;
+                    precioInicial = precioBase;
+                    cantidadInicial = PRECIO_CONFIG.metrosPorBobina; // 1 bobina completa
+                    modoInicial = PRECIO_CONFIG.modosPrecio.POR_BOBINA;
+                } else {
+                    // Precio por metro
+                    precioBase = precio;
+                    precioInicial = precio;
+                    cantidadInicial = 1;
+                    modoInicial = PRECIO_CONFIG.modosPrecio.POR_METRO;
+                }
+            } else {
+                cantidadInicial = 1;
+                precioInicial = precio;
+                modoInicial = 'normal';
+                precioBase = precio;
+            }
+            
+            const nuevoProducto = {
                 product_id: this.value,
                 nombre: selectedOption.dataset.nombre,
                 sku: selectedOption.dataset.sku,
-                precio: selectedOption.dataset.precio,
-                cantidad: 1
-            });
+                precio: precioInicial,
+                cantidad: cantidadInicial,
+                tipo_gestion: tipoGestion,
+                _precioBase: precioBase,
+                _precioBobinaOriginal: esBobina && precio > 50 ? precio : undefined,
+                _modoPrecio: modoInicial
+            };
+            
+            productosCotizacion.push(nuevoProducto);
+            renderTablaProductos();
+            recalcularTotales();
+            
             this.value = '';
             $('#producto_select').val('').trigger('change');
         }
     });
 
-    // Funciones para manejar productos
-    function agregarProducto(producto) {
-        const tbody = document.querySelector('#tablaProductos tbody');
-        const esBobina = producto.tipo_gestion === 'bobina';
-        const step = esBobina ? '0.01' : '1';
-        const min = esBobina ? '0.01' : '1';
-        const unidad = esBobina ? ' m' : '';
-        const cantidad = esBobina ? parseFloat(producto.cantidad) : Math.max(1, Math.round(parseFloat(producto.cantidad) || 1));
-        const row = document.createElement('tr');
-        row.dataset.productId = producto.product_id;
-        row.dataset.tipoGestion = producto.tipo_gestion || '';
-        row.innerHTML = `
-            <td>
-                ${producto.imagen ? `<img src="../${producto.imagen}" alt="Imagen" style="height:32px;max-width:40px;margin-right:6px;vertical-align:middle;">` : ''}
-                ${producto.nombre}
-            </td>
-            <td>${producto.sku || ''}</td>
-            <td><input type="number" class="form-control form-control-sm cantidad-input" value="${cantidad}" min="${min}" step="${step}" style="width: 80px;">${unidad}</td>
-            <td><input type="number" class="form-control form-control-sm precio-input" value="${producto.precio}" min="0" step="0.01" style="width: 100px;"></td>
-            <td class="total-fila">$${(producto.precio * cantidad).toFixed(2)}</td>
-            <td><button type="button" class="btn btn-sm btn-outline-danger btn-remove-product"><i class="bi bi-trash"></i></button></td>
-        `;
-        tbody.appendChild(row);
-        actualizarTotales();
+    // Manejo del selector de servicios
+    document.getElementById('servicio_select').addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        if (this.value) {
+            const nuevoServicio = {
+                servicio_id: this.value,
+                nombre: selectedOption.dataset.nombre,
+                categoria: selectedOption.dataset.categoria,
+                descripcion: selectedOption.dataset.descripcion,
+                precio: parseFloat(selectedOption.dataset.precio) || 0,
+                cantidad: 1,
+                imagen: selectedOption.dataset.imagen
+            };
+            
+            serviciosCotizacion.push(nuevoServicio);
+            renderTablaServicios();
+            recalcularTotales();
+            
+            this.value = '';
+            $('#servicio_select').val('').trigger('change');
+        }
+    });
+
+    // Función moderna para renderizar tabla de productos
+    function renderTablaProductos() {
+        let html = '';
+        let subtotal = 0;
+        
+        productosCotizacion.forEach((p, i) => {
+            // Cálculo correcto del subtotal según el modo de precio
+            let sub;
+            const esBobina = p.tipo_gestion === 'bobina';
+            const cantidad = parseFloat(p.cantidad) || 1;
+            const precio = parseFloat(p.precio) || 0;
+            
+            if (esBobina && p._modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA) {
+                // Para bobinas en modo bobina: número de bobinas × precio por bobina
+                const bobinasCompletas = Math.round(cantidad / PRECIO_CONFIG.metrosPorBobina);
+                sub = bobinasCompletas * precio;
+            } else {
+                // Para metros o productos normales: cantidad × precio
+                sub = cantidad * precio;
+            }
+            
+            subtotal += sub;
+            
+            // Detección inteligente de modo de venta para bobinas
+            let step, min, unidad, cantidadMostrar, modoPrecio;
+            
+            if (esBobina) {
+                const metrosPorBobina = PRECIO_CONFIG.metrosPorBobina;
+                const tolerancia = PRECIO_CONFIG.tolerancia;
+                const bobinasCompletas = Math.round(cantidad / metrosPorBobina);
+                const metrosEsperados = bobinasCompletas * metrosPorBobina;
+                const diferencia = Math.abs(cantidad - metrosEsperados);
+                
+                // Priorizar modo guardado en el producto
+                if (p._modoPrecio) {
+                    modoPrecio = p._modoPrecio;
+                } else {
+                    // Solo usar detección automática si no hay modo guardado
+                    if (bobinasCompletas > 0 && diferencia <= tolerancia) {
+                        modoPrecio = PRECIO_CONFIG.modosPrecio.POR_BOBINA;
+                    } else {
+                        modoPrecio = PRECIO_CONFIG.modosPrecio.POR_METRO;
+                    }
+                    // Guardar el modo detectado
+                    p._modoPrecio = modoPrecio;
+                }
+                
+                // Configurar interfaz según el modo actual
+                if (modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA) {
+                    // Modo bobinas completas
+                    step = '1';
+                    min = '1';
+                    unidad = ` bobina${bobinasCompletas !== 1 ? 's' : ''}`;
+                    cantidadMostrar = bobinasCompletas;
+                    p._bobinasCompletas = bobinasCompletas;
+                } else {
+                    // Modo por metros
+                    step = '0.01';
+                    min = '0.01';
+                    unidad = ' m';
+                    cantidadMostrar = cantidad;
+                }
+            } else {
+                // Productos normales
+                step = '1';
+                min = '1';
+                unidad = '';
+                cantidadMostrar = p.cantidad;
+                modoPrecio = 'normal';
+            }
+            
+            const tipoColor = esBobina ? '#17a2b8' : '#6c757d';
+            const modoColor = modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA ? '#28a745' : '#ff6b35';
+            
+            html += `
+                <tr style="border-left: 3px solid ${tipoColor};">
+                    <td>
+                        ${p.imagen ? `<img src="../${p.imagen}" alt="Imagen" style="height:32px;max-width:40px;margin-right:6px;vertical-align:middle;">` : ''}
+                        ${p.nombre}
+                    </td>
+                    <td>${p.sku || ''}</td>
+                    <td>
+                        <div class="d-flex flex-column align-items-center">
+                            <span class="badge" style="background-color: ${tipoColor}; font-size: 0.75rem;">
+                                ${esBobina ? 'Bobina' : 'Normal'}
+                            </span>
+                            ${esBobina ? `
+                                <button type="button" class="btn btn-sm cambiar-modo-btn mt-1" data-index="${i}" 
+                                        title="Cambiar modo: ${modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA ? 'Bobinas → Metros' : 'Metros → Bobinas'}" 
+                                        style="background:${modoColor}; color:white; border:none; border-radius:4px; padding:2px 6px; font-weight:600; font-size:0.65rem;">
+                                    ${modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA ? '🔄 Bobinas' : '📏 Metros'}
+                                </button>
+                            ` : ''}
+                        </div>
+                    </td>
+                    <td>
+                        <div class="d-flex align-items-center justify-content-center">
+                            <input type="number" class="form-control form-control-sm cantidad-input text-center" 
+                                   value="${cantidadMostrar}" min="${min}" step="${step}" 
+                                   data-index="${i}" style="width: 80px;">
+                            <span class="ms-1 text-muted small">${unidad}</span>
+                        </div>
+                    </td>
+                    <td>
+                        <input type="number" class="form-control form-control-sm precio-input text-center" 
+                               value="${precio.toFixed(2)}" min="0" step="0.01" 
+                               data-index="${i}" style="width: 100px;">
+                    </td>
+                    <td class="total-fila text-center fw-bold" style="color: #121866;">
+                        $${sub.toFixed(2)}
+                    </td>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-sm btn-outline-danger btn-remove-product" data-index="${i}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        document.querySelector('#tablaProductos tbody').innerHTML = html;
+        return subtotal;
     }
 
-    // Eventos para cantidad y precio
-    document.addEventListener('input', function(e) {
-        if (e.target.classList.contains('cantidad-input') || e.target.classList.contains('precio-input')) {
-            const row = e.target.closest('tr');
-            let cantidad = row.querySelector('.cantidad-input').value;
-            const tipoGestion = row.dataset.tipogestion;
-            if (tipoGestion === 'bobina') {
-                cantidad = parseFloat(cantidad) || 0.01;
-            } else {
-                cantidad = Math.max(1, Math.round(parseFloat(cantidad) || 1));
-            }
-            row.querySelector('.cantidad-input').value = cantidad;
-            const precio = parseFloat(row.querySelector('.precio-input').value) || 0;
+    // Función para renderizar tabla de servicios
+    function renderTablaServicios() {
+        let html = '';
+        serviciosCotizacion.forEach((s, i) => {
+            const cantidad = parseFloat(s.cantidad) || 1;
+            const precio = parseFloat(s.precio) || 0;
             const total = cantidad * precio;
-            row.querySelector('.total-fila').textContent = '$' + total.toFixed(2);
-            actualizarTotales();
+            
+            html += `
+                <tr>
+                    <td>
+                        ${s.imagen ? `<img src="../uploads/services/${s.imagen}" alt="Imagen" style="height:32px;max-width:40px;margin-right:6px;vertical-align:middle;">` : ''}
+                        ${s.nombre}
+                    </td>
+                    <td>${s.categoria || ''}</td>
+                    <td>${s.descripcion || ''}</td>
+                    <td>
+                        <input type="number" class="form-control form-control-sm cantidad-servicio-input text-center" 
+                               value="${cantidad}" min="1" step="1" data-index="${i}" style="width: 80px;">
+                    </td>
+                    <td>
+                        <input type="number" class="form-control form-control-sm precio-servicio-input text-center" 
+                               value="${precio.toFixed(2)}" min="0" step="0.01" data-index="${i}" style="width: 100px;">
+                    </td>
+                    <td class="total-fila-servicio text-center fw-bold" style="color: #121866;">
+                        $${total.toFixed(2)}
+                    </td>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-sm btn-outline-danger btn-remove-servicio" data-index="${i}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        document.querySelector('#tablaServicios tbody').innerHTML = html;
+    }
+
+    // Función para renderizar tabla de insumos
+    function renderTablaInsumos() {
+        let html = '';
+        insumosCotizacion.forEach((ins, i) => {
+            const cantidad = parseFloat(ins.cantidad) || 1;
+            const precio = parseFloat(ins.precio) || 0;
+            const total = cantidad * precio;
+            const stock = parseFloat(ins.stock) || 0;
+            
+            html += `
+                <tr>
+                    <td>${ins.nombre}</td>
+                    <td>${ins.categoria || ''}</td>
+                    <td>${ins.proveedor || ''}</td>
+                    <td>
+                        <span class="badge ${stock > cantidad ? 'bg-success' : 'bg-warning'}">${stock}</span>
+                    </td>
+                    <td>
+                        <input type="number" class="form-control form-control-sm cantidad-insumo-input text-center" 
+                               value="${cantidad}" min="1" step="1" data-index="${i}" style="width: 80px;">
+                    </td>
+                    <td>
+                        <input type="number" class="form-control form-control-sm precio-insumo-input text-center" 
+                               value="${precio.toFixed(2)}" min="0" step="0.01" data-index="${i}" style="width: 100px;">
+                    </td>
+                    <td class="total-fila-insumo text-center fw-bold" style="color: #121866;">
+                        $${total.toFixed(2)}
+                    </td>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-sm btn-outline-danger btn-remove-insumo" data-index="${i}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        document.querySelector('#tablaInsumosCotizacion tbody').innerHTML = html;
+    }
+
+    // Eventos modernos para cantidad y precio
+    document.addEventListener('input', function(e) {
+        if (e.target.classList.contains('cantidad-input')) {
+            const index = parseInt(e.target.dataset.index);
+            const prod = productosCotizacion[index];
+            if (!prod) return;
+            
+            let value = parseFloat(e.target.value) || 0;
+            const esBobina = prod.tipo_gestion === 'bobina';
+            
+            if (esBobina) {
+                const modoPrecio = prod._modoPrecio;
+                if (modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA) {
+                    // Modo bobinas completas
+                    value = Math.max(1, Math.round(value));
+                    prod.cantidad = value * PRECIO_CONFIG.metrosPorBobina;
+                } else {
+                    // Modo metros
+                    value = Math.max(0.01, value);
+                    prod.cantidad = value;
+                }
+            } else {
+                value = Math.max(1, Math.round(value));
+                prod.cantidad = value;
+            }
+            
+            e.target.value = value;
+            recalcularTotales();
+        }
+        
+        if (e.target.classList.contains('precio-input')) {
+            const index = parseInt(e.target.dataset.index);
+            const prod = productosCotizacion[index];
+            if (!prod) return;
+            
+            let value = parseFloat(e.target.value) || 0;
+            prod.precio = Math.max(0, value);
+            e.target.value = value.toFixed(2);
+            recalcularTotales();
         }
     });
 
-    // Eliminar producto
+    // Evento para cambiar modo de precio en bobinas
     document.addEventListener('click', function(e) {
-        if (e.target.closest('.btn-remove-product')) {
-            e.target.closest('tr').remove();
-            actualizarTotales();
+        if (e.target.classList.contains('cambiar-modo-btn')) {
+            const index = parseInt(e.target.dataset.index);
+            const prod = productosCotizacion[index];
+            
+            if (!prod || prod.tipo_gestion !== 'bobina') return;
+            
+            // Detectar modo actual
+            const modoActual = prod._modoPrecio || PRECIO_CONFIG.modosPrecio.POR_METRO;
+            const nuevoModo = modoActual === PRECIO_CONFIG.modosPrecio.POR_BOBINA 
+                ? PRECIO_CONFIG.modosPrecio.POR_METRO 
+                : PRECIO_CONFIG.modosPrecio.POR_BOBINA;
+            
+            // Obtener precio base por metro
+            const metrosPorBobina = PRECIO_CONFIG.metrosPorBobina;
+            const cantidadActual = parseFloat(prod.cantidad) || metrosPorBobina;
+            let precioBasePorMetro;
+            
+            // Determinar precio base por metro
+            if (prod._precioBase) {
+                precioBasePorMetro = prod._precioBase;
+            } else if (prod._precioBobinaOriginal) {
+                precioBasePorMetro = prod._precioBobinaOriginal / metrosPorBobina;
+            } else {
+                precioBasePorMetro = parseFloat(prod.precio) || 0;
+            }
+            
+            if (nuevoModo === PRECIO_CONFIG.modosPrecio.POR_BOBINA) {
+                // Cambiar a modo bobina completa
+                const bobinasCompletas = Math.max(1, Math.round(cantidadActual / metrosPorBobina));
+                prod.cantidad = bobinasCompletas * metrosPorBobina;
+                prod.precio = precioBasePorMetro * metrosPorBobina; // Precio por bobina completa
+                prod._modoPrecio = PRECIO_CONFIG.modosPrecio.POR_BOBINA;
+            } else {
+                // Cambiar a modo metros
+                prod.precio = precioBasePorMetro; // Precio por metro
+                prod._modoPrecio = PRECIO_CONFIG.modosPrecio.POR_METRO;
+            }
+            
+            // Guardar precio base
+            prod._precioBase = precioBasePorMetro;
+            prod._precioBobinaOriginal = precioBasePorMetro * metrosPorBobina;
+            
+            // Re-renderizar tabla
+            renderTablaProductos();
+            recalcularTotales();
         }
     });
 
-    // Actualizar totales
+    // Eventos para servicios e insumos
+    document.addEventListener('input', function(e) {
+        if (e.target.classList.contains('cantidad-servicio-input') || e.target.classList.contains('precio-servicio-input')) {
+            const index = parseInt(e.target.dataset.index);
+            const servicio = serviciosCotizacion[index];
+            if (!servicio) return;
+            
+            if (e.target.classList.contains('cantidad-servicio-input')) {
+                servicio.cantidad = Math.max(1, Math.round(parseFloat(e.target.value) || 1));
+                e.target.value = servicio.cantidad;
+            } else {
+                servicio.precio = Math.max(0, parseFloat(e.target.value) || 0);
+                e.target.value = servicio.precio.toFixed(2);
+            }
+            renderTablaServicios();
+            recalcularTotales();
+        }
+        
+        if (e.target.classList.contains('cantidad-insumo-input') || e.target.classList.contains('precio-insumo-input')) {
+            const index = parseInt(e.target.dataset.index);
+            const insumo = insumosCotizacion[index];
+            if (!insumo) return;
+            
+            if (e.target.classList.contains('cantidad-insumo-input')) {
+                insumo.cantidad = Math.max(1, Math.round(parseFloat(e.target.value) || 1));
+                e.target.value = insumo.cantidad;
+            } else {
+                insumo.precio = Math.max(0, parseFloat(e.target.value) || 0);
+                e.target.value = insumo.precio.toFixed(2);
+            }
+            renderTablaInsumos();
+            recalcularTotales();
+        }
+    });
+
+    // Eliminar servicios e insumos
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.btn-remove-servicio')) {
+            const index = parseInt(e.target.closest('.btn-remove-servicio').dataset.index);
+            serviciosCotizacion.splice(index, 1);
+            renderTablaServicios();
+            recalcularTotales();
+        }
+        
+        if (e.target.closest('.btn-remove-insumo')) {
+            const index = parseInt(e.target.closest('.btn-remove-insumo').dataset.index);
+            insumosCotizacion.splice(index, 1);
+            renderTablaInsumos();
+            recalcularTotales();
+        }
+    });
+
+    // Función moderna para actualizar totales
     function actualizarTotales() {
         let subtotal = 0;
+        
+        // Calcular subtotal desde el array de productos modernos
+        productosCotizacion.forEach(prod => {
+            const cantidad = parseFloat(prod.cantidad) || 0;
+            const precio = parseFloat(prod.precio) || 0;
+            const totalProducto = cantidad * precio;
+            subtotal += totalProducto;
+        });
+        
+        // Agregar servicios
+        serviciosCotizacion.forEach(serv => {
+            const cantidad = parseFloat(serv.cantidad) || 0;
+            const precio = parseFloat(serv.precio) || 0;
+            subtotal += cantidad * precio;
+        });
+        
+        // Agregar insumos
+        insumosCotizacion.forEach(ins => {
+            const cantidad = parseFloat(ins.cantidad) || 0;
+            const precio = parseFloat(ins.precio) || 0;
+            subtotal += cantidad * precio;
+        });
+        
+        // Agregar productos desde tabla tradicional si existen
         document.querySelectorAll('#tablaProductos tbody tr').forEach(row => {
-            const cantidad = parseFloat(row.querySelector('.cantidad-input').value) || 0;
-            const precio = parseFloat(row.querySelector('.precio-input').value) || 0;
+            const cantidad = parseFloat(row.querySelector('.cantidad-input')?.value) || 0;
+            const precio = parseFloat(row.querySelector('.precio-input')?.value) || 0;
             subtotal += cantidad * precio;
         });
         
@@ -738,192 +1322,216 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         document.getElementById('total').textContent = '$' + total.toFixed(2);
     }
 
-    // Actualizar descuento
-    document.getElementById('descuento_porcentaje').addEventListener('input', actualizarTotales);
+    // Función alias para compatibilidad
+    function recalcularTotales() {
+        actualizarTotales();
+    }
 
-    // Preparar datos para envío
+    // Función para cargar productos existentes al formato moderno
+    function cargarProductosCotizacion() {
+        // Ya convertimos los productos PHP al array moderno al cargar la página
+        // Solo necesitamos renderizar
+        renderTablaProductos();
+        recalcularTotales();
+    }
+
+    // Ejecutar al cargar la página
+    document.addEventListener('DOMContentLoaded', function() {
+        cargarProductosCotizacion();
+    });
+
+    // Preparar datos modernos para envío
     document.getElementById('formEditarCotizacion').addEventListener('submit', function(e) {
         const productos = [];
+        const servicios = [];
+        const insumos = [];
         let error = '';
-        document.querySelectorAll('#tablaProductos tbody tr').forEach(row => {
-            const productId = row.dataset.productId;
-            let cantidad = row.querySelector('.cantidad-input').value;
-            const tipoGestion = row.dataset.tipogestion;
-            if (tipoGestion === 'bobina') {
-                cantidad = parseFloat(cantidad) || 0.01;
-            } else {
-                cantidad = Math.max(1, Math.round(parseFloat(cantidad) || 1));
+        
+        // Obtener productos del array moderno
+        productosCotizacion.forEach(prod => {
+            const productId = prod.product_id;
+            const tipoGestion = prod.tipo_gestion || 'tradicional';
+            const esBobina = tipoGestion === 'bobina';
+            
+            let cantidad = parseFloat(prod.cantidad) || 0;
+            let precio = parseFloat(prod.precio) || 0;
+            
+            // Para bobinas, convertir a precio de bobina completa para almacenamiento si es necesario
+            if (esBobina && prod._modoPrecio === PRECIO_CONFIG.modosPrecio.POR_METRO) {
+                // Si estamos en modo metro, convertir a precio de bobina para almacenar
+                precio = prod._precioBobinaOriginal || (precio * PRECIO_CONFIG.metrosPorBobina);
             }
-            const precio = parseFloat(row.querySelector('.precio-input').value) || 0;
+            
             if (productId && cantidad > 0 && precio > 0) {
                 productos.push({
                     product_id: productId,
                     cantidad: cantidad,
-                    precio: precio
+                    precio: precio,
+                    tipo_gestion: tipoGestion
                 });
             }
         });
         
-        if (productos.length === 0) {
+        // Obtener servicios del array moderno
+        serviciosCotizacion.forEach(serv => {
+            const servicioId = serv.servicio_id;
+            const cantidad = parseFloat(serv.cantidad) || 0;
+            const precio = parseFloat(serv.precio) || 0;
+            
+            if (cantidad > 0 && precio > 0) {
+                servicios.push({
+                    servicio_id: servicioId,
+                    nombre: serv.nombre,
+                    categoria: serv.categoria,
+                    descripcion: serv.descripcion,
+                    cantidad: cantidad,
+                    precio: precio,
+                    imagen: serv.imagen
+                });
+            }
+        });
+        
+        // Obtener insumos del array moderno
+        insumosCotizacion.forEach(ins => {
+            const insumoId = ins.insumo_id;
+            const cantidad = parseFloat(ins.cantidad) || 0;
+            const precio = parseFloat(ins.precio) || 0;
+            
+            if (cantidad > 0 && precio > 0) {
+                insumos.push({
+                    insumo_id: insumoId,
+                    nombre: ins.nombre,
+                    categoria: ins.categoria,
+                    proveedor: ins.proveedor,
+                    cantidad: cantidad,
+                    precio: precio,
+                    stock: ins.stock
+                });
+            }
+        });
+        
+        // También revisar tabla tradicional por compatibilidad
+        document.querySelectorAll('#tablaProductos tbody tr').forEach(row => {
+            const productId = row.dataset.productId;
+            const tipoGestion = row.dataset.tipoGestion || 'tradicional';
+            const esBobina = tipoGestion === 'bobina';
+            
+            let cantidad = parseFloat(row.querySelector('.cantidad-input')?.value) || 0;
+            if (esBobina) {
+                cantidad = Math.max(0.01, cantidad);
+            } else {
+                cantidad = Math.max(1, Math.round(cantidad));
+            }
+            
+            let precio = parseFloat(row.querySelector('.precio-input')?.value) || 0;
+            
+            // Para bobinas, convertir precio por metro a precio total de bobina para almacenamiento
+            if (esBobina && row._precioBase) {
+                // El precio actual es por metro, pero necesitamos almacenar el precio de bobina completa
+                const precioParaAlmacenar = row._precioBobinaOriginal || (precio * PRECIO_CONFIG.metrosPorBobina);
+                precio = precioParaAlmacenar;
+            }
+            
+            if (productId && cantidad > 0 && precio > 0) {
+                productos.push({
+                    product_id: productId,
+                    cantidad: cantidad,
+                    precio: precio,
+                    tipo_gestion: tipoGestion
+                });
+            }
+        });
+        
+        if (productos.length === 0 && servicios.length === 0 && insumos.length === 0) {
             e.preventDefault();
-            alert('Debes agregar al menos un producto a la cotización.');
+            alert('Debes agregar al menos un producto, servicio o insumo a la cotización.');
             return false;
         }
         
         document.getElementById('productos_json').value = JSON.stringify(productos);
+        document.getElementById('servicios_json').value = JSON.stringify(servicios);
+        document.getElementById('insumos_json').value = JSON.stringify(insumos);
     });
 
-    // Servicios existentes de PHP
-    const serviciosExistentes = <?= json_encode($servicios_existentes) ?>;
-    const serviciosArray = <?= json_encode($servicios_array) ?>;
-    // Inicializar servicios existentes
-    $(document).ready(function() {
-        serviciosExistentes.forEach(servicio => {
-            agregarServicio(servicio);
-        });
-    });
-    // Manejo de servicios
-    $('#servicio_select').on('change', function() {
-        const selectedOption = this.options[this.selectedIndex];
-        if (this.value) {
-            agregarServicio({
-                servicio_id: this.value,
-                nombre: selectedOption.dataset.nombre,
-                categoria: selectedOption.dataset.categoria,
-                descripcion: selectedOption.dataset.descripcion,
-                precio: selectedOption.dataset.precio,
-                cantidad: 1,
-                imagen: selectedOption.dataset.imagen
-            });
-            this.value = '';
-            $('#servicio_select').val('').trigger('change');
+    // Alta rápida de productos
+    document.getElementById('btn_crear_producto').addEventListener('click', function() {
+        const nombre = document.getElementById('nuevo_nombre_producto').value.trim();
+        const descripcion = document.getElementById('nuevo_descripcion_producto').value.trim();
+        const sku = document.getElementById('nuevo_sku_producto').value.trim();
+        const precio = parseFloat(document.getElementById('nuevo_precio_producto').value) || 0;
+        const costo = parseFloat(document.getElementById('nuevo_costo_producto').value) || 0;
+        const cantidad = parseInt(document.getElementById('nuevo_cantidad_producto').value) || 1;
+        const categoria_id = document.getElementById('nuevo_categoria_producto').value;
+        const supplier_id = document.getElementById('nuevo_proveedor_producto').value;
+        const agregar_cotizacion = document.getElementById('nuevo_agregar_cotizacion').checked;
+        const imagen = document.getElementById('nuevo_imagen_producto').files[0];
+
+        if (!nombre || !precio) {
+            alert('El nombre y precio son obligatorios');
+            return;
         }
-    });
-    function agregarServicio(servicio) {
-        const tbody = document.querySelector('#tablaServicios tbody');
-        const cantidad = Math.max(1, Math.round(parseFloat(servicio.cantidad) || 1));
-        const row = document.createElement('tr');
-        row.dataset.servicioId = servicio.servicio_id;
-        row.innerHTML = `
-            <td>${servicio.imagen ? `<img src="../uploads/services/${servicio.imagen}" alt="Imagen" style="height:32px;max-width:40px;margin-right:6px;vertical-align:middle;">` : ''}${servicio.nombre}</td>
-            <td>${servicio.categoria || ''}</td>
-            <td>${servicio.descripcion || ''}</td>
-            <td><input type="number" class="form-control form-control-sm cantidad-servicio-input" value="${cantidad}" min="1" step="1" style="width: 80px;"></td>
-            <td><input type="number" class="form-control form-control-sm precio-servicio-input" value="${servicio.precio}" min="0" step="0.01" style="width: 100px;"></td>
-            <td class="total-fila-servicio">$${(servicio.precio * cantidad).toFixed(2)}</td>
-            <td><button type="button" class="btn btn-sm btn-outline-danger btn-remove-servicio"><i class="bi bi-trash"></i></button></td>
-        `;
-        tbody.appendChild(row);
-        actualizarTotalesServicios();
-    }
-    // Eventos para cantidad y precio de servicios
-    $(document).on('input', '.cantidad-servicio-input, .precio-servicio-input', function() {
-        const row = $(this).closest('tr');
-        let cantidad = Math.max(1, Math.round(parseFloat(row.find('.cantidad-servicio-input').val()) || 1));
-        row.find('.cantidad-servicio-input').val(cantidad);
-        const precio = parseFloat(row.find('.precio-servicio-input').val()) || 0;
-        row.find('.total-fila-servicio').text('$' + (precio * cantidad).toFixed(2));
-        actualizarTotalesServicios();
-    });
-    // Eliminar servicio
-    $(document).on('click', '.btn-remove-servicio', function() {
-        $(this).closest('tr').remove();
-        actualizarTotalesServicios();
-    });
-    // Actualizar totales de servicios
-    function actualizarTotalesServicios() {
-        let subtotal = 0;
-        $('#tablaServicios tbody tr').each(function() {
-            const cantidad = parseFloat($(this).find('.cantidad-servicio-input').val()) || 0;
-            const precio = parseFloat($(this).find('.precio-servicio-input').val()) || 0;
-            subtotal += cantidad * precio;
-        });
-        // Suma al subtotal de productos
-        let subtotalProductos = 0;
-        $('#tablaProductos tbody tr').each(function() {
-            const cantidad = parseFloat($(this).find('.cantidad-input').val()) || 0;
-            const precio = parseFloat($(this).find('.precio-input').val()) || 0;
-            subtotalProductos += cantidad * precio;
-        });
-        const descuentoPorcentaje = parseFloat($('#descuento_porcentaje').val()) || 0;
-        const descuento = (subtotal + subtotalProductos) * descuentoPorcentaje / 100;
-        const total = subtotal + subtotalProductos - descuento;
-        $('#subtotal').text('$' + (subtotal + subtotalProductos).toFixed(2));
-        $('#descuento').text('$' + descuento.toFixed(2));
-        $('#total').text('$' + total.toFixed(2));
-    }
-    // Guardar servicios al enviar
-    $('#formEditarCotizacion').on('submit', function(e) {
-        const servicios = [];
-        $('#tablaServicios tbody tr').each(function() {
-            const servicioId = $(this).data('servicioid');
-            const nombre = $(this).find('td').eq(0).text().trim();
-            const categoria = $(this).find('td').eq(1).text().trim();
-            const descripcion = $(this).find('td').eq(2).text().trim();
-            const cantidad = Math.max(1, Math.round(parseFloat($(this).find('.cantidad-servicio-input').val()) || 1));
-            const precio = parseFloat($(this).find('.precio-servicio-input').val()) || 0;
-            let imagen = '';
-            const imgTag = $(this).find('img');
-            if (imgTag.length) {
-                imagen = imgTag.attr('src').replace('../uploads/services/', '');
+
+        const formData = new FormData();
+        formData.append('action', 'crear_producto');
+        formData.append('nombre', nombre);
+        formData.append('descripcion', descripcion);
+        formData.append('sku', sku);
+        formData.append('precio', precio);
+        formData.append('costo', costo);
+        formData.append('cantidad', cantidad);
+        formData.append('categoria_id', categoria_id);
+        formData.append('supplier_id', supplier_id);
+        if (imagen) {
+            formData.append('imagen', imagen);
+        }
+
+        fetch('../products/add.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Producto creado exitosamente');
+                
+                if (agregar_cotizacion) {
+                    const producto = {
+                        product_id: data.product_id,
+                        nombre: nombre,
+                        sku: sku,
+                        precio: precio,
+                        cantidad: cantidad,
+                        tipo_gestion: 'normal'
+                    };
+                    agregarProducto(producto);
+                }
+                
+                // Limpiar campos
+                document.getElementById('nuevo_nombre_producto').value = '';
+                document.getElementById('nuevo_descripcion_producto').value = '';
+                document.getElementById('nuevo_sku_producto').value = '';
+                document.getElementById('nuevo_precio_producto').value = '';
+                document.getElementById('nuevo_costo_producto').value = '';
+                document.getElementById('nuevo_cantidad_producto').value = '1';
+                document.getElementById('nuevo_categoria_producto').value = '';
+                document.getElementById('nuevo_proveedor_producto').value = '';
+                document.getElementById('nuevo_imagen_producto').value = '';
+                document.getElementById('nuevo_agregar_cotizacion').checked = false;
+            } else {
+                alert('Error al crear producto: ' + (data.message || 'Error desconocido'));
             }
-            if (nombre && cantidad > 0 && precio > 0) {
-                servicios.push({
-                    servicio_id: servicioId,
-                    nombre: nombre,
-                    categoria: categoria,
-                    descripcion: descripcion,
-                    cantidad: cantidad,
-                    precio: precio,
-                    imagen: imagen
-                });
-            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error de conexión al crear producto');
         });
-        $('#servicios_json').val(JSON.stringify(servicios));
     });
 
-    // INSUMOS
-    const insumosExistentes = <?= json_encode($insumos_existentes) ?>;
-    let insumosCotizacion = [...insumosExistentes];
-    function renderTablaInsumos() {
-        let html = '';
-        insumosCotizacion.forEach((ins, i) => {
-            const sub = (parseFloat(ins.precio) || 0) * (parseFloat(ins.cantidad) || 1);
-            html += `
-                <tr>
-                    <td>${ins.nombre}</td>
-                    <td>${ins.categoria || ''}</td>
-                    <td>${ins.proveedor || ''}</td>
-                    <td>${ins.stock || ''}</td>
-                    <td><input type="number" min="1" step="1" value="${ins.cantidad}" class="form-control form-control-sm cantidad-insumo-input" data-index="${i}" style="width: 80px;"></td>
-                    <td><input type="number" min="0" step="0.0001" value="${ins.precio || ''}" class="form-control form-control-sm precio-insumo-input" data-index="${i}" style="width: 110px;"></td>
-                    <td>$${sub.toFixed(2)}</td>
-                    <td><button type="button" class="btn btn-danger btn-sm btn-eliminar-insumo" data-idx="${i}"><i class="bi bi-trash"></i></button></td>
-                </tr>
-            `;
-        });
-        $('#tablaInsumosCotizacion tbody').html(html);
-        actualizarTotalesGenerales();
-    }
-    $(document).on('input', '.cantidad-insumo-input', function() {
-        const index = parseInt($(this).data('index'));
-        let value = Math.max(1, Math.round($(this).val()));
-        insumosCotizacion[index].cantidad = value;
-        $(this).val(value);
-        renderTablaInsumos();
-    });
-    $(document).on('input', '.precio-insumo-input', function() {
-        const index = parseInt($(this).data('index'));
-        let value = parseFloat($(this).val()) || 0;
-        insumosCotizacion[index].precio = value;
-        $(this).val(value);
-        renderTablaInsumos();
-    });
-    $(document).on('click', '.btn-eliminar-insumo', function() {
-        const idx = $(this).data('idx');
-        insumosCotizacion.splice(idx, 1);
-        renderTablaInsumos();
-    });
+    // SISTEMA MODERNO DE SERVICIOS - Se maneja con las funciones ya definidas arriba
+
+    // SISTEMA MODERNO DE INSUMOS - Se maneja con las funciones ya definidas arriba
+    
+    // Buscador de insumos
     $('#buscador_insumo').on('input', function() {
         const query = $(this).val().trim();
         if (query.length === 0) {
@@ -945,8 +1553,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $('#sugerencias_insumos').html(sugerencias).show();
         });
     });
+    
     $('#sugerencias_insumos').on('click', 'button', function() {
-        const insumo = {
+        const nuevoInsumo = {
             insumo_id: $(this).data('id'),
             nombre: $(this).data('nombre'),
             categoria: $(this).data('categoria'),
@@ -955,49 +1564,106 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             cantidad: 1,
             precio: $(this).data('precio')
         };
+        
         // Evitar duplicados
-        if (insumosCotizacion.some(i => i.insumo_id == insumo.insumo_id)) {
+        if (insumosCotizacion.some(i => i.insumo_id == nuevoInsumo.insumo_id)) {
+            alert('Este insumo ya está agregado a la cotización');
             return;
         }
-        insumosCotizacion.push(insumo);
+        
+        insumosCotizacion.push(nuevoInsumo);
         renderTablaInsumos();
+        recalcularTotales();
         $('#buscador_insumo').val('');
         $('#sugerencias_insumos').hide();
     });
-    // Actualizar totales generales (productos + servicios + insumos)
-    function actualizarTotalesGenerales() {
-        let subtotalProductos = 0;
-        $('#tablaProductos tbody tr').each(function() {
-            const cantidad = parseFloat($(this).find('.cantidad-input').val()) || 0;
-            const precio = parseFloat($(this).find('.precio-input').val()) || 0;
-            subtotalProductos += cantidad * precio;
+
+    // Evento de descuento
+    document.getElementById('descuento_porcentaje').addEventListener('input', actualizarTotales);
+
+    // Alta rápida de productos
+    document.getElementById('btn_crear_producto').addEventListener('click', function() {
+        const nombre = document.getElementById('nuevo_nombre_producto').value.trim();
+        const descripcion = document.getElementById('nuevo_descripcion_producto').value.trim();
+        const sku = document.getElementById('nuevo_sku_producto').value.trim();
+        const precio = parseFloat(document.getElementById('nuevo_precio_producto').value) || 0;
+        const costo = parseFloat(document.getElementById('nuevo_costo_producto').value) || 0;
+        const cantidad = parseInt(document.getElementById('nuevo_cantidad_producto').value) || 1;
+        const categoria_id = document.getElementById('nuevo_categoria_producto').value;
+        const supplier_id = document.getElementById('nuevo_proveedor_producto').value;
+        const agregar_cotizacion = document.getElementById('nuevo_agregar_cotizacion').checked;
+        const imagen = document.getElementById('nuevo_imagen_producto').files[0];
+
+        if (!nombre || !precio) {
+            alert('El nombre y precio son obligatorios');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('action', 'create_product');
+        formData.append('nombre', nombre);
+        formData.append('descripcion', descripcion);
+        formData.append('sku', sku);
+        formData.append('precio', precio);
+        formData.append('costo', costo);
+        formData.append('cantidad', cantidad);
+        formData.append('categoria_id', categoria_id);
+        formData.append('supplier_id', supplier_id);
+        if (imagen) {
+            formData.append('imagen', imagen);
+        }
+
+        fetch('../products/add.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Producto creado exitosamente');
+                
+                // Limpiar formulario
+                document.getElementById('nuevo_nombre_producto').value = '';
+                document.getElementById('nuevo_descripcion_producto').value = '';
+                document.getElementById('nuevo_sku_producto').value = '';
+                document.getElementById('nuevo_precio_producto').value = '';
+                document.getElementById('nuevo_costo_producto').value = '';
+                document.getElementById('nuevo_cantidad_producto').value = '1';
+                document.getElementById('nuevo_categoria_producto').value = '';
+                document.getElementById('nuevo_proveedor_producto').value = '';
+                document.getElementById('nuevo_imagen_producto').value = '';
+                document.getElementById('nuevo_agregar_cotizacion').checked = false;
+                
+                // Agregar a cotización si está marcado
+                if (agregar_cotizacion && data.product_id) {
+                    const nuevoProducto = {
+                        product_id: data.product_id,
+                        nombre: nombre,
+                        sku: sku,
+                        precio: precio,
+                        cantidad: cantidad,
+                        tipo_gestion: 'tradicional'
+                    };
+                    
+                    productosCotizacion.push(nuevoProducto);
+                    renderTablaProductos();
+                    recalcularTotales();
+                }
+                
+                // Recargar página para actualizar lista de productos
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
+            } else {
+                alert('Error al crear producto: ' + (data.message || 'Error desconocido'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error de conexión al crear producto');
         });
-        let subtotalServicios = 0;
-        $('#tablaServicios tbody tr').each(function() {
-            const cantidad = parseFloat($(this).find('.cantidad-servicio-input').val()) || 0;
-            const precio = parseFloat($(this).find('.precio-servicio-input').val()) || 0;
-            subtotalServicios += cantidad * precio;
-        });
-        let subtotalInsumos = 0;
-        insumosCotizacion.forEach(ins => {
-            subtotalInsumos += (parseFloat(ins.precio) || 0) * (parseFloat(ins.cantidad) || 1);
-        });
-        const subtotal = subtotalProductos + subtotalServicios + subtotalInsumos;
-        const descuentoPorcentaje = parseFloat($('#descuento_porcentaje').val()) || 0;
-        const descuento = subtotal * descuentoPorcentaje / 100;
-        const total = subtotal - descuento;
-        $('#subtotal').text('$' + subtotal.toFixed(2));
-        $('#descuento').text('$' + descuento.toFixed(2));
-        $('#total').text('$' + total.toFixed(2));
-    }
-    // Llamar al render al cargar
-    $(document).ready(function() {
-        renderTablaInsumos();
     });
-    // Guardar insumos al enviar
-    $('#formEditarCotizacion').on('submit', function(e) {
-        $('#insumos_json').val(JSON.stringify(insumosCotizacion));
-    });
+    
 </script>
 </body>
 </html> 
