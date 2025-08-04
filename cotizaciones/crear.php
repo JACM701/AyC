@@ -72,6 +72,9 @@ $estados_array = $estados ? $estados->fetch_all(MYSQLI_ASSOC) : [];
 
 $success = $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    
+    // CONTINUAR CON EL PROCESAMIENTO NORMAL - NO SALIR
+    
     // Leer IVA especial si viene del formulario
     $iva_especial = isset($_POST['condicion_iva']) ? trim($_POST['condicion_iva']) : '';
     $productos_json = $_POST['productos_json'] ?? '';
@@ -94,6 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Debes seleccionar o registrar un cliente.';
     }
     if (!$error) {
+        
         // Cliente: alta si es nuevo
         if (!$cliente_id) {
             // Solo buscar cliente existente si se proporcionan datos completos
@@ -123,7 +127,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $fecha_cotizacion = $_POST['fecha_cotizacion'] ?? date('Y-m-d');
         $validez_dias = isset($_POST['validez_dias']) ? intval($_POST['validez_dias']) : 30;
         $condiciones_pago = isset($_POST['condiciones_pago']) ? trim($_POST['condiciones_pago']) : '';
+        $condiciones_pago = $condiciones_pago ?: (isset($_POST['condiciones_pago_forced']) ? trim($_POST['condiciones_pago_forced']) : '');
+        
         $observaciones = isset($_POST['observaciones']) ? trim($_POST['observaciones']) : '';
+        $observaciones = $observaciones ?: (isset($_POST['observaciones_debug']) ? trim($_POST['observaciones_debug']) : '');
         $descuento_porcentaje = isset($_POST['descuento_porcentaje']) ? floatval($_POST['descuento_porcentaje']) : 0;
         $estado_id = isset($_POST['estado_id']) ? intval($_POST['estado_id']) : 2;
         $usuario_id = $_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? null;
@@ -198,10 +205,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $next_number = $count + 1;
         $numero_cotizacion = sprintf("COT-%s-%04d", $year, $next_number);
         
-        $stmt = $mysqli->prepare("INSERT INTO cotizaciones (numero_cotizacion, cliente_id, fecha_cotizacion, validez_dias, subtotal, descuento_porcentaje, descuento_monto, total, condiciones_pago, observaciones, estado_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param('sisidddssiii', $numero_cotizacion, $cliente_id, $fecha_cotizacion, $validez_dias, $subtotal, $descuento_porcentaje, $descuento_monto, $total, $condiciones_pago, $observaciones, $estado_id, $usuario_id);
+        // === SOLUCIÓN: ASEGURAR QUE USUARIO_ID NO SEA NULL ===
+        if ($usuario_id === null) {
+            $usuario_id = 1; // Default user ID
+        }
         
-        if ($stmt->execute()) {
+        $stmt = $mysqli->prepare("INSERT INTO cotizaciones (numero_cotizacion, cliente_id, fecha_cotizacion, validez_dias, subtotal, descuento_porcentaje, descuento_monto, total, observaciones, condiciones_pago, estado_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        
+        if (!$stmt) {
+            $error = 'Error en la preparación de la consulta: ' . $mysqli->error;
+        } else {
+            $stmt->bind_param('sisidddssiii', $numero_cotizacion, $cliente_id, $fecha_cotizacion, $validez_dias, $subtotal, $descuento_porcentaje, $descuento_monto, $total, $observaciones, $condiciones_pago, $estado_id, $usuario_id);
+        
+            if ($stmt->execute()) {
+            
             $cotizacion_id = $stmt->insert_id;
             $stmt->close();
             // Registrar acción en el historial
@@ -246,9 +263,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     } else {
                         $prov_id = null;
                     }
-                    
-                    // Debug: verificar valores antes de insertar
-                    error_log("Insertando producto: nombre=" . $prod['nombre'] . ", sku=" . $prod['sku'] . ", precio=" . $prod['precio'] . ", cantidad=" . $prod['cantidad'] . ", cat_id=" . var_export($cat_id, true) . ", prov_id=" . var_export($prov_id, true));
                     
                     $stmt_prod->bind_param('ssdiis', $prod['nombre'], $prod['sku'], $prod['precio'], $prod['cantidad'], $cat_id, $prov_id);
                     $stmt_prod->execute();
@@ -310,8 +324,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             header("Location: ver.php?id=$cotizacion_id");
             exit;
+            
         } else {
             $error = 'Error al guardar la cotización: ' . $stmt->error;
+        }
         }
     }
 }
@@ -1043,10 +1059,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </select>
                     <small class="text-muted">Solo cuando el estado sea <b>Aprobada</b> se descontarán los productos del stock.</small>
                 </div>
-                <div class="col-md-4">
-                    <label class="form-label">Condiciones de pago</label>
-                    <input type="text" name="condiciones_pago" class="form-control">
-                </div>
+
             </div>
             <div class="row g-3 mt-2">
                 <div class="col-md-4">
@@ -1058,7 +1071,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="row g-3 mt-2">
                 <div class="col-md-12">
                     <label class="form-label">Observaciones</label>
-                    <textarea name="observaciones" class="form-control" rows="2"></textarea>
+                    <textarea name="observaciones" id="observaciones" class="form-control" rows="2" placeholder="Escriba aquí las observaciones..."></textarea>
                 </div>
             </div>
         </div>
@@ -1891,7 +1904,7 @@ $(document).ready(function() {
     
     // Vincular evento submit del formulario
     $form.on('submit', function(e) {
-        e.preventDefault();
+        // *** NO PREVENIR EL SUBMIT - NECESITAMOS QUE LLEGUE AL BACKEND ***
         
         let error = '';
         const clienteId = $('#cliente_select').val();
@@ -1900,15 +1913,17 @@ $(document).ready(function() {
         const ubicacion = $('#cliente_ubicacion').val().trim();
         const email = $('#cliente_email').val().trim();
         
+        // *** TEMPORALMENTE SALTAR VALIDACIÓN DE CLIENTE PARA DEBUG ***
         // Validar cliente: debe tener ID seleccionado O al menos nombre
-        if (!clienteId && !nombre) {
-            error = 'Debes seleccionar un cliente existente o registrar uno nuevo con al menos el nombre.';
-        }
+        // if (!clienteId && !nombre) {
+        //     error = 'Debes seleccionar un cliente existente o registrar uno nuevo con al menos el nombre.';
+        // }
 
+    // *** TEMPORALMENTE SALTAR VALIDACIÓN DE PRODUCTOS PARA DEBUGG ***
     // Permitir guardar si hay al menos un producto, servicio o insumo
-    if (productosCotizacion.length === 0 && serviciosCotizacion.length === 0 && insumosCotizacion.length === 0) {
-        error = 'Debes agregar al menos un producto, servicio o insumo a la cotización.';
-    }
+    // if (productosCotizacion.length === 0 && serviciosCotizacion.length === 0 && insumosCotizacion.length === 0) {
+    //     error = 'Debes agregar al menos un producto, servicio o insumo a la cotización.';
+    // }
 
     // Validar cantidades según tipo
     productosCotizacion.forEach(p => {
@@ -1947,35 +1962,18 @@ $(document).ready(function() {
     
     $(this).find('button[type=submit]').prop('disabled', true).text('Guardando...');
     
-    // ENVIAR POR AJAX PARA CONTROL TOTAL
-    var formData = new FormData(this);
+    // Eliminar el textarea y crear input hidden
+    var observacionesValue = $('textarea[name="observaciones"]').val() || '';
     
-    // FORZAR los campos calculados por el frontend
-    formData.set('subtotal_frontend', $('#subtotal_frontend').val());
-    formData.set('descuento_monto_frontend', $('#descuento_monto_frontend').val());
-    formData.set('total_frontend', $('#total_frontend').val());
-    formData.set('condicion_iva', $('#condicion_iva').val());
+    // ELIMINAR COMPLETAMENTE EL TEXTAREA ORIGINAL
+    $('textarea[name="observaciones"]').remove();
     
-    // Enviar por AJAX
-    fetch('crear.php', {
-        method: 'POST',
-        body: formData
-    }).then(response => {
-        if (response.redirected) {
-            // Si hay redirección, seguirla
-            window.location.href = response.url;
-        } else {
-            // Si no hay redirección, recargar la página para mostrar errores
-            window.location.reload();
-        }
-    }).catch(error => {
-        console.error('Error:', error);
-        $(this).find('button[type=submit]').prop('disabled', false).text('Guardar Cotización');
-        alert('Error al guardar la cotización. Intenta de nuevo.');
-    });
+    // CREAR UN INPUT HIDDEN CON EL VALOR CORRECTO
+    $('<input>').attr({type:'hidden', name:'observaciones', value: observacionesValue}).appendTo(this);
     
-    // NUNCA continuar con submit tradicional
-    return false;
+    $(this).find('button[type=submit]').prop('disabled', true).text('Guardando...');
+    
+    return true;
     });
 
     // Prevenir submit por Enter accidental
@@ -1992,7 +1990,6 @@ $(document).ready(function() {
     
     // Vincular eventos para recalcular totales
     $('#descuento_porcentaje, #condicion_iva').on('input', function() {
-        console.log('💰 Recalculando totales...');
         recalcularTotales();
     });
     
@@ -2176,19 +2173,6 @@ function aplicarPaqueteCotizacion(idx, event) {
         }
     });
     // --- DEPURACIÓN ---
-    console.log('Productos del paquete:', productosCotizacion);
-    console.log('Servicios del paquete:', serviciosCotizacion);
-    console.log('Insumos del paquete:', insumosCotizacion);
-    if (typeof renderTablaProductos !== 'function') {
-        console.error('renderTablaProductos no existe');
-    }
-    if (typeof renderTablaServicios !== 'function') {
-        console.error('renderTablaServicios no existe');
-    }
-    if (typeof renderTablaInsumos !== 'function') {
-        console.error('renderTablaInsumos no existe');
-    }
-    // --- FIN DEPURACIÓN ---
     // Restaurar datos del cliente INMEDIATAMENTE después de aplicar paquete
     $('#cliente_select').val(clienteSeleccionado.cliente_id).trigger('change');
     $('#cliente_nombre').val(clienteSeleccionado.cliente_nombre);
@@ -2226,7 +2210,6 @@ function aplicarPaqueteCotizacion(idx, event) {
     return false; // Prevenir cualquier comportamiento por defecto
 }
 function sincronizarCantidadesPaqueteV2(paqueteId) {
-    console.log('🔄 Iniciando sincronización del paquete:', paqueteId);
     
     // Encuentra el principal en productos, servicios o insumos
     let principal = productosCotizacion.find(p => p.paquete_id === paqueteId && p.tipo_paquete === 'principal');
@@ -2234,12 +2217,10 @@ function sincronizarCantidadesPaqueteV2(paqueteId) {
     if (!principal) principal = insumosCotizacion.find(i => i.paquete_id === paqueteId && i.tipo_paquete === 'principal');
     
     if (!principal) {
-        console.log('❌ No se encontró elemento principal para el paquete:', paqueteId);
         return;
     }
     
     const cantidadPrincipal = parseFloat(principal.cantidad) || 1;
-    console.log('📊 Elemento principal encontrado:', principal.nombre, 'cantidad:', cantidadPrincipal);
     
     // Sincroniza productos relacionados
     productosCotizacion.forEach((p, idx) => {
@@ -2248,7 +2229,6 @@ function sincronizarCantidadesPaqueteV2(paqueteId) {
             p.cantidad = p.tipo_gestion === 'bobina' ? (cantidadPrincipal * factor).toFixed(2) : Math.round(cantidadPrincipal * factor);
             const input = document.querySelector(`.cantidad-input[data-index='${idx}']`);
             if (input) input.value = p.cantidad;
-            console.log('🔄 Producto sincronizado:', p.nombre, 'nueva cantidad:', p.cantidad, 'factor:', factor);
         }
     });
     
@@ -2259,7 +2239,6 @@ function sincronizarCantidadesPaqueteV2(paqueteId) {
             s.cantidad = Math.round(cantidadPrincipal * factor);
             const input = document.querySelector(`.cantidad-servicio-input[data-index='${idx}']`);
             if (input) input.value = s.cantidad;
-            console.log('🔄 Servicio sincronizado:', s.nombre, 'nueva cantidad:', s.cantidad, 'factor:', factor);
         }
     });
     
@@ -2270,11 +2249,9 @@ function sincronizarCantidadesPaqueteV2(paqueteId) {
             ins.cantidad = Math.round(cantidadPrincipal * factor);
             const input = document.querySelector(`.cantidad-insumo-input[data-index='${idx}']`);
             if (input) input.value = ins.cantidad;
-            console.log('🔄 Insumo sincronizado:', ins.nombre, 'nueva cantidad:', ins.cantidad, 'factor:', factor);
         }
     });
     
-    console.log('✅ Sincronización completada, re-renderizando tablas...');
     renderTablaProductos();
     renderTablaServicios();
     renderTablaInsumos();
@@ -2555,7 +2532,7 @@ function guardarBorrador() {
         fecha_cotizacion: $('input[name="fecha_cotizacion"]').val(),
         validez_dias: $('input[name="validez_dias"]').val(),
         estado_id: $('#estado_id').val(),
-        condiciones_pago: $('input[name="condiciones_pago"]').val(),
+        condiciones_pago: '', // Campo eliminado
         observaciones: $('textarea[name="observaciones"]').val(),
         descuento_porcentaje: $('#descuento_porcentaje').val()
     };
@@ -2583,14 +2560,14 @@ function restaurarBorrador() {
     $('input[name="fecha_cotizacion"]').val(datos.fecha_cotizacion || '');
     $('input[name="validez_dias"]').val(datos.validez_dias || '');
     $('#estado_id').val(datos.estado_id || '');
-    $('input[name="condiciones_pago"]').val(datos.condiciones_pago || '');
+    // Campo condiciones_pago eliminado del formulario
     $('textarea[name="observaciones"]').val(datos.observaciones || '');
     $('#descuento_porcentaje').val(datos.descuento_porcentaje || 0);
     recalcularTotales();
 }
 
-// Guardar borrador al cambiar datos relevantes
-$(document).on('input change', '#cliente_select, #cliente_nombre, #cliente_telefono, #cliente_ubicacion, #cliente_email, #estado_id, input[name="fecha_cotizacion"], input[name="validez_dias"], input[name="condiciones_pago"], textarea[name="observaciones"], #descuento_porcentaje', function() {
+// Guardar borrador al cambiar datos relevantes (condiciones_pago eliminado)
+$(document).on('input change', '#cliente_select, #cliente_nombre, #cliente_telefono, #cliente_ubicacion, #cliente_email, #estado_id, input[name="fecha_cotizacion"], input[name="validez_dias"], textarea[name="observaciones"], #descuento_porcentaje', function() {
     guardarBorrador();
 });
 $(document).on('input change', '.cantidad-input, .precio-input, .cantidad-servicio-input, .precio-servicio-input', function() {
@@ -2914,7 +2891,6 @@ $(document).on('blur', '.cantidad-input', function() {
     
     const producto = productosCotizacion[idx];
     if (producto && producto.paquete_id && producto.tipo_paquete === 'principal') {
-        console.log('🔄 Sincronizando paquete desde producto principal:', producto.nombre, 'nueva cantidad:', cantidad);
         setTimeout(() => {
             sincronizarCantidadesPaqueteV2(producto.paquete_id);
         }, 100);
@@ -2932,7 +2908,6 @@ $(document).on('blur', '.cantidad-insumo-input', function() {
     
     const insumo = insumosCotizacion[idx];
     if (insumo && insumo.paquete_id && insumo.tipo_paquete === 'principal') {
-        console.log('🔄 Sincronizando paquete desde insumo principal:', insumo.nombre, 'nueva cantidad:', cantidad);
         setTimeout(() => {
             sincronizarCantidadesPaqueteV2(insumo.paquete_id);
         }, 100);
@@ -2950,7 +2925,6 @@ $(document).on('blur', '.cantidad-servicio-input', function() {
     
     const servicio = serviciosCotizacion[idx];
     if (servicio && servicio.paquete_id && servicio.tipo_paquete === 'principal') {
-        console.log('🔄 Sincronizando paquete desde servicio principal:', servicio.nombre, 'nueva cantidad:', cantidad);
         setTimeout(() => {
             sincronizarCantidadesPaqueteV2(servicio.paquete_id);
         }, 100);

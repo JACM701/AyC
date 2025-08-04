@@ -72,6 +72,51 @@ $stmt = $mysqli->prepare("
 $stmt->bind_param('i', $cotizacion_id);
 $stmt->execute();
 $insumos = $stmt->get_result();
+
+// Calcular costo total de la cotización
+$costo_total = 0;
+
+// Costo de productos
+$productos_temp = $productos;
+$productos_temp->data_seek(0); // Reset pointer
+while ($producto = $productos_temp->fetch_assoc()) {
+    $cost_price = floatval($producto['cost_price'] ?? 0);
+    $cantidad = floatval($producto['cantidad'] ?? 0);
+    
+    if ($producto['tipo_gestion'] === 'bobina' && $cost_price > 0) {
+        // Para bobinas, el costo está por rollo de 305m, convertir a metros
+        $costo_por_metro = $cost_price / 305;
+        $costo_total += $costo_por_metro * $cantidad;
+    } else {
+        $costo_total += $cost_price * $cantidad;
+    }
+}
+
+// Costo de servicios (generalmente no tienen costo, pero por si acaso)
+$servicios_temp = $servicios;
+$servicios_temp->data_seek(0); // Reset pointer
+while ($servicio = $servicios_temp->fetch_assoc()) {
+    // Los servicios normalmente no tienen costo asociado
+    // Si en el futuro se agrega un campo cost_price a servicios, se puede incluir aquí
+}
+
+// Costo de insumos
+$insumos_temp = $insumos;
+$insumos_temp->data_seek(0); // Reset pointer
+while ($insumo = $insumos_temp->fetch_assoc()) {
+    // Los insumos pueden tener costo en el campo precio_unitario o un campo específico de costo
+    $costo_insumo = floatval($insumo['precio_unitario'] ?? 0); // Usar precio como costo por ahora
+    $cantidad = floatval($insumo['cantidad'] ?? 0);
+    $costo_total += $costo_insumo * $cantidad;
+}
+
+// Reset pointers para uso posterior
+$productos->data_seek(0);
+$servicios->data_seek(0);
+$insumos->data_seek(0);
+
+// Debug: verificar si observaciones existe
+$observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observaciones'] : 'CAMPO NO EXISTE';
 ?>
 
 <!DOCTYPE html>
@@ -522,37 +567,112 @@ $insumos = $stmt->get_result();
                 </tr>
             </tfoot>
         </table>
-        <!-- RESUMEN card removed as requested -->
-
-        <div style="margin-top:10px; font-size:0.97rem; color:#888;">
-            <i class="bi bi-info-circle" style="color:#198754;"></i>
-            <?php
-            $base = $cotizacion['subtotal'] - $cotizacion['descuento_monto'];
-            $diferencia = $cotizacion['total'] - $base;
-            if ($base > 0) {
-                $porcentaje = ($diferencia / $base) * 100;
-                if ($porcentaje < 0) {
-                    echo 'El <strong>total</strong> es menor al <strong>subtotal</strong> por un descuento aplicado de <strong>' . number_format(abs($porcentaje), 2) . '%</strong>.';
-                } else if ($porcentaje > 0) {
-                    echo 'El <strong>total</strong> es mayor al <strong>subtotal</strong> por un cargo adicional (ej. IVA especial) de <strong>' . number_format($porcentaje, 2) . '%</strong>.';
-                } else {
-                    echo 'El <strong>total</strong> coincide con el <strong>subtotal</strong>.';
-                }
-            } else {
-                echo 'El <strong>total</strong> puede diferir del <strong>subtotal</strong> por descuentos o cargos adicionales.';
-            }
-            ?>
-        </div>
-        <?php if ($cotizacion['condiciones_pago'] || $cotizacion['observaciones']): ?>
-            <div class="condiciones">
-                <?php if ($cotizacion['condiciones_pago']): ?>
-                    <strong>CONDICIONES DE PAGO:</strong> <?= htmlspecialchars($cotizacion['condiciones_pago']) ?><br>
-                <?php endif; ?>
-                <?php if ($cotizacion['observaciones']): ?>
-                    <strong>OBSERVACIONES:</strong> <?= htmlspecialchars($cotizacion['observaciones']) ?>
-                <?php endif; ?>
+        
+        <!-- Resumen Visual Mejorado -->
+        <div class="row mt-4">
+            <div class="col-md-8">
+                <div style="margin-top:10px; font-size:0.97rem; color:#888;">
+                    <i class="bi bi-info-circle" style="color:#198754;"></i>
+                    <?php
+                    $base = $cotizacion['subtotal'] - $cotizacion['descuento_monto'];
+                    $diferencia = $cotizacion['total'] - $base;
+                    if ($base > 0) {
+                        $porcentaje = ($diferencia / $base) * 100;
+                        if ($porcentaje < 0) {
+                            echo 'El <strong>total</strong> es menor al <strong>subtotal</strong> por un descuento aplicado de <strong>' . number_format(abs($porcentaje), 2) . '%</strong>.';
+                        } else if ($porcentaje > 0) {
+                            echo 'El <strong>total</strong> es mayor al <strong>subtotal</strong> por un cargo adicional (ej. IVA especial) de <strong>' . number_format($porcentaje, 2) . '%</strong>.';
+                        } else {
+                            echo 'El <strong>total</strong> coincide con el <strong>subtotal</strong>.';
+                        }
+                    } else {
+                        echo 'El <strong>total</strong> puede diferir del <strong>subtotal</strong> por descuentos o cargos adicionales.';
+                    }
+                    ?>
+                </div>
             </div>
-        <?php endif; ?>
+            <div class="col-md-4">
+                <div class="resumen-cotizacion-ver">
+                    <table class="table table-borderless mb-0" style="border: 2px solid #dee2e6; border-radius: 8px; background: #f8f9fa;">
+                        <tbody>
+                            <tr>
+                                <td class="text-end fw-bold" style="padding: 12px;">SUBTOTAL</td>
+                                <td class="text-end" style="width: 120px; padding: 12px;">
+                                    <span class="fw-bold">$<?= number_format($cotizacion['subtotal'], 2) ?></span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="text-end fw-bold" style="padding: 12px; color: #6c757d;">COSTO TOTAL</td>
+                                <td class="text-end" style="padding: 12px;">
+                                    <span class="fw-bold text-warning">$<?= number_format($costo_total, 2) ?></span>
+                                </td>
+                            </tr>
+                            <?php if ($cotizacion['descuento_porcentaje'] > 0): ?>
+                            <tr>
+                                <td class="text-end fw-bold" style="padding: 12px;">DESCUENTO <?= $cotizacion['descuento_porcentaje'] ?>%</td>
+                                <td class="text-end" style="padding: 12px;">
+                                    <span class="fw-bold text-danger">$<?= number_format($cotizacion['descuento_monto'], 2) ?></span>
+                                </td>
+                            </tr>
+                            <?php endif; ?>
+                            <?php if ($ivaManual > 0): ?>
+                            <tr>
+                                <td class="text-end fw-bold" style="padding: 12px; color:#198754;">IVA ESPECIAL</td>
+                                <td class="text-end" style="padding: 12px;">
+                                    <span class="fw-bold" style="color:#198754;">$<?= number_format($ivaManual, 2) ?></span>
+                                </td>
+                            </tr>
+                            <?php endif; ?>
+                            <tr class="border-top">
+                                <td class="text-end fw-bold fs-5" style="padding: 12px;">TOTAL</td>
+                                <td class="text-end fw-bold fs-5 text-primary" style="padding: 12px;">
+                                    <span>$<?= number_format($cotizacion['total'], 2) ?></span>
+                                </td>
+                            </tr>
+                            <tr class="border-top" style="background: #e8f5e8;">
+                                <td class="text-end fw-bold" style="padding: 12px; color: #198754;">GANANCIA</td>
+                                <td class="text-end fw-bold" style="padding: 12px; color: #198754;">
+                                    <span>$<?= number_format($cotizacion['total'] - $costo_total, 2) ?></span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <div class="mt-3 p-3" style="background: #e9ecef; border-radius: 8px; border: 1px solid #dee2e6;">
+                        <div class="row g-2">
+                            <div class="col-12">
+                                <strong>CONDICIONES DE PAGO:</strong>
+                                <div class="text-dark mt-1">
+                                    <?php if ($cotizacion['condiciones_pago']): ?>
+                                        <?= htmlspecialchars($cotizacion['condiciones_pago']) ?>
+                                    <?php else: ?>
+                                        <em class="text-muted">EN CASO DE REQUERIR FACTURA SE AGREGA IVA</em>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <div class="col-12 mt-2">
+                                <strong>OBSERVACIONES:</strong>
+                                <div class="text-dark mt-1">
+                                    <?php 
+                                    // Debug: verificar si el campo existe y su contenido
+                                    $observaciones_valor = isset($cotizacion['observaciones']) ? trim($cotizacion['observaciones']) : '';
+                                    
+                                    if (!empty($observaciones_valor)): 
+                                    ?>
+                                        <?= htmlspecialchars($observaciones_valor) ?>
+                                    <?php else: ?>
+                                        <em class="text-muted">Sin observaciones</em>
+                                        <?php if (!isset($cotizacion['observaciones'])): ?>
+                                            <small class="text-danger d-block">(Campo 'observaciones' no encontrado en BD)</small>
+                                        <?php endif; ?>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="../assets/js/script.js"></script>
