@@ -423,45 +423,20 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                     ?>
                 </div>
                 
-                <!-- Tipo de cotización -->
-                <div style="margin: 5px 0; font-size: 0.9rem; color: #666;">
-                    <strong>Tipo:</strong> 
-                    <?php
-                    // Obtener categorías de productos para determinar el tipo
-                    $categorias_productos = [];
-                    $productos_temp_tipo = $productos;
-                    $productos_temp_tipo->data_seek(0);
-                    while ($producto = $productos_temp_tipo->fetch_assoc()) {
-                        // Obtener categoría del producto
-                        if (!empty($producto['product_id'])) {
-                            $stmt_cat = $mysqli->prepare("SELECT c.name FROM products p LEFT JOIN categories c ON p.category_id = c.category_id WHERE p.product_id = ?");
-                            $stmt_cat->bind_param('i', $producto['product_id']);
-                            $stmt_cat->execute();
-                            $categoria_result = $stmt_cat->get_result()->fetch_assoc();
-                            if ($categoria_result && !empty($categoria_result['name'])) {
-                                $categorias_productos[] = $categoria_result['name'];
-                            }
-                            $stmt_cat->close();
-                        }
-                    }
-                    
-                    // Eliminar duplicados
-                    $categorias_unicas = array_unique($categorias_productos);
-                    
-                    if (count($categorias_unicas) > 0) {
-                        if (count($categorias_unicas) == 1) {
-                            echo 'Cotización de ' . htmlspecialchars($categorias_unicas[0]);
-                        } else {
-                            echo 'Cotización Mixta (' . implode(' + ', array_map('htmlspecialchars', $categorias_unicas)) . ')';
-                        }
-                    } else {
-                        echo 'Cotización General';
-                    }
-                    
-                    // Reset pointer para uso posterior
-                    $productos->data_seek(0);
-                    ?>
+                <!-- Título personalizado de cotización -->
+                <?php 
+                // Buscar título personalizado en observaciones con formato [TITULO:texto]
+                $titulo_personalizado = '';
+                if (!empty($cotizacion['observaciones']) && preg_match('/\[TITULO:([^\]]+)\]/', $cotizacion['observaciones'], $match)) {
+                    $titulo_personalizado = trim($match[1]);
+                }
+                
+                if (!empty($titulo_personalizado)): 
+                ?>
+                <div style="margin: 5px 0; font-size: 0.9rem; color: #333; font-weight: bold;">
+                    <?= htmlspecialchars($titulo_personalizado) ?>
                 </div>
+                <?php endif; ?>
                 
                 <div><strong><?= htmlspecialchars($cotizacion['numero_cotizacion']) ?></strong></div>
                 <div>Fecha: <?= date('d/m/Y', strtotime($cotizacion['fecha_cotizacion'])) ?></div>
