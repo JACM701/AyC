@@ -1201,6 +1201,19 @@ const productosArray = <?= json_encode($productos_array) ?>.map(p => ({
 }));
 let productosCotizacion = [];
 
+// 🎯 CONFIGURACIÓN SIMPLE PARA BOBINAS DE CABLE
+const PRECIO_CONFIG = {
+    // Configuración de detección
+    metrosPorBobina: 305,    // Metros estándar por bobina
+    tolerancia: 10,          // ±metros para considerar bobina completa
+    
+    // Modos de precio para bobinas completas
+    modosPrecio: {
+        POR_METRO: 'por_metro',           // Precio por metro
+        POR_BOBINA: 'por_bobina_completa' // Precio por bobina completa
+    }
+};
+
 // Variable global para rastrear paquetes promocionales
 window.paquetesPromocionales = [];
 
@@ -1348,7 +1361,19 @@ function recalcularTotales() {
             }
         } else {
             // Producto normal
-            subtotalProductos += ((parseFloat(p.precio)||0)*(parseFloat(p.cantidad)||1));
+            // 🎯 CÁLCULO CORRECTO SEGÚN EL MODO DE PRECIO
+            const esBobina = p.tipo_gestion === 'bobina';
+            const cantidad = parseFloat(p.cantidad) || 1;
+            const precio = parseFloat(p.precio) || 0;
+            
+            if (esBobina && p._modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA) {
+                // Para bobinas en modo bobina: número de bobinas × precio por bobina
+                const bobinasCompletas = Math.round(cantidad / PRECIO_CONFIG.metrosPorBobina);
+                subtotalProductos += bobinasCompletas * precio;
+            } else {
+                // Para metros o productos normales: cantidad × precio
+                subtotalProductos += cantidad * precio;
+            }
         }
     });
     
@@ -1537,6 +1562,34 @@ $('#buscador_producto').on('input', function() {
 });
 $('#sugerencias_productos').on('click', 'button', function() {
     const prod = productosArray.find(p => p.product_id == $(this).data('id'));
+    const precio = parseFloat($(this).data('precio')) || 0;
+    const esBobina = prod && prod.tipo_gestion === 'bobina';
+    
+    // 🎯 CONFIGURAR CANTIDAD Y MODO INICIAL PARA BOBINAS
+    let cantidadInicial, precioInicial, modoInicial, precioBase;
+    if (esBobina) {
+        // Para bobinas, el precio en DB es el precio de toda la bobina ($983.68)
+        // Pero el precio real de venta es $7/metro
+        if (precio > 50) { // Si el precio es alto, es precio por bobina completa
+            cantidadInicial = PRECIO_CONFIG.metrosPorBobina; // 305m = 1 bobina completa
+            precioBase = 7.00; // Precio real: $7 pesos por metro
+            precioInicial = precio; // MANTENER precio original de bobina ($983.68)
+            modoInicial = PRECIO_CONFIG.modosPrecio.POR_BOBINA;
+            console.log(`🔄 Bobina desde inventario: Bobina $${precio}, Metro $${precioBase} (precios independientes)`);
+        } else {
+            cantidadInicial = 1.00; // 1 metro por defecto
+            precioBase = precio; // Es precio por metro
+            precioInicial = precio;
+            modoInicial = PRECIO_CONFIG.modosPrecio.POR_METRO;
+            console.log(`📏 Bobina desde inventario: $${precio}/metro (precio base)`);
+        }
+    } else {
+        cantidadInicial = 1;
+        precioInicial = precio;
+        modoInicial = null;
+        precioBase = precio;
+    }
+    
     agregarProductoATabla({
         product_id: $(this).data('id'),
         nombre: $(this).data('nombre'),
@@ -1544,11 +1597,14 @@ $('#sugerencias_productos').on('click', 'button', function() {
         categoria: $(this).data('categoria'),
         proveedor: $(this).data('proveedor'),
         stock: prod ? (prod.tipo_gestion === 'bobina' ? (prod.stock_disponible || 0) : prod.stock_disponible) : $(this).data('stock'),
-        cantidad: prod && prod.tipo_gestion === 'bobina' ? 1.00 : 1,
-        precio: $(this).data('precio'),
+        cantidad: cantidadInicial,
+        precio: precioInicial,
         tipo_gestion: prod ? prod.tipo_gestion : 'pieza',
         cost_price: prod && typeof prod.cost_price !== 'undefined' ? prod.cost_price : '',
-        image: $(this).data('image') || (prod ? prod.image : '')
+        image: $(this).data('image') || (prod ? prod.image : ''),
+        _modoPrecio: modoInicial, // ✅ Establecer modo inicial
+        _precioBase: precioBase, // ✅ Guardar precio base por metro ($7/metro)
+        _precioBobinaOriginal: esBobina && precio > 50 ? precio : undefined // ✅ Guardar precio original de bobina
     });
     $('#buscador_producto').val('');
     $('#sugerencias_productos').hide();
@@ -1619,6 +1675,7 @@ $('#btnAgregarProductoRapido').on('click', function() {
 });
 function agregarProductoATabla(prod) {
     if (!prod.tipo_gestion) prod.tipo_gestion = 'pieza';
+    
     // Si el producto existe en productosArray, copiar cost_price
     if (typeof prod.product_id !== 'undefined' && prod.product_id !== null) {
         const prodBase = productosArray.find(p => p.product_id == prod.product_id);
@@ -1626,6 +1683,30 @@ function agregarProductoATabla(prod) {
             prod.cost_price = prodBase.cost_price;
         }
     }
+    
+    // 🎯 CONFIGURAR MODO INICIAL CORRECTO PARA BOBINAS DESDE INVENTARIO
+    if (prod.tipo_gestion === 'bobina') {
+        const cantidad = parseFloat(prod.cantidad) || 1;
+        const precio = parseFloat(prod.precio) || 0;
+        
+        // Si no tiene precio base calculado, calcularlo
+        if (!prod._precioBase) {
+            if (precio > 50) { // Precio alto = precio por bobina completa
+                // 🎯 PRECIO CORRECTO: Mantener precio de bobina original, $7/metro para metros sueltos
+                prod._precioBase = 7.00; // Precio real de venta por metro
+                prod._modoPrecio = PRECIO_CONFIG.modosPrecio.POR_BOBINA;
+                prod.cantidad = PRECIO_CONFIG.metrosPorBobina; // 305m por defecto
+                prod.precio = precio; // MANTENER precio original de bobina ($983.68)
+                prod._precioBobinaOriginal = precio; // ✅ Guardar precio original
+                console.log(`🔄 Bobina desde inventario: Bobina $${precio}, Metro $${prod._precioBase} (precios independientes)`);
+            } else {
+                prod._precioBase = precio; // Es precio por metro
+                prod._modoPrecio = PRECIO_CONFIG.modosPrecio.POR_METRO;
+                console.log(`📏 Bobina desde inventario: $${precio}/metro (precio base)`);
+            }
+        }
+    }
+    
     productosCotizacion.push(prod);
     renderTablaProductos();
     guardarBorrador();
@@ -1642,26 +1723,99 @@ function renderTablaProductos() {
     let html = '';
     let subtotal = 0;
     productosCotizacion.forEach((p, i) => {
-        // IVA REMOVED
-        const sub = (parseFloat(p.precio) || 0) * (parseFloat(p.cantidad) || 1);
-        subtotal += sub;
+        // 🎯 CÁLCULO CORRECTO DEL SUBTOTAL SEGÚN EL MODO DE PRECIO
+        let sub;
         const esBobina = p.tipo_gestion === 'bobina';
-        const step = esBobina ? '0.01' : '1';
-        const min = esBobina ? '0.01' : '1';
-        const unidad = esBobina ? ' m' : '';
+        const cantidad = parseFloat(p.cantidad) || 1;
+        const precio = parseFloat(p.precio) || 0;
+        
+        if (esBobina && p._modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA) {
+            // Para bobinas en modo bobina: número de bobinas × precio por bobina
+            const bobinasCompletas = Math.round(cantidad / PRECIO_CONFIG.metrosPorBobina);
+            sub = bobinasCompletas * precio;
+        } else {
+            // Para metros o productos normales: cantidad × precio
+            sub = cantidad * precio;
+        }
+        
+        subtotal += sub;
+        
+        // 🎯 DETECCIÓN INTELIGENTE DE MODO DE VENTA PARA BOBINAS
+        let step, min, unidad, cantidadMostrar, modoPrecio;
+        
+        if (esBobina) {
+            const metrosPorBobina = PRECIO_CONFIG.metrosPorBobina;
+            const tolerancia = PRECIO_CONFIG.tolerancia;
+            const bobinasCompletas = Math.round(cantidad / metrosPorBobina);
+            const metrosEsperados = bobinasCompletas * metrosPorBobina;
+            const diferencia = Math.abs(cantidad - metrosEsperados);
+            
+            // 🎯 PRIORIZAR MODO GUARDADO EN EL PRODUCTO sobre detección automática
+            if (p._modoPrecio) {
+                modoPrecio = p._modoPrecio;
+            } else {
+                // Solo usar detección automática si no hay modo guardado
+                if (bobinasCompletas > 0 && diferencia <= tolerancia) {
+                    modoPrecio = PRECIO_CONFIG.modosPrecio.POR_BOBINA;
+                } else {
+                    modoPrecio = PRECIO_CONFIG.modosPrecio.POR_METRO;
+                }
+                // Guardar el modo detectado para futuras referencias
+                p._modoPrecio = modoPrecio;
+            }
+            
+            // Configurar interfaz según el modo actual
+            if (modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA) {
+                // 🔄 MODO BOBINAS COMPLETAS
+                step = '1';
+                min = '1';
+                unidad = ` bobina${bobinasCompletas !== 1 ? 's' : ''}`;
+                cantidadMostrar = bobinasCompletas;
+                p._bobinasCompletas = bobinasCompletas;
+            } else {
+                // 📏 MODO POR METROS
+                step = '0.01';
+                min = '0.01';
+                unidad = ' m';
+                cantidadMostrar = cantidad;
+            }
+        } else {
+            // Productos normales (no bobinas)
+            step = '1';
+            min = '1';
+            unidad = '';
+            cantidadMostrar = p.cantidad;
+            modoPrecio = 'normal';
+        }
+        
         const nombreGoogle = encodeURIComponent(p.nombre || '');
         const skuGoogle = encodeURIComponent(p.sku || '');
         let stockStr = '';
         if (typeof p.stock !== 'undefined' && p.stock !== null && p.stock !== '') {
             stockStr = esBobina ? parseFloat(p.stock).toFixed(2) : parseInt(p.stock);
         }
-        // Margen y costo unitario para bobinas
         let margen = '';
         let margenNegativo = false;
         let costoUnitario = undefined;
         if (esBobina && typeof p.cost_price !== 'undefined' && p.cost_price !== null && p.cost_price !== '' && !isNaN(parseFloat(p.cost_price))) {
-            // Costo por metro
-            costoUnitario = parseFloat(p.cost_price) / 305;
+            // 🎯 CÁLCULO CORRECTO DEL COSTO SEGÚN EL MODO DE VENTA
+            const cantidad = parseFloat(p.cantidad) || 1;
+            const costPrice = parseFloat(p.cost_price);
+            const precioVenta = parseFloat(p.precio) || 0;
+            
+            // Verificar el modo de precio actual
+            if (p._modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA) {
+                // 🔄 MODO BOBINA ENTERA: Comparar precio de bobina vs costo de bobina
+                const bobinasCompletas = Math.round(cantidad / PRECIO_CONFIG.metrosPorBobina);
+                costoUnitario = costPrice; // Costo total de la bobina entera
+                
+                console.log(`🔄 Margen bobina entera: Precio $${precioVenta} vs Costo $${costoUnitario} (${bobinasCompletas} bobina(s))`);
+            } else {
+                // 📏 MODO POR METROS: Comparar precio por metro vs costo por metro
+                costoUnitario = costPrice / PRECIO_CONFIG.metrosPorBobina; // Costo por metro
+                
+                console.log(`📏 Margen por metros: Precio $${precioVenta}/m vs Costo $${costoUnitario.toFixed(4)}/m`);
+            }
         } else if (typeof p.cost_price !== 'undefined' && p.cost_price !== null && p.cost_price !== '' && !isNaN(parseFloat(p.cost_price))) {
             costoUnitario = parseFloat(p.cost_price);
         }
@@ -1692,29 +1846,44 @@ function renderTablaProductos() {
                         <span style="font-size:0.95rem; color:#212529; line-height:1.2;">${p.nombre}</span>
                         ${p.sku ? `<small style="color:#6c757d; font-weight:500; font-size:0.75rem;">SKU: ${p.sku}</small>` : ''}
                         ${esPromocional ? `<small style="color:#28a745; font-weight:600; font-size:0.7rem;"><i class="bi bi-percent"></i> Paquete promocional: ${p.paquete_promocional.nombre}</small>` : ''}
+                        ${esBobina && p._tipoVenta ? `<small style="color:${p._tipoVenta === 'bobina_completa' ? '#007bff' : '#ff6b35'}; font-weight:600; font-size:0.7rem;">
+                            ${p._tipoVenta === 'bobina_completa' ? `<i class="bi bi-box-seam"></i> ${p._bobinasCompletas} bobina(s) completa(s)` : '<i class="bi bi-rulers"></i> Venta por metros'}
+                        </small>` : ''}
                         ${p.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google" style="margin-top:1px; display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; background:#007bff; color:white; border-radius:50%; text-decoration:none; font-size:0.6rem;"><i class="bi bi-search"></i></a>` : ''}
                     </div>
                 </td>
                 <td style="text-align:center; vertical-align:middle; padding:8px 10px;">
-                    ${p.paquete_id ? `
-                        <div style="display:flex; flex-direction:column; align-items:center; gap:3px;">
-                            <span class="badge" style="background:#17a2b8; color:white; font-size:0.7rem; padding:4px 6px; border-radius:4px; font-weight:600; display:flex; align-items:center; gap:3px;">
-                                <i class="bi bi-link-45deg"></i> Conectado
-                            </span>
-                            <label style="display:flex; align-items:center; gap:3px; font-size:0.7rem; color:#495057; cursor:pointer;">
-                                <input type="checkbox" class="sync-checkbox" data-index="${i}" ${p.sincronizado !== false ? 'checked' : ''} title="Sincronizar con principal" style="accent-color:#17a2b8; transform:scale(0.9);">
-                                Sync
-                            </label>
-                        </div>
-                    ` : `<button type="button" class="btn btn-sm" onclick="conectarProductoAPaquete(${i})" title="Conectar a paquete inteligente" style="background:#17a2b8; color:white; border:none; border-radius:4px; padding:4px 8px; font-weight:600; transition:all 0.3s ease; font-size:0.75rem;"><i class="bi bi-link"></i> Conectar</button>`}
+                    <div style="display:flex; flex-direction:column; align-items:center; gap:3px;">
+                        ${p.paquete_id ? `
+                            <div style="display:flex; flex-direction:column; align-items:center; gap:3px;">
+                                <span class="badge" style="background:#17a2b8; color:white; font-size:0.7rem; padding:4px 6px; border-radius:4px; font-weight:600; display:flex; align-items:center; gap:3px;">
+                                    <i class="bi bi-link-45deg"></i> Conectado
+                                </span>
+                                <label style="display:flex; align-items:center; gap:3px; font-size:0.7rem; color:#495057; cursor:pointer;">
+                                    <input type="checkbox" class="sync-checkbox" data-index="${i}" ${p.sincronizado !== false ? 'checked' : ''} title="Sincronizar con principal" style="accent-color:#17a2b8; transform:scale(0.9);">
+                                    Sync
+                                </label>
+                            </div>
+                        ` : `<button type="button" class="btn btn-sm" onclick="conectarProductoAPaquete(${i})" title="Conectar a paquete inteligente" style="background:#17a2b8; color:white; border:none; border-radius:4px; padding:4px 8px; font-weight:600; transition:all 0.3s ease; font-size:0.75rem;"><i class="bi bi-link"></i> Conectar</button>`}
+                        
+                        ${esBobina ? `
+                            <button type="button" class="btn btn-sm cambiar-modo-btn" data-index="${i}" title="Cambiar modo: ${modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA ? 'Bobinas → Metros' : 'Metros → Bobinas'}" style="background:${modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA ? '#28a745' : '#ff6b35'}; color:white; border:none; border-radius:4px; padding:3px 6px; font-weight:600; transition:all 0.3s ease; font-size:0.65rem; margin-top:2px;">
+                                ${modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA ? '<i class="bi bi-box-seam"></i> Bobinas' : '<i class="bi bi-rulers"></i> Metros'}
+                            </button>
+                        ` : ''}
+                    </div>
                 </td>
                 <td style="vertical-align:middle; padding:8px 10px;">
-                    <input type="number" min="${min}" step="${step}" value="${p.cantidad}" class="form-control form-control-sm cantidad-input" data-index="${i}" data-paquete-id="${p.paquete_id || ''}" data-tipo-paquete="${p.tipo_paquete || ''}" style="width:80px; background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px; text-align:center; font-weight:600; padding:6px; font-size:0.85rem;">${unidad}
+                    <div style="display:flex; flex-direction:column; align-items:center; gap:3px;">
+                        <input type="number" min="${min}" step="${step}" value="${cantidadMostrar}" class="form-control form-control-sm cantidad-input" data-index="${i}" data-paquete-id="${p.paquete_id || ''}" data-tipo-paquete="${p.tipo_paquete || ''}" data-modo-precio="${modoPrecio}" style="width:80px; background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px; text-align:center; font-weight:600; padding:6px; font-size:0.85rem;">
+                        <small style="color:#6c757d; font-weight:500; font-size:0.7rem; line-height:1;">${unidad.trim()}</small>
+                        ${esBobina && modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA ? `<small style="color:#007bff; font-weight:600; font-size:0.65rem; text-align:center; line-height:1;">(${cantidad.toFixed(0)}m total)</small>` : ''}
+                    </div>
                 </td>
                 <td style="vertical-align:middle; padding:8px 10px;">
                     <div class="input-group" style="width:110px;">
                         <span class="input-group-text" style="background:#28a745; color:white; border:none; border-radius:4px 0 0 4px; font-weight:600; font-size:0.8rem; padding:6px 8px;">$</span>
-                        <input type="number" min="0" step="0.0001" value="${p.precio || ''}" class="form-control form-control-sm precio-input" data-index="${i}" style="background:#f8f9fa; border:1px solid #dee2e6; border-left:none; border-radius:0 4px 4px 0; text-align:center; font-weight:600; font-size:0.85rem; padding:6px;">
+                        <input type="number" min="0" step="0.0001" value="${p.precio || ''}" class="form-control form-control-sm precio-input" data-index="${i}" data-modo-precio="${modoPrecio}" style="background:#f8f9fa; border:1px solid #dee2e6; border-left:none; border-radius:0 4px 4px 0; text-align:center; font-weight:600; font-size:0.85rem; padding:6px;">
                     </div>
                 </td>
                 <td style="vertical-align:middle; padding:8px 10px;">
@@ -1773,6 +1942,42 @@ function renderTablaProductos() {
         const precio = parseFloat($(this).val()) || 0;
         if (productosCotizacion[idx]) {
             productosCotizacion[idx].precio = precio;
+            
+            // 🎯 Recalcular margen automáticamente cuando cambia el precio
+            const prod = productosCotizacion[idx];
+            let costoUnitario = undefined;
+            const esBobina = prod.tipo_gestion === 'bobina';
+            
+            // Calcular costo unitario (misma lógica que en el margen)
+            if (esBobina && typeof prod.cost_price !== 'undefined' && prod.cost_price !== null && prod.cost_price !== '' && !isNaN(parseFloat(prod.cost_price))) {
+                const cantidad = parseFloat(prod.cantidad) || 1;
+                const costPrice = parseFloat(prod.cost_price);
+                const metrosPorBobina = PRECIO_CONFIG.metrosPorBobina;
+                const tolerancia = PRECIO_CONFIG.tolerancia;
+                const bobinasCompletas = Math.round(cantidad / metrosPorBobina);
+                const metrosEsperados = bobinasCompletas * metrosPorBobina;
+                const diferencia = Math.abs(cantidad - metrosEsperados);
+                
+                if (bobinasCompletas > 0 && diferencia <= tolerancia) {
+                    costoUnitario = costPrice / cantidad;
+                } else {
+                    costoUnitario = costPrice / metrosPorBobina;
+                }
+            } else if (typeof prod.cost_price !== 'undefined' && prod.cost_price !== null && prod.cost_price !== '' && !isNaN(parseFloat(prod.cost_price))) {
+                costoUnitario = parseFloat(prod.cost_price);
+            }
+            
+            // Actualizar margen si hay costo
+            if (costoUnitario !== undefined && precio > 0) {
+                const margenCalc = (((precio - costoUnitario) / precio) * 100);
+                prod.margen = margenCalc;
+                
+                // Actualizar campo de margen en la interfaz
+                const $row = $(this).closest('tr');
+                const $margenInput = $row.find('.margen-producto-input');
+                $margenInput.val(margenCalc.toFixed(2));
+            }
+            
             // Actualizar subtotal de la fila
             const cantidad = parseFloat(productosCotizacion[idx].cantidad) || 1;
             const subtotal = cantidad * precio;
@@ -1782,15 +1987,40 @@ function renderTablaProductos() {
         }
     });
     
-    // Evento para margen editable en productos
+    // Evento para margen editable en productos (con debounce para mejor UX)
+    let margenTimeout;
     $('.margen-producto-input').off('input').on('input', function() {
-        const index = parseInt($(this).data('index'));
-        let porcentaje = parseFloat($(this).val());
-        const prod = productosCotizacion[index];
-        let costoUnitario = undefined;
-        const esBobina = prod.tipo_gestion === 'bobina';
+        const $input = $(this);
+        clearTimeout(margenTimeout);
+        
+        // Debounce de 300ms para evitar cálculos excesivos
+        margenTimeout = setTimeout(function() {
+            const index = parseInt($input.data('index'));
+            let porcentaje = parseFloat($input.val());
+            const prod = productosCotizacion[index];
+            let costoUnitario = undefined;
+            const esBobina = prod.tipo_gestion === 'bobina';
         if (esBobina && typeof prod.cost_price !== 'undefined' && prod.cost_price !== null && prod.cost_price !== '' && !isNaN(parseFloat(prod.cost_price))) {
-            costoUnitario = parseFloat(prod.cost_price) / 305;
+            // Aplicar la misma lógica inteligente para bobinas
+            const cantidad = parseFloat(prod.cantidad) || 1;
+            const costPrice = parseFloat(prod.cost_price);
+            
+            // Detectar si es venta de bobinas completas (305m, 610m, 915m, etc.)
+            const metrosPorBobina = PRECIO_CONFIG.metrosPorBobina; // Metros estándar por bobina
+            const tolerancia = PRECIO_CONFIG.tolerancia; // Tolerancia para considerar bobina completa
+            
+            // Verificar si la cantidad es cercana a múltiplos de bobinas completas
+            const bobinasCompletas = Math.round(cantidad / metrosPorBobina);
+            const metrosEsperados = bobinasCompletas * metrosPorBobina;
+            const diferencia = Math.abs(cantidad - metrosEsperados);
+            
+            if (bobinasCompletas > 0 && diferencia <= tolerancia) {
+                // Es venta de bobinas completas - usar costo completo dividido por cantidad total
+                costoUnitario = costPrice / cantidad;
+            } else {
+                // Es venta por metros sueltos - calcular costo por metro
+                costoUnitario = costPrice / metrosPorBobina;
+            }
         } else if (typeof prod.cost_price !== 'undefined' && prod.cost_price !== null && prod.cost_price !== '' && !isNaN(parseFloat(prod.cost_price))) {
             costoUnitario = parseFloat(prod.cost_price);
         }
@@ -1805,17 +2035,42 @@ function renderTablaProductos() {
             }
             prod.precio = parseFloat(nuevoPrecio.toFixed(4));
             prod.margen = porcentaje;
-            renderTablaProductos();
+            
+            // 🎯 Actualizar solo el precio específico sin re-renderizar toda la tabla
+            const $row = $input.closest('tr');
+            const $precioInput = $row.find('.precio-input');
+            $precioInput.val(prod.precio.toFixed(4));
+            
+            // Actualizar subtotal de la fila
+            const cantidad = parseFloat(prod.cantidad) || 1;
+            const esBobina = prod.tipo_gestion === 'bobina';
+            
+            // 🎯 CÁLCULO CORRECTO DEL SUBTOTAL SEGÚN EL MODO
+            let subtotal;
+            if (esBobina && prod._modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA) {
+                // Para bobinas: número de bobinas × precio por bobina
+                const bobinasCompletas = Math.round(cantidad / PRECIO_CONFIG.metrosPorBobina);
+                subtotal = bobinasCompletas * prod.precio;
+            } else {
+                // Para metros o productos normales: cantidad × precio
+                subtotal = cantidad * prod.precio;
+            }
+            
+            $row.find('td').eq(6).find('span').first().text('$' + subtotal.toFixed(2));
+            
+            recalcularTotales();
             guardarBorrador();
         }
+        }, 300); // Debounce de 300ms
     });
 }
 
-// Eventos para cantidad de productos - Simplificados para mejor UX
+// Eventos para cantidad de productos - Mejorados para bobinas completas vs metros
 $(document).on('input', '.cantidad-input', function() {
     const index = parseInt($(this).data('index'));
     let value = parseFloat($(this).val());
     const prod = productosCotizacion[index];
+    const modoPrecio = $(this).data('modo-precio');
     
     if (!prod) return;
     
@@ -1823,19 +2078,68 @@ $(document).on('input', '.cantidad-input', function() {
     
     // Validación básica sin re-renderizar
     if (value && !isNaN(value) && value > 0) {
-        // Ajustar valor según tipo
         if (esBobina) {
-            value = Math.max(0.01, parseFloat(value.toFixed(2)));
+            // 🎯 LÓGICA PARA BOBINAS CON DIFERENTES MODOS
+            if (modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA) {
+                // 🔄 MODO BOBINAS COMPLETAS: El usuario ingresa cantidad de bobinas
+                value = Math.max(1, Math.round(value)); // Solo bobinas enteras
+                const metrosTotal = value * PRECIO_CONFIG.metrosPorBobina;
+                
+                // Guardar los metros reales en el producto (para cálculos internos)
+                prod.cantidad = metrosTotal;
+                
+                console.log(` Modo bobinas: ${value} bobina(s) = ${metrosTotal}m total`);
+                
+            } else {
+                // 📏 MODO POR METROS: El usuario ingresa metros directamente
+                value = Math.max(0.01, parseFloat(value.toFixed(2)));
+                prod.cantidad = value;
+                
+                console.log(`📏 Modo metros: ${value}m`);
+            }
         } else {
+            // Productos normales (no bobinas)
             value = Math.max(1, Math.round(value));
+            prod.cantidad = value;
         }
-        prod.cantidad = value;
+        
         $(this).removeClass('is-invalid');
     } else {
         $(this).addClass('is-invalid');
     }
     
     recalcularTotales();
+    
+    // 🎯 Solo actualizar subtotal de la fila sin re-renderizar toda la tabla
+    if (value && !isNaN(value) && value > 0) {
+        const $row = $(this).closest('tr');
+        const precio = parseFloat(prod.precio) || 0;
+        
+        // 🎯 CÁLCULO CORRECTO DEL SUBTOTAL SEGÚN EL MODO
+        let subtotal;
+        if (esBobina && modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA) {
+            // Para bobinas: cantidad mostrada × precio de bobina
+            const bobinasCompletas = Math.round(prod.cantidad / PRECIO_CONFIG.metrosPorBobina);
+            subtotal = bobinasCompletas * precio;
+        } else {
+            // Para metros o productos normales: cantidad × precio
+            subtotal = prod.cantidad * precio;
+        }
+        
+        $row.find('td').eq(6).find('span').first().text('$' + subtotal.toFixed(2));
+        
+        // Para bobinas, actualizar la etiqueta de unidad si cambió el modo
+        if (esBobina) {
+            const metrosPorBobina = PRECIO_CONFIG.metrosPorBobina;
+            const bobinasCompletas = Math.round(prod.cantidad / metrosPorBobina);
+            const esModoBobina = $(this).data('modo-precio') === PRECIO_CONFIG.modosPrecio.POR_BOBINA;
+            
+            if (esModoBobina) {
+                const $unidadSpan = $row.find('.unidad-display');
+                $unidadSpan.text(` bobina${bobinasCompletas !== 1 ? 's' : ''}`);
+            }
+        }
+    }
 });
 
 // Eventos para precio de productos - Simplificados para mejor UX
@@ -1849,12 +2153,197 @@ $(document).on('input', '.precio-input', function() {
     // Validación básica sin re-renderizar
     if (value && !isNaN(value) && value >= 0) {
         prod.precio = parseFloat(value.toFixed(4));
+        
+        // 🎯 Recalcular margen automáticamente cuando cambia el precio
+        let costoUnitario = undefined;
+        const esBobina = prod.tipo_gestion === 'bobina';
+        
+        // Calcular costo unitario (misma lógica que en el renderizado)
+        if (esBobina && typeof prod.cost_price !== 'undefined' && prod.cost_price !== null && prod.cost_price !== '' && !isNaN(parseFloat(prod.cost_price))) {
+            const costPrice = parseFloat(prod.cost_price);
+            
+            // 🎯 CÁLCULO CORRECTO DEL COSTO SEGÚN EL MODO DE VENTA
+            if (prod._modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA) {
+                // 🔄 MODO BOBINA ENTERA: Usar costo total de la bobina
+                costoUnitario = costPrice;
+            } else {
+                // 📏 MODO POR METROS: Usar costo por metro
+                costoUnitario = costPrice / PRECIO_CONFIG.metrosPorBobina;
+            }
+        } else if (typeof prod.cost_price !== 'undefined' && prod.cost_price !== null && prod.cost_price !== '' && !isNaN(parseFloat(prod.cost_price))) {
+            costoUnitario = parseFloat(prod.cost_price);
+        }
+        
+        // Actualizar margen si hay costo
+        if (costoUnitario !== undefined && value > 0) {
+            const margenCalc = (((value - costoUnitario) / value) * 100);
+            prod.margen = margenCalc;
+            
+            // Actualizar campo de margen en la interfaz
+            const $row = $(this).closest('tr');
+            const $margenInput = $row.find('.margen-producto-input');
+            if ($margenInput.length) {
+                $margenInput.val(margenCalc.toFixed(2));
+            }
+        }
+        
+        // Actualizar subtotal de la fila
+        const cantidad = parseFloat(prod.cantidad) || 1;
+        const $row = $(this).closest('tr');
+        
+        // 🎯 CÁLCULO CORRECTO DEL SUBTOTAL SEGÚN EL MODO
+        let subtotal;
+        if (esBobina && prod._modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA) {
+            // Para bobinas: número de bobinas × precio por bobina
+            const bobinasCompletas = Math.round(cantidad / PRECIO_CONFIG.metrosPorBobina);
+            subtotal = bobinasCompletas * value;
+        } else {
+            // Para metros o productos normales: cantidad × precio
+            subtotal = cantidad * value;
+        }
+        
+        $row.find('td').eq(6).find('span').first().text('$' + subtotal.toFixed(2));
+        
         $(this).removeClass('is-invalid');
     } else {
         $(this).addClass('is-invalid');
     }
     
     recalcularTotales();
+});
+
+// Evento global para margen de productos
+let margenGlobalTimeout;
+$(document).on('input', '.margen-producto-input', function() {
+    const $input = $(this);
+    clearTimeout(margenGlobalTimeout);
+    
+    // Debounce de 300ms para evitar cálculos excesivos
+    margenGlobalTimeout = setTimeout(function() {
+        const index = parseInt($input.data('index'));
+        let porcentaje = parseFloat($input.val());
+        const prod = productosCotizacion[index];
+        
+        if (!prod || isNaN(porcentaje)) return;
+        
+        let costoUnitario = undefined;
+        const esBobina = prod.tipo_gestion === 'bobina';
+        
+        // Calcular costo unitario (misma lógica que en renderizado)
+        if (esBobina && typeof prod.cost_price !== 'undefined' && prod.cost_price !== null && prod.cost_price !== '' && !isNaN(parseFloat(prod.cost_price))) {
+            const costPrice = parseFloat(prod.cost_price);
+            
+            // 🎯 CÁLCULO CORRECTO DEL COSTO SEGÚN EL MODO DE VENTA
+            if (prod._modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA) {
+                // 🔄 MODO BOBINA ENTERA: Usar costo total de la bobina
+                costoUnitario = costPrice;
+            } else {
+                // 📏 MODO POR METROS: Usar costo por metro
+                costoUnitario = costPrice / PRECIO_CONFIG.metrosPorBobina;
+            }
+        } else if (typeof prod.cost_price !== 'undefined' && prod.cost_price !== null && prod.cost_price !== '' && !isNaN(parseFloat(prod.cost_price))) {
+            costoUnitario = parseFloat(prod.cost_price);
+        }
+        
+        if (costoUnitario !== undefined) {
+            // Calcular nuevo precio según margen sobre precio de venta
+            let nuevoPrecio = 0;
+            if (porcentaje < 100) {
+                nuevoPrecio = costoUnitario / (1 - porcentaje / 100);
+            } else {
+                nuevoPrecio = costoUnitario * 10; // Evitar división por cero
+            }
+            
+            prod.precio = parseFloat(nuevoPrecio.toFixed(4));
+            prod.margen = porcentaje;
+            
+            // Actualizar precio en la interfaz
+            const $row = $input.closest('tr');
+            const $precioInput = $row.find('.precio-input');
+            $precioInput.val(prod.precio.toFixed(4));
+            
+            // Actualizar subtotal de la fila
+            const cantidad = parseFloat(prod.cantidad) || 1;
+            const subtotal = cantidad * prod.precio;
+            $row.find('td').eq(6).find('span').first().text('$' + subtotal.toFixed(2));
+            
+            recalcularTotales();
+            guardarBorrador();
+        }
+    }, 300);
+});
+
+// 🔄 Evento para cambiar modo de precio en bobinas (Bobinas vs Metros) - CON PRECIO BASE CORRECTO
+$(document).on('click', '.cambiar-modo-btn', function() {
+    const index = parseInt($(this).data('index'));
+    const prod = productosCotizacion[index];
+    
+    if (!prod || prod.tipo_gestion !== 'bobina') return;
+    
+    // 🎯 DETECTAR MODO ACTUAL CORRECTAMENTE usando la propiedad guardada
+    const modoActual = prod._modoPrecio || PRECIO_CONFIG.modosPrecio.POR_METRO;
+    const nuevoModo = modoActual === PRECIO_CONFIG.modosPrecio.POR_BOBINA 
+        ? PRECIO_CONFIG.modosPrecio.POR_METRO 
+        : PRECIO_CONFIG.modosPrecio.POR_BOBINA;
+    
+    // Obtener precio base por metro
+    const metrosPorBobina = PRECIO_CONFIG.metrosPorBobina;
+    const cantidadActual = parseFloat(prod.cantidad) || metrosPorBobina;
+    let precioBasePorMetro;
+    
+    // Determinar precio base por metro
+    if (prod._precioBase) {
+        precioBasePorMetro = prod._precioBase;
+    } else {
+        // Calcular precio base según modo actual
+        const precioActual = parseFloat(prod.precio) || 0;
+        if (modoActual === PRECIO_CONFIG.modosPrecio.POR_BOBINA) {
+            precioBasePorMetro = precioActual / metrosPorBobina;
+        } else {
+            precioBasePorMetro = precioActual;
+        }
+        prod._precioBase = precioBasePorMetro;
+    }
+    
+    console.log(`🔍 Modo actual: ${modoActual}, Nuevo modo: ${nuevoModo}, Precio base: $${precioBasePorMetro.toFixed(4)}/metro`);
+    
+    if (nuevoModo === PRECIO_CONFIG.modosPrecio.POR_BOBINA) {
+        // 📦 Cambiar de METROS → BOBINAS COMPLETAS
+        const bobinasCompletas = Math.max(1, Math.round(cantidadActual / metrosPorBobina));
+        prod.cantidad = bobinasCompletas * metrosPorBobina;
+        
+        // 🎯 PRECIO INDEPENDIENTE: Si tiene precio original de bobina, usarlo; sino calcular
+        if (prod._precioBobinaOriginal) {
+            prod.precio = prod._precioBobinaOriginal; // Usar precio original de bobina
+        } else {
+            prod.precio = parseFloat((precioBasePorMetro * metrosPorBobina).toFixed(4)); // Calcular si no hay precio original
+        }
+        prod._modoPrecio = PRECIO_CONFIG.modosPrecio.POR_BOBINA;
+        
+        console.log(`📦 Conversión M→B: Bobina $${prod.precio} (precio independiente)`);
+        mostrarNotificacion(`🔄 Modo bobinas: ${bobinasCompletas} bobina(s) × $${prod.precio.toFixed(2)} = $${(bobinasCompletas * prod.precio).toFixed(2)}`, 'info');
+        
+    } else {
+        // 📏 Cambiar de BOBINAS → METROS  
+        // Guardar precio de bobina antes de cambiar a metros
+        if (!prod._precioBobinaOriginal) {
+            prod._precioBobinaOriginal = parseFloat(prod.precio);
+        }
+        
+        // Precio = precio base por metro (independiente del precio de bobina)
+        prod.precio = parseFloat(precioBasePorMetro.toFixed(4));
+        prod._modoPrecio = PRECIO_CONFIG.modosPrecio.POR_METRO;
+        
+        console.log(`📏 Conversión B→M: Metro $${precioBasePorMetro.toFixed(4)} (precio independiente)`);
+        mostrarNotificacion(`📏 Modo metros: ${cantidadActual}m × $${prod.precio.toFixed(4)}/m = $${(cantidadActual * prod.precio).toFixed(2)}`, 'info');
+    }
+    
+    console.log(`✅ Conversión completada: ${modoActual} → ${nuevoModo} | Precio base: $${precioBasePorMetro.toFixed(4)}/m`);
+    
+    // Re-renderizar tabla para actualizar interfaz
+    renderTablaProductos();
+    recalcularTotales();
+    guardarBorrador();
 });
 
 // --- SERVICIOS ---
@@ -2023,13 +2512,12 @@ $(document).on('blur', '.cantidad-servicio-input', function() {
     const s = serviciosCotizacion[index];
     if (s && s.paquete_id && s.tipo_paquete === 'principal') {
         sincronizarCantidadesPaqueteV2(s.paquete_id);
-    } else {
-        renderTablaServicios();
     }
+    // NO re-renderizar tabla aquí para evitar perder foco
 });
 
 $(document).on('focus', '.cantidad-servicio-input', function() {
-    // Removido auto-select para permitir edición normal
+    // Permitir edición normal sin interferencias
 });
 
 // Eventos para precio de servicios
@@ -2051,11 +2539,11 @@ $(document).on('blur', '.precio-servicio-input', function() {
     if (value < 0) value = 0;
     serviciosCotizacion[index].precio = value;
     $(this).val(value);
-    renderTablaServicios();
+    // NO re-renderizar tabla aquí para evitar perder foco
 });
 
 $(document).on('focus', '.precio-servicio-input', function() {
-    // Removido auto-select para permitir edición normal
+    // Permitir edición normal sin interferencias
 });
 
 // EVENTO SUBMIT CON AJAX
