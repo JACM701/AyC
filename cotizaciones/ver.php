@@ -670,9 +670,11 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                                 // Si precio <= 50, es precio por metro (líneas 1587-1590)
                                 if ($precio_unitario > 50) {
                                     // MODO BOBINAS COMPLETAS (como crear.php línea 1580)
-                                    $bobinas_completas = round($cantidad / $metros_por_bobina);
-                                    $cantidad_mostrar = $bobinas_completas;
-                                    $unidad = $bobinas_completas !== 1 ? ' bobinas' : ' bobina';
+                                    // 🎯 PERMITIR FRACCIONES DE BOBINAS (1.5, 2.5, etc.)
+                                    $bobinas_completas = $cantidad / $metros_por_bobina;
+                                    // Redondear a 1 decimal para mostrar fracciones como 1.5
+                                    $cantidad_mostrar = round($bobinas_completas, 1);
+                                    $unidad = $cantidad_mostrar !== 1 ? ' bobinas' : ' bobina';
                                 } else {
                                     // MODO POR METROS (como crear.php línea 1587)
                                     $cantidad_mostrar = $cantidad;
@@ -680,7 +682,7 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                                 }
                             }
                             
-                            echo number_format($cantidad_mostrar, $unidad === ' m' ? 2 : 0) . $unidad;
+                            echo number_format($cantidad_mostrar, $unidad === ' m' ? 2 : 1) . $unidad;
                             ?>
                         </td>
                         <td>
@@ -720,7 +722,8 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                                 
                                 if ($precio_unitario > 50) {
                                     // MODO BOBINAS COMPLETAS
-                                    $bobinas_completas = round($cantidad / $metros_por_bobina);
+                                    // 🎯 PERMITIR FRACCIONES DE BOBINAS PARA CÁLCULO CORRECTO
+                                    $bobinas_completas = $cantidad / $metros_por_bobina;
                                     $precio_total_recalculado = $precio_unitario * $bobinas_completas;
                                 } else {
                                     // MODO POR METROS
