@@ -724,30 +724,6 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                     </tr>
                 <?php endwhile; ?>
             </tbody>
-            <tfoot>
-                <tr>
-                    <td colspan="5" style="text-align:right;">SUBTOTAL</td>
-                    <td colspan="2" style="text-align:center;">$<?= number_format($cotizacion['subtotal'], 2) ?></td>
-                </tr>
-                <?php if ($cotizacion['descuento_porcentaje'] > 0): ?>
-                    <tr>
-                        <td colspan="5" style="text-align:right;">DESCUENTO (<?= $cotizacion['descuento_porcentaje'] ?>%)</td>
-                        <td colspan="2" style="text-align:center;">$<?= number_format($cotizacion['descuento_monto'], 2) ?></td>
-                    </tr>
-                <?php endif; ?>
-                <?php if ($ivaManual > 0): ?>
-                <tr>
-                    <td colspan="5" style="text-align:right; color:#198754; font-size:1.05em;">IVA especial</td>
-                    <td colspan="2" style="text-align:center; color:#198754; font-weight:600; background:#e9fbe9; border-radius:6px;">
-                        <i class="bi bi-info-circle" style="font-size:1.2em;"></i> $<?= number_format($ivaManual, 2) ?>
-                    </td>
-                </tr>
-                <?php endif; ?>
-                <tr>
-                    <td colspan="5" style="text-align:right; font-size:1.1rem; color:#121866;">TOTAL</td>
-                    <td colspan="2" style="text-align:center; font-size:1.1rem; color:#e53935;">$<?= number_format($cotizacion['total'], 2) ?></td>
-                </tr>
-            </tfoot>
         </table>
         
         <!-- Resumen Visual Mejorado -->
@@ -790,28 +766,34 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                 <div class="resumen-cotizacion-ver">
                     <table class="table table-borderless mb-0" style="border: 2px solid #dee2e6; border-radius: 8px; background: #f8f9fa;">
                         <tbody>
+                            <!-- IMPORTE (subtotal original antes de descuento) -->
                             <tr>
-                                <td class="text-end fw-bold" style="padding: 12px;">SUBTOTAL</td>
+                                <td class="text-end fw-bold" style="padding: 12px;">IMPORTE</td>
                                 <td class="text-end" style="width: 120px; padding: 12px;">
                                     <span class="fw-bold">$<?= number_format($cotizacion['subtotal'], 2) ?></span>
                                 </td>
                             </tr>
-                            <tr class="fila-costo-total">
-                                <td class="text-end fw-bold" style="padding: 12px; color: #6c757d;">COSTO TOTAL</td>
-                                <td class="text-end" style="padding: 12px;">
-                                    <span class="fw-bold text-warning">$<?= number_format($costo_total, 2) ?></span>
-                                </td>
-                            </tr>
+                            
+                            <!-- DESCUENTO (si hay) -->
                             <?php if ($cotizacion['descuento_porcentaje'] > 0): ?>
                             <tr>
-                                <td class="text-end fw-bold" style="padding: 12px;">DESCUENTO <?= $cotizacion['descuento_porcentaje'] ?>%</td>
+                                <td class="text-end fw-bold" style="padding: 12px; color: #dc3545;">DESCUENTO <?= $cotizacion['descuento_porcentaje'] ?>%</td>
                                 <td class="text-end" style="padding: 12px;">
-                                    <span class="fw-bold text-danger">$<?= number_format($cotizacion['descuento_monto'], 2) ?></span>
+                                    <span class="fw-bold text-danger">-$<?= number_format($cotizacion['descuento_monto'], 2) ?></span>
                                 </td>
                             </tr>
                             <?php endif; ?>
+                            
+                            <!-- SUBTOTAL (después de descuento) -->
+                            <tr style="border-top: 1px solid #dee2e6;">
+                                <td class="text-end fw-bold" style="padding: 12px;">SUBTOTAL</td>
+                                <td class="text-end" style="padding: 12px;">
+                                    <span class="fw-bold">$<?= number_format($cotizacion['subtotal'] - $cotizacion['descuento_monto'], 2) ?></span>
+                                </td>
+                            </tr>
+                            
+                            <!-- IVA ESPECIAL (si hay) -->
                             <?php 
-                            // Calcular IVA especial basado en la diferencia
                             $subtotal_con_descuento = $cotizacion['subtotal'] - $cotizacion['descuento_monto'];
                             $iva_especial_calculado = $cotizacion['total'] - $subtotal_con_descuento;
                             if ($iva_especial_calculado > 0.01): 
@@ -819,19 +801,38 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                             <tr>
                                 <td class="text-end fw-bold" style="padding: 12px; color:#198754;">IVA ESPECIAL</td>
                                 <td class="text-end" style="padding: 12px;">
-                                    <span class="fw-bold" style="color:#198754;">$<?= number_format($iva_especial_calculado, 2) ?></span>
+                                    <span class="fw-bold" style="color:#198754;">+$<?= number_format($iva_especial_calculado, 2) ?></span>
                                 </td>
                             </tr>
                             <?php endif; ?>
-                            <tr class="border-top">
-                                <td class="text-end fw-bold fs-5" style="padding: 12px;">TOTAL</td>
-                                <td class="text-end fw-bold fs-5 text-primary" style="padding: 12px;">
+                            
+                            <!-- TOTAL FINAL -->
+                            <tr class="border-top" style="border-top: 2px solid #232a7c !important; background: #f8f9fa;">
+                                <td class="text-end fw-bold fs-5" style="padding: 15px; color: #232a7c;">TOTAL</td>
+                                <td class="text-end fw-bold fs-5" style="padding: 15px; color: #e53935;">
                                     <span>$<?= number_format($cotizacion['total'], 2) ?></span>
                                 </td>
                             </tr>
-                            <tr class="border-top fila-ganancia" style="background: #e8f5e8;">
-                                <td class="text-end fw-bold" style="padding: 12px; color: #198754;">GANANCIA</td>
-                                <td class="text-end fw-bold" style="padding: 12px; color: #198754;">
+                            
+                            <!-- SEPARADOR PARA INFORMACIÓN INTERNA -->
+                            <tr style="background: #e9ecef;">
+                                <td colspan="2" class="text-center" style="padding: 8px; font-size: 0.85rem; color: #6c757d; font-weight: bold; letter-spacing: 0.5px;">
+                                    📊 INFORMACIÓN INTERNA
+                                </td>
+                            </tr>
+                            
+                            <!-- COSTO TOTAL -->
+                            <tr class="fila-costo-total" style="background: #fff3cd;">
+                                <td class="text-end fw-bold" style="padding: 12px; color: #856404;">COSTO TOTAL</td>
+                                <td class="text-end" style="padding: 12px;">
+                                    <span class="fw-bold" style="color: #856404;">$<?= number_format($costo_total, 2) ?></span>
+                                </td>
+                            </tr>
+                            
+                            <!-- GANANCIAS -->
+                            <tr class="fila-ganancia" style="background: #d4edda;">
+                                <td class="text-end fw-bold" style="padding: 12px; color: #155724;">GANANCIAS</td>
+                                <td class="text-end fw-bold" style="padding: 12px; color: #155724;">
                                     <span>$<?= number_format($cotizacion['total'] - $costo_total, 2) ?></span>
                                 </td>
                             </tr>
