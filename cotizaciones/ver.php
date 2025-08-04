@@ -270,18 +270,116 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
             opacity: .75;
         }
         @media print { 
-            body { background: #fff; } 
-            .cotizacion-container { box-shadow: none; border-radius: 0; margin: 0; padding: 0; } 
+            /* Limpiar página de impresión */
+            body { 
+                background: #fff !important; 
+                color: #000 !important;
+                font-size: 12pt;
+                line-height: 1.3;
+                margin: 0;
+                padding: 0;
+            } 
+            
+            /* Ocultar elementos innecesarios */
+            .cotizacion-container { 
+                box-shadow: none !important; 
+                border-radius: 0 !important; 
+                margin: 0 !important; 
+                padding: 15px !important;
+                max-width: none !important;
+            }
+            
+            /* Ocultar columnas de costo e información interna */
             th.costo-total, td.costo-total { display: none !important; }
             .fila-costo-total, .fila-ganancia { display: none !important; }
             .badge.bg-danger { display: none !important; }
             .text-muted { display: none !important; }
             .acciones-cotizacion { display: none !important; }
-            .col-md-8 { display: none !important; } /* Ocultar mensaje del total */
+            .col-md-8 { display: none !important; } /* Ocultar mensaje explicativo */
+            
+            /* Ocultar separador e información interna completa */
+            tr[style*="background: #e9ecef"] { display: none !important; }
+            .fila-costo-total { display: none !important; }
+            .fila-ganancia { display: none !important; }
+            tr[style*="background: #fff3cd"] { display: none !important; }
+            tr[style*="background: #d4edda"] { display: none !important; }
+            
+            /* Ocultar específicamente las filas de información interna */
+            .resumen-cotizacion-ver tr:has(.text-center) ~ tr { display: none !important; }
+            .resumen-cotizacion-ver tr:has([style*="📊"]) { display: none !important; }
+            .resumen-cotizacion-ver tr:has([style*="📊"]) ~ tr { display: none !important; }
+            
+            /* Marca de agua PAGADO más grande y visible */
             .pagado-watermark {
-                position: absolute;
-                color: rgba(40, 167, 69, 0.25) !important;
-                font-size: 6rem;
+                position: fixed !important;
+                top: 50% !important;
+                left: 50% !important;
+                transform: translate(-50%, -50%) rotate(-45deg) !important;
+                font-size: 120pt !important;
+                font-weight: 900 !important;
+                color: rgba(40, 167, 69, 0.15) !important;
+                z-index: 1000 !important;
+                pointer-events: none !important;
+                user-select: none !important;
+                text-transform: uppercase !important;
+                letter-spacing: 1rem !important;
+                text-shadow: 2px 2px 4px rgba(0,0,0,0.1) !important;
+                font-family: Arial, sans-serif !important;
+            }
+            
+            /* Asegurar que la marca aparezca para cotizaciones convertidas */
+            .cotizacion-container.pagado .pagado-watermark {
+                display: block !important;
+            }
+            
+            /* Optimizar tabla para impresión */
+            .tabla-cotizacion {
+                width: 100% !important;
+                font-size: 10pt !important;
+                border-collapse: collapse !important;
+            }
+            
+            .tabla-cotizacion th,
+            .tabla-cotizacion td {
+                border: 1px solid #000 !important;
+                padding: 6px 4px !important;
+                font-size: 10pt !important;
+            }
+            
+            .tabla-cotizacion th {
+                background: #f0f0f0 !important;
+                color: #000 !important;
+                font-weight: bold !important;
+            }
+            
+            /* Ajustar resumen para impresión */
+            .resumen-cotizacion-ver table {
+                border: 2px solid #000 !important;
+                background: #fff !important;
+            }
+            
+            .resumen-cotizacion-ver td {
+                border: none !important;
+                color: #000 !important;
+            }
+            
+            /* Ocultar observaciones si están vacías */
+            .mt-3.p-3:has(em.text-muted) {
+                display: none !important;
+            }
+            
+            /* Forzar salto de página si es necesario */
+            .cotizacion-header {
+                page-break-inside: avoid !important;
+            }
+            
+            .tabla-cotizacion {
+                page-break-inside: auto !important;
+            }
+            
+            /* Asegurar que el resumen se mantenga junto */
+            .resumen-cotizacion-ver {
+                page-break-inside: avoid !important;
             }
         }
         .alert.shadow.rounded-4 {
@@ -345,7 +443,7 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
 <body>
     <div class="cotizacion-container<?= $cotizacion['nombre_estado'] === 'Convertida' ? ' pagado' : '' ?>">
         <?php if ($cotizacion['nombre_estado'] === 'Convertida'): ?>
-            <div class="paid-watermark">PAGADO</div>
+            <div class="pagado-watermark">PAGADO</div>
         <?php endif; ?>
         
         <?php if (isset($_SESSION['success'])): ?>
@@ -966,6 +1064,40 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 })();
+
+// Mejorar impresión - ocultar información interna
+window.addEventListener('beforeprint', function() {
+  // Ocultar filas de información interna
+  const informacionInterna = document.querySelectorAll('.fila-costo-total, .fila-ganancia');
+  informacionInterna.forEach(row => {
+    row.style.display = 'none';
+  });
+  
+  // Ocultar separador de información interna y filas siguientes
+  const separador = document.querySelector('td[colspan="2"]:contains("📊")');
+  if (separador) {
+    let currentRow = separador.closest('tr');
+    while (currentRow) {
+      currentRow.style.display = 'none';
+      currentRow = currentRow.nextElementSibling;
+    }
+  }
+  
+  // Cambiar título de la página para impresión
+  document.title = 'Cotización ' + (document.querySelector('.cotizacion-info strong')?.textContent || '');
+});
+
+window.addEventListener('afterprint', function() {
+  // Restaurar visibilidad después de imprimir
+  const informacionInterna = document.querySelectorAll('.fila-costo-total, .fila-ganancia');
+  informacionInterna.forEach(row => {
+    row.style.display = '';
+  });
+  
+  // Restaurar título original
+  document.title = 'Cotización <?= $cotizacion['numero_cotizacion'] ?> | Gestor de inventarios';
+});
+
 // Lanzar impresión automática si la URL tiene ?imprimir=1
 if (window.location.search.includes('imprimir=1')) {
   window.addEventListener('DOMContentLoaded', function() {
