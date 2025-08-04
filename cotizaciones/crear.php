@@ -2066,14 +2066,33 @@ function renderPaquetesPanel() {
     } else {
         html += '<div class="row g-3">';
         paquetes.forEach((paq, idx) => {
+            // Calcular precio total o mostrar precio promocional
+            let precioInfo = '';
+            if (paq.es_promocional && paq.precio_personalizado) {
+                precioInfo = `<div class="text-center mb-2">
+                    <span class="badge bg-warning text-dark">
+                        <i class="bi bi-percent"></i> PROMOCIONAL
+                    </span>
+                    <div class="fw-bold text-success">$${parseFloat(paq.precio_personalizado).toFixed(2)}</div>
+                </div>`;
+            } else {
+                precioInfo = `<div class="text-center mb-2">
+                    <span class="badge bg-info">
+                        <i class="bi bi-calculator"></i> NORMAL
+                    </span>
+                    <div class="text-muted small">Precio calculado</div>
+                </div>`;
+            }
+            
             html += `<div class="col-md-6 col-lg-4">
-                <div class="card shadow-sm h-100">
+                <div class="card shadow-sm h-100 ${paq.es_promocional ? 'border-warning' : ''}">
                     <div class="card-body d-flex flex-column">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <h5 class="card-title mb-0 flex-grow-1" style="font-size:1rem; line-height:1.3; overflow-wrap: break-word; word-break: break-word;" title="${paq.nombre}">${paq.nombre.length > 25 ? paq.nombre.substring(0, 25) + '...' : paq.nombre}</h5>
                             <span class="badge bg-primary ms-2 flex-shrink-0">${paq.items.length}</span>
                         </div>
-                        <div class="mb-2" style="max-height: 150px; overflow-y: auto;">
+                        ${precioInfo}
+                        <div class="mb-2" style="max-height: 120px; overflow-y: auto;">
                             <ul class="list-group list-group-flush" style="font-size:0.85rem;">
                                 ${paq.items.map(item => {
                                     const itemName = item.nombre || 'Sin nombre';
@@ -2121,6 +2140,9 @@ function duplicarPaquete(idx) {
     if (!paq) return;
     const copia = JSON.parse(JSON.stringify(paq));
     copia.nombre = paq.nombre + ' (Copia)';
+    // Mantener propiedades promocionales en la copia
+    copia.es_promocional = paq.es_promocional || false;
+    copia.precio_personalizado = paq.precio_personalizado || null;
     window.PaquetesCotizacion.addPaquete(copia);
     renderPaquetesPanel();
     mostrarNotificacion('Paquete duplicado correctamente.', 'success');
@@ -2253,6 +2275,28 @@ function aplicarPaqueteCotizacion(idx, event) {
             });
         });
     }, 200);
+    
+    // Si es un paquete promocional, aplicar el precio especial
+    if (paquete.es_promocional && paquete.precio_personalizado) {
+        // Aplicar precio promocional al primer producto principal
+        const productoPrincipal = productosCotizacion.find(p => p.paquete_id === paqueteId && p.tipo_paquete === 'principal');
+        if (productoPrincipal) {
+            productoPrincipal.precio = parseFloat(paquete.precio_personalizado);
+            productoPrincipal.es_promocional = true;
+            // Recalcular
+            renderTablaProductos();
+            mostrarNotificacion(`Aplicado precio promocional: $${parseFloat(paquete.precio_personalizado).toFixed(2)}`, 'info');
+        } else {
+            // Si no hay producto principal, aplicar al primer servicio principal
+            const servicioPrincipal = serviciosCotizacion.find(s => s.paquete_id === paqueteId && s.tipo_paquete === 'principal');
+            if (servicioPrincipal) {
+                servicioPrincipal.precio = parseFloat(paquete.precio_personalizado);
+                servicioPrincipal.es_promocional = true;
+                renderTablaServicios();
+                mostrarNotificacion(`Aplicado precio promocional: $${parseFloat(paquete.precio_personalizado).toFixed(2)}`, 'info');
+            }
+        }
+    }
     
     const modal = bootstrap.Modal.getInstance(document.getElementById('modalPaquetes'));
     if (modal) modal.hide();
@@ -2515,10 +2559,21 @@ function nuevoPaquete() {
 
 function guardarPaquete() {
     window._paqEdit.nombre = document.getElementById('paqNombre').value.trim();
+    window._paqEdit.es_promocional = document.getElementById('paqEsPromocional').checked;
+    const precioInput = document.getElementById('paqPrecioPersonalizado');
+    window._paqEdit.precio_personalizado = precioInput && precioInput.value ? parseFloat(precioInput.value) : null;
+    
     if (!window._paqEdit.nombre || window._paqEdit.items.length === 0) {
         mostrarNotificacion('Ponle nombre y al menos un producto al paquete.', 'warning');
         return;
     }
+    
+    // Validar que si es promocional, tenga precio personalizado
+    if (window._paqEdit.es_promocional && (!window._paqEdit.precio_personalizado || window._paqEdit.precio_personalizado <= 0)) {
+        mostrarNotificacion('Los paquetes promocionales deben tener un precio personalizado válido.', 'warning');
+        return;
+    }
+    
     window.PaquetesCotizacion.addPaquete(window._paqEdit);
     renderPaquetesPanel();
     mostrarNotificacion('Paquete guardado correctamente.', 'success');
