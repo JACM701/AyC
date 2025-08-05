@@ -181,6 +181,23 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
         }
         .datos-cliente .campo { font-size: 1rem; margin-bottom: 2px; }
         .datos-cliente .campo strong { color: #121866; min-width: 90px; display: inline-block; }
+        .info-creador {
+            background: linear-gradient(135deg, rgba(35, 42, 124, 0.08), rgba(35, 42, 124, 0.12));
+            padding: 8px 14px;
+            border-radius: 8px;
+            border-left: 4px solid #232a7c;
+            font-style: italic;
+            box-shadow: 0 2px 8px rgba(35, 42, 124, 0.05);
+            transition: all 0.2s ease;
+        }
+        .info-creador:hover {
+            background: linear-gradient(135deg, rgba(35, 42, 124, 0.12), rgba(35, 42, 124, 0.16));
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(35, 42, 124, 0.08);
+        }
+        .info-creador i {
+            font-size: 1.1rem;
+        }
         .tabla-cotizacion { 
             width: 100%; 
             border-collapse: collapse; 
@@ -289,6 +306,9 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                 padding: 15px !important;
                 max-width: none !important;
             }
+            
+            /* Ocultar información del creador en impresión */
+            .info-creador { display: none !important; }
             
             /* Ocultar columnas de costo e información interna */
             th.costo-total, td.costo-total { display: none !important; }
@@ -571,6 +591,12 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                 <div class="campo"><strong>Ubicación:</strong> <?= htmlspecialchars($cotizacion['cliente_direccion_real'] ?? $cotizacion['cliente_ubicacion']) ?></div>
             <?php endif; ?>
             <div class="campo"><strong>Fecha:</strong> <?= date('d/m/Y', strtotime($cotizacion['fecha_cotizacion'])) ?></div>
+            <!-- Información del creador - NO se imprime -->
+            <div class="campo info-creador">
+                <i class="bi bi-person-fill me-1" style="color: #232a7c;"></i>
+                <strong>Creada por:</strong> <?= htmlspecialchars($cotizacion['usuario_nombre'] ?? 'Usuario desconocido') ?>
+                <small class="text-muted ms-2">(<?= date('d/m/Y H:i', strtotime($cotizacion['created_at'] ?? $cotizacion['fecha_cotizacion'])) ?>)</small>
+            </div>
         </div>
 
         <table class="tabla-cotizacion">

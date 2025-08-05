@@ -859,7 +859,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input type="text" class="form-control" id="nuevo_sku_producto">
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label">Precio</label>
+                        <label class="form-label">Precio de venta</label>
                         <input type="number" class="form-control" id="nuevo_precio_producto" min="0" step="0.01">
                     </div>
                     <div class="col-md-2">
