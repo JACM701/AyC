@@ -59,10 +59,34 @@ $categorias = $mysqli->query("SELECT category_id, name FROM categories ORDER BY 
 
 // Calcular estadísticas
 $stats_query = "SELECT COUNT(*) as total_productos,
-    SUM(CASE WHEN quantity > 10 THEN 1 ELSE 0 END) as disponibles,
-    SUM(CASE WHEN quantity > 0 AND quantity <= 10 THEN 1 ELSE 0 END) as bajo_stock,
-    SUM(CASE WHEN quantity = 0 THEN 1 ELSE 0 END) as agotados,
-    SUM(quantity * price) as valor_total
+    SUM(CASE 
+        WHEN tipo_gestion = 'bobina' THEN 
+            CASE WHEN ((SELECT COALESCE(SUM(b.metros_actuales), 0) FROM bobinas b WHERE b.product_id = products.product_id AND b.is_active = 1) / 305) > 2 THEN 1 ELSE 0 END
+        ELSE 
+            CASE WHEN quantity > 10 THEN 1 ELSE 0 END
+    END) as disponibles,
+    SUM(CASE 
+        WHEN tipo_gestion = 'bobina' THEN 
+            CASE WHEN ((SELECT COALESCE(SUM(b.metros_actuales), 0) FROM bobinas b WHERE b.product_id = products.product_id AND b.is_active = 1) / 305) > 0 
+                 AND ((SELECT COALESCE(SUM(b.metros_actuales), 0) FROM bobinas b WHERE b.product_id = products.product_id AND b.is_active = 1) / 305) <= 2 
+                 THEN 1 ELSE 0 END
+        ELSE 
+            CASE WHEN quantity > 0 AND quantity <= 10 THEN 1 ELSE 0 END
+    END) as bajo_stock,
+    SUM(CASE 
+        WHEN tipo_gestion = 'bobina' THEN 
+            CASE WHEN ((SELECT COALESCE(SUM(b.metros_actuales), 0) FROM bobinas b WHERE b.product_id = products.product_id AND b.is_active = 1) / 305) = 0 THEN 1 ELSE 0 END
+        ELSE 
+            CASE WHEN quantity = 0 THEN 1 ELSE 0 END
+    END) as agotados,
+    SUM(
+        CASE 
+            WHEN tipo_gestion = 'bobina' THEN 
+                ((SELECT COALESCE(SUM(b.metros_actuales), 0) FROM bobinas b WHERE b.product_id = products.product_id AND b.is_active = 1) / 305) * price
+            ELSE 
+                quantity * price
+        END
+    ) as valor_total
     FROM products";
 $stats = $mysqli->query($stats_query)->fetch_assoc();
 $total_productos = $stats['total_productos'];
@@ -521,26 +545,36 @@ $total_paginas = max(1, ceil($total_productos_filtrados / $por_pagina));
                         <div class="stock-status">
                             <span class="status-badge status-<?php
                                 if ($producto['tipo_gestion'] === 'bobina') {
-                                    $stock = $producto['metros_totales'];
+                                    $stock = $producto['metros_totales'] / 305; // Bobinas equivalentes
+                                    if ($stock > 2) echo 'disponible';
+                                    elseif ($stock > 0) echo 'bajo_stock';
+                                    else echo 'agotado';
                                 } else {
                                     $stock = $producto['quantity'];
+                                    if ($stock > 10) echo 'disponible';
+                                    elseif ($stock > 0) echo 'bajo_stock';
+                                    else echo 'agotado';
                                 }
-                                if ($stock > 10) echo 'disponible';
-                                elseif ($stock > 0) echo 'bajo_stock';
-                                else echo 'agotado';
                             ?>">
                                 <?php
                                 if ($producto['tipo_gestion'] === 'bobina') {
-                                    $stock = $producto['metros_totales'];
+                                    $stock = $producto['metros_totales'] / 305; // Bobinas equivalentes
+                                    if ($stock > 2) {
+                                        echo '<i class="bi bi-check-circle"></i> Disponible';
+                                    } elseif ($stock > 0) {
+                                        echo '<i class="bi bi-exclamation-triangle"></i> Bajo Stock';
+                                    } else {
+                                        echo '<i class="bi bi-x-circle"></i> Agotado';
+                                    }
                                 } else {
                                     $stock = $producto['quantity'];
-                                }
-                                if ($stock > 10) {
-                                    echo '<i class="bi bi-check-circle"></i> Disponible';
-                                } elseif ($stock > 0) {
-                                    echo '<i class="bi bi-exclamation-triangle"></i> Bajo Stock';
-                                } else {
-                                    echo '<i class="bi bi-x-circle"></i> Agotado';
+                                    if ($stock > 10) {
+                                        echo '<i class="bi bi-check-circle"></i> Disponible';
+                                    } elseif ($stock > 0) {
+                                        echo '<i class="bi bi-exclamation-triangle"></i> Bajo Stock';
+                                    } else {
+                                        echo '<i class="bi bi-x-circle"></i> Agotado';
+                                    }
                                 }
                                 ?>
                             </span>
@@ -552,7 +586,8 @@ $total_paginas = max(1, ceil($total_productos_filtrados / $por_pagina));
                                 <div class="detail-value">
                                     <?php
                                     if ($producto['tipo_gestion'] === 'bobina') {
-                                        echo $producto['metros_totales'] . ' m';
+                                        $bobinas_equivalentes = round($producto['metros_totales'] / 305, 1);
+                                        echo $bobinas_equivalentes . ' bobinas<br><small>(' . $producto['metros_totales'] . ' m)</small>';
                                     } else {
                                         echo $producto['quantity'];
                                     }
@@ -560,7 +595,9 @@ $total_paginas = max(1, ceil($total_productos_filtrados / $por_pagina));
                                 </div>
                             </div>
                             <div class="detail-item">
-                                <div class="detail-label">Precio</div>
+                                <div class="detail-label">
+                                    <?= $producto['tipo_gestion'] === 'bobina' ? 'Precio/bobina' : 'Precio' ?>
+                                </div>
                                 <div class="detail-value">$<?= number_format($producto['price'], 2) ?></div>
                             </div>
                             <div class="detail-item">
@@ -571,7 +608,9 @@ $total_paginas = max(1, ceil($total_productos_filtrados / $por_pagina));
                                 <div class="detail-label">Valor Total</div>
                                 <div class="detail-value">
                                     $<?= number_format(
-                                        ($producto['tipo_gestion'] === 'bobina' ? $producto['metros_totales'] : $producto['quantity']) * $producto['price'], 
+                                        ($producto['tipo_gestion'] === 'bobina' ? 
+                                            ($producto['metros_totales'] / 305) * $producto['price'] : 
+                                            $producto['quantity'] * $producto['price']), 
                                         2
                                     ) ?>
                                 </div>
