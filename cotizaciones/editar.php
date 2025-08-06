@@ -84,6 +84,13 @@ while ($prod = $productos_cotizacion->fetch_assoc()) {
     ];
 }
 
+// Debug: agregar información para depuración
+error_log("DEBUG editar.php - Cotización ID: $cotizacion_id");
+error_log("DEBUG editar.php - Productos encontrados: " . count($productos_existentes));
+if (count($productos_existentes) > 0) {
+    error_log("DEBUG editar.php - Primer producto: " . json_encode($productos_existentes[0]));
+}
+
 // Obtener servicios de la cotización
 $stmt = $mysqli->prepare("
     SELECT cs.*, s.nombre as servicio_nombre, s.descripcion as servicio_descripcion, s.categoria as servicio_categoria, s.imagen as servicio_imagen
@@ -202,6 +209,83 @@ if ($estados && $estados->num_rows == 0) {
 }
 
 $estados_array = $estados ? $estados->fetch_all(MYSQLI_ASSOC) : [];
+
+// Manejo AJAX para crear productos
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action']) && $_POST['ajax_action'] === 'crear_producto') {
+    header('Content-Type: application/json');
+    
+    $nombre = trim($_POST['nombre'] ?? '');
+    $sku = trim($_POST['sku'] ?? '');
+    $precio = floatval($_POST['precio'] ?? 0);
+    $costo = floatval($_POST['costo'] ?? 0);
+    $cantidad = intval($_POST['cantidad'] ?? 1);
+    $categoria = $_POST['categoria_id'] ?? null;
+    $proveedor = $_POST['supplier_id'] ?? null;
+    $descripcion = trim($_POST['descripcion'] ?? '');
+
+    if (!$nombre || !$precio || $cantidad === null || $cantidad < 0) {
+        echo json_encode(['success' => false, 'message' => 'Faltan datos obligatorios o cantidad inválida']);
+        exit;
+    }
+
+    // Verificar si ya existe producto con ese nombre o SKU
+    $stmt = $mysqli->prepare("SELECT product_id FROM products WHERE product_name = ? OR sku = ? LIMIT 1");
+    $stmt->bind_param('ss', $nombre, $sku);
+    $stmt->execute();
+    $stmt->bind_result($existing_id);
+    if ($stmt->fetch()) {
+        $stmt->close();
+        echo json_encode([
+            'success' => false,
+            'message' => 'Ya existe un producto con ese nombre o SKU.'
+        ]);
+        exit;
+    }
+    $stmt->close();
+
+    // Generar SKU si no se proporcionó
+    if (!$sku) {
+        $sku = strtoupper(substr($nombre, 0, 3)) . '-' . rand(1000,9999);
+    }
+
+    $image_path = null;
+    if (isset($_FILES['imagen']) && $_FILES['imagen']['error'] === UPLOAD_ERR_OK) {
+        $img_tmp = $_FILES['imagen']['tmp_name'];
+        $img_name = basename($_FILES['imagen']['name']);
+        $img_ext = strtolower(pathinfo($img_name, PATHINFO_EXTENSION));
+        $allowed = ['jpg','jpeg','png','gif','webp'];
+        if (in_array($img_ext, $allowed)) {
+            $dir = '../uploads/products/';
+            if (!is_dir($dir)) mkdir($dir, 0777, true);
+            $new_name = uniqid('prod_') . '.' . $img_ext;
+            $dest = $dir . $new_name;
+            if (move_uploaded_file($img_tmp, $dest)) {
+                $image_path = 'uploads/products/' . $new_name;
+            }
+        }
+    }
+
+    $stmt = $mysqli->prepare("INSERT INTO products (product_name, sku, price, cost_price, quantity, category_id, supplier_id, description, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param('ssdiiisss', $nombre, $sku, $precio, $costo, $cantidad, $categoria, $proveedor, $descripcion, $image_path);
+    $stmt->execute();
+    $product_id = $stmt->insert_id;
+    $stmt->close();
+
+    echo json_encode([
+        'success' => true,
+        'product_id' => $product_id,
+        'producto' => [
+            'product_id' => $product_id,
+            'nombre' => $nombre,
+            'sku' => $sku,
+            'categoria' => $categoria,
+            'proveedor' => $proveedor,
+            'stock' => $cantidad,
+            'imagen' => $image_path
+        ]
+    ]);
+    exit;
+}
 
 $success = $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -842,6 +926,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $('#cliente_select, #producto_select').select2();
         
         console.log('Productos existentes desde PHP:', productosExistentes);
+        console.log('Servicios existentes desde PHP:', serviciosExistentes);
+        console.log('Insumos existentes desde PHP:', insumosExistentes);
         
         // Convertir productos existentes al formato moderno
         productosExistentes.forEach(producto => {
@@ -1544,7 +1630,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     });
 
     // Alta rápida de productos
-    document.getElementById('btn_crear_producto').addEventListener('click', function() {
+    const btnCrearProducto = document.getElementById('btn_crear_producto');
+    if (btnCrearProducto) {
+        btnCrearProducto.addEventListener('click', function() {
         const nombre = document.getElementById('nuevo_nombre_producto').value.trim();
         const descripcion = document.getElementById('nuevo_descripcion_producto').value.trim();
         const sku = document.getElementById('nuevo_sku_producto').value.trim();
@@ -1574,8 +1662,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (imagen) {
             formData.append('imagen', imagen);
         }
+        formData.append('ajax_action', 'crear_producto');
 
-        fetch('../products/add.php', {
+        fetch('editar.php?id=<?= $cotizacion_id ?>', {
             method: 'POST',
             body: formData
         })
@@ -1593,7 +1682,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         cantidad: cantidad,
                         tipo_gestion: 'normal'
                     };
-                    agregarProducto(producto);
+                    productosCotizacion.push(producto);
+                    renderTablaProductos();
+                    recalcularTotales();
                 }
                 
                 // Limpiar campos
@@ -1616,6 +1707,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             alert('Error de conexión al crear producto');
         });
     });
+    }
 
     // SISTEMA MODERNO DE SERVICIOS - Se maneja con las funciones ya definidas arriba
 
@@ -1641,6 +1733,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 sugerencias = '<div class="list-group-item">Sin resultados</div>';
             }
             $('#sugerencias_insumos').html(sugerencias).show();
+        }).fail(function(jqXHR, textStatus, errorThrown) {
+            console.error('Error en búsqueda de insumos:', textStatus, errorThrown);
+            $('#sugerencias_insumos').html('<div class="list-group-item text-danger">Error al buscar insumos</div>').show();
         });
     });
     
@@ -1670,89 +1765,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Evento de descuento
     document.getElementById('descuento_porcentaje').addEventListener('input', actualizarTotales);
-
-    // Alta rápida de productos
-    document.getElementById('btn_crear_producto').addEventListener('click', function() {
-        const nombre = document.getElementById('nuevo_nombre_producto').value.trim();
-        const descripcion = document.getElementById('nuevo_descripcion_producto').value.trim();
-        const sku = document.getElementById('nuevo_sku_producto').value.trim();
-        const precio = parseFloat(document.getElementById('nuevo_precio_producto').value) || 0;
-        const costo = parseFloat(document.getElementById('nuevo_costo_producto').value) || 0;
-        const cantidad = parseInt(document.getElementById('nuevo_cantidad_producto').value) || 1;
-        const categoria_id = document.getElementById('nuevo_categoria_producto').value;
-        const supplier_id = document.getElementById('nuevo_proveedor_producto').value;
-        const agregar_cotizacion = document.getElementById('nuevo_agregar_cotizacion').checked;
-        const imagen = document.getElementById('nuevo_imagen_producto').files[0];
-
-        if (!nombre || !precio) {
-            alert('El nombre y precio son obligatorios');
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append('action', 'create_product');
-        formData.append('nombre', nombre);
-        formData.append('descripcion', descripcion);
-        formData.append('sku', sku);
-        formData.append('precio', precio);
-        formData.append('costo', costo);
-        formData.append('cantidad', cantidad);
-        formData.append('categoria_id', categoria_id);
-        formData.append('supplier_id', supplier_id);
-        if (imagen) {
-            formData.append('imagen', imagen);
-        }
-
-        fetch('../products/add.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert('Producto creado exitosamente');
-                
-                // Limpiar formulario
-                document.getElementById('nuevo_nombre_producto').value = '';
-                document.getElementById('nuevo_descripcion_producto').value = '';
-                document.getElementById('nuevo_sku_producto').value = '';
-                document.getElementById('nuevo_precio_producto').value = '';
-                document.getElementById('nuevo_costo_producto').value = '';
-                document.getElementById('nuevo_cantidad_producto').value = '1';
-                document.getElementById('nuevo_categoria_producto').value = '';
-                document.getElementById('nuevo_proveedor_producto').value = '';
-                document.getElementById('nuevo_imagen_producto').value = '';
-                document.getElementById('nuevo_agregar_cotizacion').checked = false;
-                
-                // Agregar a cotización si está marcado
-                if (agregar_cotizacion && data.product_id) {
-                    const nuevoProducto = {
-                        product_id: data.product_id,
-                        nombre: nombre,
-                        sku: sku,
-                        precio: precio,
-                        cantidad: cantidad,
-                        tipo_gestion: 'tradicional'
-                    };
-                    
-                    productosCotizacion.push(nuevoProducto);
-                    renderTablaProductos();
-                    recalcularTotales();
-                }
-                
-                // Recargar página para actualizar lista de productos
-                setTimeout(() => {
-                    location.reload();
-                }, 1000);
-            } else {
-                alert('Error al crear producto: ' + (data.message || 'Error desconocido'));
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error de conexión al crear producto');
-        });
-    });
     
 </script>
 </body>
