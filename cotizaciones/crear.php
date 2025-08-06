@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once '../auth/middleware.php';
 require_once '../connection.php';
 
@@ -12,6 +12,7 @@ $productos = $mysqli->query("
         p.sku, 
         p.price, 
         p.cost_price,
+        p.description,
         p.tipo_gestion,
         p.image,
         c.name as categoria, 
@@ -26,7 +27,7 @@ $productos = $mysqli->query("
     LEFT JOIN categories c ON p.category_id = c.category_id
     LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id
     LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
-    GROUP BY p.product_id, p.product_name, p.sku, p.price, p.cost_price, p.tipo_gestion, p.image, c.name, s.name, p.quantity
+    GROUP BY p.product_id, p.product_name, p.sku, p.price, p.cost_price, p.description, p.tipo_gestion, p.image, c.name, s.name, p.quantity
     ORDER BY p.product_name ASC
 ");
 $productos_array = $productos ? $productos->fetch_all(MYSQLI_ASSOC) : [];
@@ -211,6 +212,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $observaciones = trim($observaciones);
             $observaciones = preg_replace('/\[IVA_ESPECIAL:[^\]]*\]/', '', $observaciones);
             $observaciones .= ' [IVA_ESPECIAL:' . $iva_especial . ']';
+            $observaciones = trim($observaciones);
+        }
+
+        // Guardar descripciones personalizadas de productos en observaciones
+        $descripcionesPersonalizadas = [];
+        foreach ($productos as $prod) {
+            if (isset($prod['description']) && !empty(trim($prod['description']))) {
+                $product_id = $prod['product_id'] ?? null;
+                if ($product_id) {
+                    $descripcionesPersonalizadas[$product_id] = trim($prod['description']);
+                }
+            }
+        }
+        
+        if (!empty($descripcionesPersonalizadas)) {
+            $observaciones = trim($observaciones);
+            // Eliminar cualquier referencia anterior de descripciones
+            $observaciones = preg_replace('/\[DESCRIPCIONES:[^\]]*\]/', '', $observaciones);
+            // Agregar las nuevas descripciones
+            $observaciones .= ' [DESCRIPCIONES:' . base64_encode(json_encode($descripcionesPersonalizadas)) . ']';
+            $observaciones = trim($observaciones);
+        }
+
+        // Guardar descripciones personalizadas de insumos en observaciones
+        $descripcionesPersonalizadasInsumos = [];
+        foreach ($insumos as $ins) {
+            if (isset($ins['descripcion']) && !empty(trim($ins['descripcion']))) {
+                $insumo_id = $ins['insumo_id'] ?? null;
+                if ($insumo_id) {
+                    $descripcionesPersonalizadasInsumos[$insumo_id] = trim($ins['descripcion']);
+                }
+            }
+        }
+        
+        if (!empty($descripcionesPersonalizadasInsumos)) {
+            $observaciones = trim($observaciones);
+            // Eliminar cualquier referencia anterior de descripciones de insumos
+            $observaciones = preg_replace('/\[DESCRIPCIONES_INSUMOS:[^\]]*\]/', '', $observaciones);
+            // Agregar las nuevas descripciones de insumos
+            $observaciones .= ' [DESCRIPCIONES_INSUMOS:' . base64_encode(json_encode($descripcionesPersonalizadasInsumos)) . ']';
             $observaciones = trim($observaciones);
         }
 
@@ -777,6 +818,141 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background: #007bff;
             color: white;
         }
+        
+        /* ===== CAMPOS EDITABLES MEJORADOS ===== */
+        .nombre-producto-input:hover,
+        .nombre-servicio-input:hover,
+        .nombre-insumo-input:hover {
+            background: #f8f9ff !important;
+            border: 1px solid #007bff !important;
+        }
+        
+        .nombre-producto-input:focus,
+        .nombre-servicio-input:focus,
+        .nombre-insumo-input:focus {
+            background: #fff !important;
+            border: 2px solid #007bff !important;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25) !important;
+            outline: none !important;
+        }
+        
+        .costo-input:hover,
+        .costo-servicio-input:hover,
+        .costo-insumo-input:hover {
+            border-color: #6c757d !important;
+            background: #f8f9fa !important;
+        }
+        
+        .costo-input:focus,
+        .costo-servicio-input:focus,
+        .costo-insumo-input:focus {
+            border-color: #6c757d !important;
+            box-shadow: 0 0 0 2px rgba(108, 117, 125, 0.25) !important;
+            outline: none !important;
+        }
+        
+        /* Mejorar tamaño y usabilidad de inputs de costo */
+        .costo-input,
+        .costo-servicio-input,
+        .costo-insumo-input {
+            min-width: 80px !important;
+            font-size: 0.9rem !important;
+            padding: 6px 8px !important;
+            font-weight: 600 !important;
+        }
+        
+        /* Asegurar que los input-group tengan el ancho correcto */
+        .input-group:has(.costo-input),
+        .input-group:has(.costo-servicio-input),
+        .input-group:has(.costo-insumo-input) {
+            min-width: 110px !important;
+        }
+        
+        /* Indicador visual para campos con costo */
+        .input-group:has(.costo-input),
+        .input-group:has(.costo-servicio-input),
+        .input-group:has(.costo-insumo-input) {
+            transition: all 0.2s ease;
+        }
+        
+        .input-group:has(.costo-input):hover,
+        .input-group:has(.costo-servicio-input):hover,
+        .input-group:has(.costo-insumo-input):hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(108, 117, 125, 0.15);
+        }
+        
+        /* Tooltips para campos de costo */
+        .costo-input[title]:hover::after,
+        .costo-servicio-input[title]:hover::after,
+        .costo-insumo-input[title]:hover::after {
+            content: attr(title);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            white-space: nowrap;
+            z-index: 1000;
+        }
+        
+        /* Mejorar apariencia del icono de búsqueda de Google */
+        .icon-buscar-google:hover {
+            background: #0056b3 !important;
+            transform: scale(1.1);
+            box-shadow: 0 2px 6px rgba(0, 86, 179, 0.3);
+        }
+        
+        /* Mejorar inputs de nombres editables */
+        .nombre-producto-input,
+        .nombre-servicio-input,
+        .nombre-insumo-input {
+            transition: all 0.3s ease !important;
+            cursor: text !important;
+            word-wrap: break-word !important;
+            white-space: pre-wrap !important;
+            resize: vertical !important;
+            font-family: inherit !important;
+        }
+        
+        .nombre-producto-input:hover,
+        .nombre-servicio-input:hover,
+        .nombre-insumo-input:hover {
+            border-color: #007bff !important;
+            background: #f8f9fa !important;
+            box-shadow: 0 2px 4px rgba(0, 123, 255, 0.1) !important;
+        }
+        
+        .nombre-producto-input:focus,
+        .nombre-servicio-input:focus,
+        .nombre-insumo-input:focus {
+            background: #fff !important;
+            border: 2px solid #007bff !important;
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25) !important;
+            outline: none !important;
+            transform: none !important;
+            z-index: 10 !important;
+        }
+        
+        /* Mejorar tabla para dar más espacio a los nombres */
+        table th:nth-child(2),
+        table td:nth-child(2) {
+            min-width: 250px !important;
+            max-width: 400px !important;
+            width: auto !important;
+        }
+        
+        /* Auto-resize para textareas */
+        .nombre-producto-input,
+        .nombre-insumo-input {
+            overflow: hidden !important;
+            resize: none !important;
+        }
+        
         /* Scrollbar personalizado */
         ::-webkit-scrollbar {
             width: 8px;
@@ -936,6 +1112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <th style="padding: 8px 12px; text-align: center; font-size: 0.8rem;">Enlace</th>
                             <th style="padding: 8px 12px; text-align: center; font-size: 0.8rem;">Cantidad</th>
                             <th style="padding: 8px 12px; text-align: center; font-size: 0.8rem;">Precio</th>
+                            <th style="padding: 8px 12px; text-align: center; font-size: 0.8rem; background: #6c757d;">Costo</th>
                             <th style="text-align:center; color:#ffffff; min-width:70px; padding: 8px 12px; font-size: 0.8rem;">Margen</th>
                             <th style="padding: 8px 12px; text-align: center; font-size: 0.8rem;">Subtotal</th>
                             <th style="border-radius: 0 8px 0 0; padding: 8px 6px; text-align: center; font-size: 0.8rem; width: 50px;">Acción</th>
@@ -966,6 +1143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <th style="text-align:center; padding: 8px 12px; font-size: 0.8rem;">Enlace</th>
                             <th style="padding: 8px 12px; text-align: center; font-size: 0.8rem;">Cantidad</th>
                             <th style="padding: 8px 12px; text-align: center; font-size: 0.8rem;">Precio</th>
+                            <th style="padding: 8px 12px; text-align: center; font-size: 0.8rem; background: #6c757d;">Costo</th>
                             <th style="text-align:center; color:#ffffff; min-width:70px; padding: 8px 12px; font-size: 0.8rem;">Margen</th>
                             <th style="padding: 8px 12px; text-align: center; font-size: 0.8rem;">Subtotal</th>
                             <th class="th-accion-dark" style="border-radius: 0 8px 0 0; padding: 8px 6px; font-size: 0.8rem;">Acción</th>
@@ -1092,6 +1270,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <th style="padding: 16px; text-align: center;">Enlace</th>
                             <th style="padding: 16px; text-align: center;">Cantidad</th>
                             <th style="padding: 16px; text-align: center;">Precio</th>
+                            <th style="padding: 16px; text-align: center; background: #6c757d;">Costo</th>
                             <th style="padding: 16px; text-align: center;">Subtotal</th>
                             <th style="border-radius: 0 12px 0 0; padding: 16px; text-align: center;">Acción</th>
                         </tr>
@@ -1615,7 +1794,7 @@ $('#buscador_producto').on('input', function() {
         });
         
         filtrados.forEach(p => {
-            sugerencias += `<button type='button' class='list-group-item list-group-item-action' data-id='${p.product_id}' data-nombre='${p.product_name}' data-sku='${p.sku}' data-categoria='${p.categoria||''}' data-proveedor='${p.proveedor||''}' data-stock='${p.stock_disponible}' data-precio='${p.price}' data-image='${p.image||''}'>
+            sugerencias += `<button type='button' class='list-group-item list-group-item-action' data-id='${p.product_id}' data-nombre='${p.product_name}' data-descripcion='${p.description||''}' data-sku='${p.sku}' data-categoria='${p.categoria||''}' data-proveedor='${p.proveedor||''}' data-stock='${p.stock_disponible}' data-precio='${p.price}' data-image='${p.image||''}'>
                 <b>${p.product_name}</b> <span class='badge bg-${p.stock_disponible > 0 ? 'success' : 'danger'} ms-2'>Stock: ${p.stock_disponible}</span><br>
                 <small>SKU: ${p.sku || '-'} | $${parseFloat(p.price).toFixed(2)}</small>
             </button>`;
@@ -1656,6 +1835,7 @@ $('#sugerencias_productos').on('click', 'button', function() {
     agregarProductoATabla({
         product_id: $(this).data('id'),
         nombre: $(this).data('nombre'),
+        description: $(this).data('descripcion') || '',
         sku: $(this).data('sku'),
         categoria: $(this).data('categoria'),
         proveedor: $(this).data('proveedor'),
@@ -1715,7 +1895,7 @@ $('#btnAgregarProductoRapido').on('click', function() {
                 agregarProductoATabla({
                     product_id: res.producto.product_id,
                     nombre: res.producto.nombre,
-                    descripcion: descripcion, // ✅ Usar descripción del formulario
+                    description: descripcion, // ✅ Usar descripción del formulario
                     sku: res.producto.sku,
                     categoria: res.producto.categoria,
                     proveedor: res.producto.proveedor,
@@ -1739,7 +1919,25 @@ $('#btnAgregarProductoRapido').on('click', function() {
         }
     });
 });
+
+// Función para normalizar producto antes de agregarlo
+function normalizarProducto(producto) {
+    // Asegurar que tengan el campo description y no descripcion
+    if (producto.descripcion && !producto.description) {
+        producto.description = producto.descripcion;
+        delete producto.descripcion; // Eliminar la propiedad antigua
+    }
+    // Si no tiene description, asegurar que esté vacío
+    if (!producto.description) {
+        producto.description = '';
+    }
+    return producto;
+}
+
 function agregarProductoATabla(prod) {
+    // Normalizar el producto antes de agregarlo
+    prod = normalizarProducto(prod);
+    
     if (!prod.tipo_gestion) prod.tipo_gestion = 'pieza';
     
     // Si el producto existe en productosArray, copiar cost_price
@@ -1937,21 +2135,24 @@ function renderTablaProductos() {
         
         html += `
             <tr style="background:#ffffff; border-radius:6px; box-shadow:0 1px 4px rgba(0,0,0,0.08); margin-bottom:8px; border:none; transition:all 0.3s ease; border-left: ${borderStyle} ${borderColor};">
-                <td style="text-align:center; vertical-align:middle; width:60px; padding:8px 6px;">
-                    ${p.image ? `<img src="${p.image.startsWith('uploads/') ? '../' + p.image : '../uploads/products/' + p.image}" alt="${p.nombre}" style="width:40px; height:40px; object-fit:cover; border-radius:6px; border:none; box-shadow:0 1px 3px rgba(0,0,0,0.1);">` : '<div style="width:40px; height:40px; background:#f8f9fa; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#6c757d; font-weight:600; font-size:0.7rem; border:1px solid #dee2e6;">Sin img</div>'}
+                <td style="text-align:center; vertical-align:top; width:70px; padding:8px 6px;">
+                    ${p.image ? `<img src="${p.image.startsWith('uploads/') ? '../' + p.image : '../uploads/products/' + p.image}" alt="${p.nombre}" style="width:65px; height:65px; object-fit:cover; border-radius:6px; border:none; box-shadow:0 1px 3px rgba(0,0,0,0.1);">` : '<div style="width:65px; height:65px; background:#f8f9fa; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#6c757d; font-weight:600; font-size:0.7rem; border:1px solid #dee2e6; text-align:center;">Sin<br>img</div>'}
                 </td>
-                <td style="font-weight:600; color:#495057; padding:8px 10px; min-width:140px; vertical-align:middle;">
-                    <div style="display:flex; flex-direction:column; gap:2px;">
-                        <span style="font-size:0.95rem; color:#212529; line-height:1.2;">${p.nombre}</span>
+                <td style="font-weight:600; color:#495057; padding:8px 10px; min-width:250px; max-width:400px; vertical-align:top;">
+                    <div style="display:flex; flex-direction:column; gap:6px; width:100%;">
+                        <div style="display:flex; align-items:flex-start; gap:6px; width:100%;">
+                            <textarea class="form-control nombre-producto-input" data-index="${i}" style="border:2px solid #e9ecef; background:#fff; padding:6px 8px; font-weight:600; font-size:0.95rem; color:#212529; line-height:1.3; flex:1; border-radius:4px; min-height:38px; max-height:80px; resize:none; overflow:hidden; width:100%;" onblur="actualizarNombreProducto(${i}, this.value)" placeholder="Nombre del producto">${p.nombre || ''}</textarea>
+                            ${p.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google" style="display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; background:#007bff; color:white; border-radius:50%; text-decoration:none; font-size:0.6rem; flex-shrink:0; transition:all 0.2s ease; margin-top:4px;"><i class="bi bi-search"></i></a>` : ''}
+                        </div>
+                        <textarea class="form-control descripcion-producto-input" data-index="${i}" style="border:1px solid #dee2e6; background:#f8f9fa; padding:5px 8px; font-weight:400; font-size:0.85rem; color:#495057; line-height:1.3; width:100%; border-radius:4px; min-height:32px; max-height:60px; resize:none; overflow:hidden;" onblur="actualizarDescripcionProducto(${i}, this.value)" placeholder="Descripción opcional">${p.description || ''}</textarea>
                         ${p.sku ? `<small style="color:#6c757d; font-weight:500; font-size:0.75rem;">SKU: ${p.sku}</small>` : ''}
                         ${esPromocional ? `<small style="color:#28a745; font-weight:600; font-size:0.7rem;"><i class="bi bi-percent"></i> Paquete promocional: ${p.paquete_promocional.nombre}</small>` : ''}
                         ${esBobina && p._tipoVenta ? `<small style="color:${p._tipoVenta === 'bobina_completa' ? '#007bff' : '#ff6b35'}; font-weight:600; font-size:0.7rem;">
                             ${p._tipoVenta === 'bobina_completa' ? `<i class="bi bi-box-seam"></i> ${p._bobinasCompletas} bobina(s) completa(s)` : '<i class="bi bi-rulers"></i> Venta por metros'}
                         </small>` : ''}
-                        ${p.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google" style="margin-top:1px; display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; background:#007bff; color:white; border-radius:50%; text-decoration:none; font-size:0.6rem;"><i class="bi bi-search"></i></a>` : ''}
                     </div>
                 </td>
-                <td style="text-align:center; vertical-align:middle; padding:8px 10px;">
+                <td style="text-align:center; vertical-align:top; padding:8px 10px;">
                     <div style="display:flex; flex-direction:column; align-items:center; gap:3px;">
                         ${p.paquete_id ? `
                             <div style="display:flex; flex-direction:column; align-items:center; gap:3px;">
@@ -1972,20 +2173,35 @@ function renderTablaProductos() {
                         ` : ''}
                     </div>
                 </td>
-                <td style="vertical-align:middle; padding:8px 10px;">
+                <td style="vertical-align:top; padding:8px 10px;">
                     <div style="display:flex; flex-direction:column; align-items:center; gap:3px;">
                         <input type="number" min="${min}" step="${step}" value="${cantidadMostrar}" class="form-control form-control-sm cantidad-input" data-index="${i}" data-paquete-id="${p.paquete_id || ''}" data-tipo-paquete="${p.tipo_paquete || ''}" data-modo-precio="${modoPrecio}" style="width:80px; background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px; text-align:center; font-weight:600; padding:6px; font-size:0.85rem;">
                         <small style="color:#6c757d; font-weight:500; font-size:0.7rem; line-height:1;">${unidad.trim()}</small>
                         ${esBobina && modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA ? `<small style="color:#007bff; font-weight:600; font-size:0.65rem; text-align:center; line-height:1;">(${cantidad.toFixed(0)}m total)</small>` : ''}
                     </div>
                 </td>
-                <td style="vertical-align:middle; padding:8px 10px;">
+                <td style="vertical-align:top; padding:8px 10px;">
                     <div class="input-group" style="width:110px;">
                         <span class="input-group-text" style="background:#28a745; color:white; border:none; border-radius:4px 0 0 4px; font-weight:600; font-size:0.8rem; padding:6px 8px;">$</span>
-                        <input type="number" min="0" step="0.0001" value="${p.precio || ''}" class="form-control form-control-sm precio-input" data-index="${i}" data-modo-precio="${modoPrecio}" style="background:#f8f9fa; border:1px solid #dee2e6; border-left:none; border-radius:0 4px 4px 0; text-align:center; font-weight:600; font-size:0.85rem; padding:6px;">
+                        <input type="number" min="0" step="0.01" value="${p.precio || ''}" class="form-control form-control-sm precio-input" data-index="${i}" data-modo-precio="${modoPrecio}" style="background:#f8f9fa; border:1px solid #dee2e6; border-left:none; border-radius:0 4px 4px 0; text-align:center; font-weight:600; font-size:0.85rem; padding:6px;">
                     </div>
                 </td>
-                <td style="vertical-align:middle; padding:8px 10px;">
+                <td style="vertical-align:top; padding:8px 10px;">
+                    <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
+                        ${costoUnitario !== undefined ? `
+                            <div class="input-group" style="width:110px;">
+                                <span class="input-group-text" style="background:#6c757d; color:white; border:none; border-radius:4px 0 0 4px; font-weight:600; font-size:0.8rem; padding:6px 8px;">$</span>
+                                <input type="number" min="0" step="0.01" value="${costoUnitario.toFixed(2)}" class="form-control form-control-sm costo-input" data-index="${i}" style="background:#f1f3f4; border:1px solid #adb5bd; border-left:none; border-radius:0 4px 4px 0; text-align:center; font-weight:600; font-size:0.9rem; padding:6px;" onblur="actualizarCostoProducto(${i}, this.value)">
+                            </div>
+                            <small style="color:#6c757d; font-weight:500; font-size:0.7rem; text-align:center;">
+                                ${esBobina && p._modoPrecio === PRECIO_CONFIG.modosPrecio.POR_METRO ? 'por metro' : esBobina && p._modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA ? 'por bobina' : 'unitario'}
+                            </small>
+                        ` : `
+                            <span style="color:#adb5bd; font-size:0.8rem; font-style:italic;">Sin costo</span>
+                        `}
+                    </div>
+                </td>
+                <td style="vertical-align:top; padding:8px 10px;">
                     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
                         <input type="number" min="-99" max="99" step="0.01" value="${margen}" class="form-control form-control-sm margen-producto-input" data-index="${i}" style="width:65px; text-align:center; font-weight:700; background:${margenNegativo ? '#f8d7da' : '#d4edda'}; color:${margenNegativo ? '#dc3545' : '#28a745'}; border:1px solid ${margenNegativo ? '#f5c6cb' : '#c3e6cb'}; border-radius:4px; font-size:0.8rem; padding:4px;" title="Editar margen (%)" ${costoUnitario === undefined ? 'disabled' : ''}>
                         <span style="font-size:0.7rem; color:#6c757d; font-weight:500;">
@@ -1993,13 +2209,13 @@ function renderTablaProductos() {
                         </span>
                     </div>
                 </td>
-                <td style="vertical-align:middle; padding:8px 10px;">
+                <td style="vertical-align:top; padding:8px 10px;">
                     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:1px;">
                         <span style="font-size:1rem; font-weight:700; color:#007bff;">$${sub.toFixed(2)}</span>
                     </div>
                 </td>
-                <td style="width:50px; text-align:center; vertical-align:middle; padding:6px;">
-                    <div style="display:flex; justify-content:center; align-items:center; height:100%;">
+                <td style="width:50px; text-align:center; vertical-align:top; padding:6px;">
+                    <div style="display:flex; justify-content:center; align-items:flex-start; height:100%; padding-top:4px;">
                         <button type="button" class="btn btn-outline-danger btn-sm btn-eliminar-producto" data-idx="${i}" style="width:30px; height:30px; display:flex; justify-content:center; align-items:center; padding:0; border-radius:6px; border:1px solid #dc3545; transition:all 0.3s ease;">
                             <i class="bi bi-trash" style="font-size:0.8rem;"></i>
                         </button>
@@ -2189,6 +2405,55 @@ function renderTablaProductos() {
         }
         }, 300); // Debounce de 300ms
     });
+}
+
+// Función para actualizar el nombre/descripción del producto
+function actualizarNombreProducto(index, nuevoNombre) {
+    if (productosCotizacion[index]) {
+        productosCotizacion[index].nombre = nuevoNombre.trim();
+        guardarBorrador();
+        mostrarNotificacion('Nombre del producto actualizado', 'success');
+    }
+}
+
+// Función para actualizar la descripción del producto
+function actualizarDescripcionProducto(index, nuevaDescripcion) {
+    if (productosCotizacion[index]) {
+        productosCotizacion[index].description = nuevaDescripcion.trim();
+        guardarBorrador();
+        mostrarNotificacion('Descripción del producto actualizada', 'success');
+    }
+}
+
+// Función para actualizar el costo del producto
+function actualizarCostoProducto(index, nuevoCosto) {
+    if (productosCotizacion[index]) {
+        const costo = parseFloat(nuevoCosto) || 0;
+        productosCotizacion[index].cost_price = costo;
+        
+        // Recalcular margen automáticamente
+        const prod = productosCotizacion[index];
+        const esBobina = prod.tipo_gestion === 'bobina';
+        const precio = parseFloat(prod.precio) || 0;
+        
+        if (precio > 0 && costo > 0) {
+            let costoUnitario = costo;
+            
+            // Para bobinas, ajustar el costo según el modo
+            if (esBobina && prod._modoPrecio === PRECIO_CONFIG.modosPrecio.POR_METRO) {
+                costoUnitario = costo / PRECIO_CONFIG.metrosPorBobina; // Costo por metro
+            }
+            
+            // Calcular margen sobre precio de venta
+            const margen = ((precio - costoUnitario) / precio) * 100;
+            prod.margen = margen;
+        }
+        
+        // Re-renderizar tabla para mostrar cambios
+        renderTablaProductos();
+        guardarBorrador();
+        mostrarNotificacion('Costo actualizado y margen recalculado', 'success');
+    }
 }
 
 // Eventos para cantidad de productos - Mejorados para bobinas completas vs metros
@@ -2514,6 +2779,35 @@ $(document).on('click', '.cambiar-modo-btn', function() {
 });
 
 // --- SERVICIOS ---
+// Función para actualizar el nombre/descripción del servicio
+function actualizarNombreServicio(index, nuevoNombre) {
+    if (serviciosCotizacion[index]) {
+        serviciosCotizacion[index].nombre = nuevoNombre.trim();
+        guardarBorrador();
+        mostrarNotificacion('Nombre del servicio actualizado', 'success');
+    }
+}
+
+// Función para actualizar el costo del servicio
+function actualizarCostoServicio(index, nuevoCosto) {
+    if (serviciosCotizacion[index]) {
+        const costo = parseFloat(nuevoCosto) || 0;
+        serviciosCotizacion[index].costo = costo;
+        
+        // Recalcular margen si hay precio
+        const servicio = serviciosCotizacion[index];
+        const precio = parseFloat(servicio.precio) || 0;
+        
+        if (precio > 0 && costo > 0) {
+            const margen = ((precio - costo) / precio) * 100;
+            servicio.margen = margen;
+        }
+        
+        guardarBorrador();
+        mostrarNotificacion('Costo del servicio actualizado', 'success');
+    }
+}
+
 $('#buscador_servicio').on('input', function() {
     const query = normalizarTexto($(this).val());
     let sugerencias = '';
@@ -2585,7 +2879,7 @@ function renderTablaServicios() {
                 </td>
                 <td style="font-weight:600; color:#495057; padding:16px 12px; min-width:180px; vertical-align:middle;">
                     <div style="display:flex; flex-direction:column; gap:4px;">
-                        <span style="font-size:1.1rem; color:#212529;">${s.nombre}</span>
+                        <input type="text" value="${s.nombre}" class="form-control form-control-sm nombre-servicio-input" data-index="${i}" style="border:1px solid transparent; background:transparent; padding:2px 4px; font-weight:600; font-size:1.1rem; color:#212529;" onblur="actualizarNombreServicio(${i}, this.value)" placeholder="Nombre del servicio">
                         ${s.tiempo_estimado ? `<small style="color:#6c757d; font-weight:500;">Tiempo: ${s.tiempo_estimado}h</small>` : ''}
                         ${esPromocional ? `<small style="color:#28a745; font-weight:600; font-size:0.7rem;"><i class="bi bi-percent"></i> Paquete promocional: ${s.paquete_promocional.nombre}</small>` : ''}
                     </div>
@@ -2611,6 +2905,23 @@ function renderTablaServicios() {
                     <div class="input-group" style="width:130px;">
                         <span class="input-group-text" style="background:#28a745; color:white; border:none; border-radius:6px 0 0 6px; font-weight:600;">$</span>
                         <input type="number" min="0" step="0.01" value="${s.precio || ''}" class="form-control form-control-sm precio-servicio-input" data-index="${i}" style="background:#f8f9fa; border:2px solid #dee2e6; border-left:none; border-radius:0 6px 6px 0; text-align:center; font-weight:600;">
+                    </div>
+                </td>
+                <td style="vertical-align:middle; padding:16px 12px;">
+                    <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
+                        ${s.costo !== undefined && s.costo !== null && s.costo !== '' ? `
+                            <div class="input-group" style="width:130px;">
+                                <span class="input-group-text" style="background:#6c757d; color:white; border:none; border-radius:6px 0 0 6px; font-weight:600; font-size:0.85rem; padding:8px;">$</span>
+                                <input type="number" min="0" step="0.01" value="${parseFloat(s.costo).toFixed(2)}" class="form-control form-control-sm costo-servicio-input" data-index="${i}" style="background:#f1f3f4; border:2px solid #adb5bd; border-left:none; border-radius:0 6px 6px 0; text-align:center; font-weight:600; font-size:0.9rem; padding:8px;" onblur="actualizarCostoServicio(${i}, this.value)">
+                            </div>
+                            <small style="color:#6c757d; font-weight:500; font-size:0.75rem;">por servicio</small>
+                        ` : `
+                            <div class="input-group" style="width:130px;">
+                                <span class="input-group-text" style="background:#6c757d; color:white; border:none; border-radius:6px 0 0 6px; font-weight:600; font-size:0.85rem; padding:8px;">$</span>
+                                <input type="number" min="0" step="0.01" value="0" class="form-control form-control-sm costo-servicio-input" data-index="${i}" style="background:#f1f3f4; border:2px solid #adb5bd; border-left:none; border-radius:0 6px 6px 0; text-align:center; font-weight:600; font-size:0.9rem; padding:8px;" onblur="actualizarCostoServicio(${i}, this.value)" placeholder="Sin costo">
+                            </div>
+                            <small style="color:#adb5bd; font-size:0.75rem; font-style:italic;">Sin costo</small>
+                        `}
                     </div>
                 </td>
                 <td style="font-weight:700; color:#007bff; padding:16px 12px; text-align:right; vertical-align:middle;">
@@ -2994,6 +3305,7 @@ function aplicarPaqueteCotizacion(idx, event) {
                 productosCotizacion.push({
                     product_id: prod.product_id,
                     nombre: prod.product_name,
+                    description: prod.description || '',
                     sku: prod.sku,
                     categoria: prod.categoria,
                     proveedor: prod.proveedor,
@@ -3484,7 +3796,10 @@ function restaurarBorrador() {
     $('#cliente_telefono').val(datos.cliente_telefono || '');
     $('#cliente_ubicacion').val(datos.cliente_ubicacion || '');
     $('#cliente_email').val(datos.cliente_email || '');
-    productosCotizacion = datos.productos || [];
+    
+    // Normalizar descripciones en productos
+    productosCotizacion = (datos.productos || []).map(prod => normalizarProducto(prod));
+    
     serviciosCotizacion = datos.servicios || [];
     insumosCotizacion = datos.insumos || [];
     renderTablaProductos();
@@ -3569,6 +3884,47 @@ $(document).ready(function() {
 //     limpiarBorrador();
 // });
 
+// Función para actualizar el nombre/descripción del insumo
+function actualizarNombreInsumo(index, nuevoNombre) {
+    if (insumosCotizacion[index]) {
+        insumosCotizacion[index].nombre = nuevoNombre.trim();
+        guardarBorrador();
+        mostrarNotificacion('Nombre del insumo actualizado', 'success');
+    }
+}
+
+// Función para actualizar la descripción del insumo
+function actualizarDescripcionInsumo(index, nuevaDescripcion) {
+    if (insumosCotizacion[index]) {
+        insumosCotizacion[index].descripcion = nuevaDescripcion.trim();
+        guardarBorrador();
+        mostrarNotificacion('Descripción del insumo actualizada', 'success');
+    }
+}
+
+// Función para actualizar el costo del insumo
+function actualizarCostoInsumo(index, nuevoCosto) {
+    if (insumosCotizacion[index]) {
+        const costo = parseFloat(nuevoCosto) || 0;
+        insumosCotizacion[index].costo = costo;
+        insumosCotizacion[index].cost_price = costo; // Mantener compatibilidad
+        
+        // Recalcular margen si hay precio
+        const insumo = insumosCotizacion[index];
+        const precio = parseFloat(insumo.precio) || 0;
+        
+        if (precio > 0 && costo > 0) {
+            const margen = ((precio - costo) / precio) * 100;
+            insumo.margen = margen;
+        }
+        
+        // Re-renderizar tabla para mostrar cambios
+        renderTablaInsumos();
+        guardarBorrador();
+        mostrarNotificacion('Costo del insumo actualizado y margen recalculado', 'success');
+    }
+}
+
 // --- INSUMOS ---
 // let insumosCotizacion = [];
 $('#buscador_insumo').on('input', function() {
@@ -3613,7 +3969,7 @@ $('#sugerencias_insumos').on('click', 'button', function() {
     const precioBolsa = parseFloat($(this).data('precio')) || 0;
     let precioFinal = '';
     if (equivalencia > 1 && precioBolsa > 0) {
-        precioFinal = (precioBolsa / equivalencia).toFixed(4);
+        precioFinal = (precioBolsa / equivalencia).toFixed(2);
     } else {
         precioFinal = precioBolsa;
     }
@@ -3696,17 +4052,22 @@ function renderTablaInsumos() {
 
         html += `
             <tr style="background:#ffffff; border-radius:6px; box-shadow:0 1px 4px rgba(0,0,0,0.08); margin-bottom:8px; border:none; transition:all 0.3s ease; border-left: ${borderStyle} ${borderColor};">
-                <td style="text-align:center; vertical-align:middle; padding:8px 6px;">
-                    ${imagenPath ? `<img src="${imagenPath}" alt="${ins.nombre}" style="width:40px; height:40px; object-fit:cover; border-radius:6px; border:none; box-shadow:0 1px 3px rgba(0,0,0,0.1);">` : '<div style="width:40px; height:40px; background:#f8f9fa; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#6c757d; font-weight:600; font-size:0.7rem; border:1px solid #dee2e6;">Sin img</div>'}
+                <td style="text-align:center; vertical-align:top; padding:8px 6px; width:90px;">
+                    ${imagenPath ? `<img src="${imagenPath}" alt="${ins.nombre}" style="width:65px; height:65px; object-fit:cover; border-radius:8px; border:2px solid #e9ecef; box-shadow:0 2px 4px rgba(0,0,0,0.1);">` : '<div style="width:65px; height:65px; background:#f8f9fa; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#6c757d; font-weight:600; font-size:0.7rem; border:2px solid #dee2e6; text-align:center; line-height:1.1;">Sin<br>imagen</div>'}
                 </td>
-                <td style="font-weight:600; color:#495057; padding:8px 10px; min-width:140px; vertical-align:middle;">
-                    <div style="display:flex; flex-direction:column; gap:2px;">
-                        <span style="font-size:0.95rem; color:#212529; line-height:1.2;">${ins.nombre}</span>
-                        ${esPromocional ? `<small style="color:#28a745; font-weight:600; font-size:0.7rem;"><i class="bi bi-percent"></i> Paquete promocional: ${ins.paquete_promocional.nombre}</small>` : ''}
-                        ${ins.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google" style="margin-top:1px; display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; background:#007bff; color:white; border-radius:50%; text-decoration:none; font-size:0.6rem;"><i class="bi bi-search"></i></a>` : ''}
+                <td style="font-weight:600; color:#495057; padding:8px 10px; width:35%; min-width:280px; vertical-align:top;">
+                    <div style="display:flex; flex-direction:column; gap:3px; width:100%;">
+                        <div style="display:flex; align-items:flex-start; gap:6px; width:100%;">
+                            <div style="flex:1; display:flex; flex-direction:column; gap:3px;">
+                                <textarea class="form-control nombre-insumo-input" data-index="${i}" style="border:2px solid #e9ecef; background:#fff; padding:6px 10px; font-weight:600; font-size:0.95rem; color:#212529; line-height:1.3; border-radius:5px; min-height:38px; max-height:80px; resize:none; overflow:hidden; width:100%; word-wrap:break-word; white-space:pre-wrap;" onblur="actualizarNombreInsumo(${i}, this.value)" placeholder="Nombre del insumo">${ins.nombre}</textarea>
+                                <textarea class="form-control descripcion-insumo-input" data-index="${i}" style="border:1px solid #dee2e6; background:#f8f9fa; padding:5px 8px; font-weight:400; font-size:0.85rem; color:#6c757d; line-height:1.2; border-radius:4px; min-height:32px; max-height:60px; resize:none; overflow:hidden; width:100%; word-wrap:break-word; white-space:pre-wrap;" onblur="actualizarDescripcionInsumo(${i}, this.value)" placeholder="Descripción opcional">${ins.descripcion || ''}</textarea>
+                            </div>
+                            ${ins.nombre ? `<a href="https://www.google.com/search?q=${nombreGoogle}" target="_blank" title="Buscar en Google" class="icon-buscar-google" style="display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; background:#007bff; color:white; border-radius:50%; text-decoration:none; font-size:0.65rem; flex-shrink:0; transition:all 0.2s ease; margin-top:6px;"><i class="bi bi-search"></i></a>` : ''}
+                        </div>
+                        ${esPromocional ? `<small style="color:#28a745; font-weight:600; font-size:0.7rem; margin-top:2px;"><i class="bi bi-percent"></i> Paquete promocional: ${ins.paquete_promocional.nombre}</small>` : ''}
                     </div>
                 </td>
-                <td style="text-align:center; vertical-align:middle; padding:8px 10px;">
+                <td style="text-align:center; vertical-align:top; padding:8px 10px; width:120px;">
                     ${ins.paquete_id ? `
                         <div style="display:flex; flex-direction:column; align-items:center; gap:3px;">
                             <span class="badge" style="background:#17a2b8; color:white; font-size:0.7rem; padding:4px 6px; border-radius:4px; font-weight:600; display:flex; align-items:center; gap:3px;">
@@ -3719,30 +4080,47 @@ function renderTablaInsumos() {
                         </div>
                     ` : `<button type="button" class="btn btn-sm" onclick="conectarInsumoAPaquete(${i})" title="Conectar a paquete inteligente" style="background:#17a2b8; color:white; border:none; border-radius:4px; padding:4px 8px; font-weight:600; transition:all 0.3s ease; font-size:0.75rem;"><i class="bi bi-link"></i> Conectar</button>`}
                 </td>
-                <td style="vertical-align:middle; padding:8px 10px;">
-                    <input type="number" min="0.01" step="0.01" value="${ins.cantidad}" class="form-control form-control-sm cantidad-insumo-input" data-index="${i}" data-paquete-id="${ins.paquete_id || ''}" data-tipo-paquete="${ins.tipo_paquete || ''}" style="width:80px; background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px; text-align:center; font-weight:600; padding:6px; font-size:0.85rem;">
+                <td style="vertical-align:top; padding:8px 10px; width:90px;">
+                    <input type="number" min="0.01" step="0.01" value="${ins.cantidad}" class="form-control form-control-sm cantidad-insumo-input" data-index="${i}" data-paquete-id="${ins.paquete_id || ''}" data-tipo-paquete="${ins.tipo_paquete || ''}" style="width:75px; background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px; text-align:center; font-weight:600; padding:6px; font-size:0.9rem;">
                 </td>
-                <td style="vertical-align:middle; padding:8px 10px;">
-                    <div class="input-group" style="width:110px;">
+                <td style="vertical-align:top; padding:8px 10px; width:130px;">
+                    <div class="input-group" style="width:120px;">
                         <span class="input-group-text" style="background:#28a745; color:white; border:none; border-radius:4px 0 0 4px; font-weight:600; font-size:0.8rem; padding:6px 8px;">$</span>
-                        <input type="number" min="0" step="0.0001" value="${ins.precio || ''}" class="form-control form-control-sm precio-insumo-input" data-index="${i}" style="background:#f8f9fa; border:1px solid #dee2e6; border-left:none; border-radius:0 4px 4px 0; text-align:center; font-weight:600; font-size:0.85rem; padding:6px;">
+                        <input type="number" min="0" step="0.01" value="${ins.precio || ''}" class="form-control form-control-sm precio-insumo-input" data-index="${i}" style="background:#f8f9fa; border:1px solid #dee2e6; border-left:none; border-radius:0 4px 4px 0; text-align:center; font-weight:600; font-size:0.9rem; padding:6px;">
                     </div>
                 </td>
-                <td style="vertical-align:middle; padding:8px 10px;">
-                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
-                        <input type="number" min="0" max="99" step="0.01" value="${margen}" class="form-control form-control-sm margen-insumo-input" data-index="${i}" style="width:65px; text-align:center; font-weight:700; background:${margenNegativo ? '#f8d7da' : '#d4edda'}; color:${margenNegativo ? '#dc3545' : '#28a745'}; border:1px solid ${margenNegativo ? '#f5c6cb' : '#c3e6cb'}; border-radius:4px; font-size:0.8rem; padding:4px;" title="Editar margen (%)" ${costoReal === undefined ? 'disabled' : ''}>
-                        ${(costoReal === undefined) ? '<span style="font-size:0.7rem; color:#dc3545; font-weight:500;">Sin costo</span>' : '<span style="font-size:0.7rem; color:#6c757d; font-weight:500;"></span>'}
+                <td style="vertical-align:top; padding:8px 10px; width:130px;">
+                    <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
+                        ${costoReal !== undefined ? `
+                            <div class="input-group" style="width:120px;">
+                                <span class="input-group-text" style="background:#6c757d; color:white; border:none; border-radius:4px 0 0 4px; font-weight:600; font-size:0.8rem; padding:6px 8px;">$</span>
+                                <input type="number" min="0" step="0.01" value="${costoReal.toFixed(2)}" class="form-control form-control-sm costo-insumo-input" data-index="${i}" style="background:#f1f3f4; border:1px solid #adb5bd; border-left:none; border-radius:0 4px 4px 0; text-align:center; font-weight:600; font-size:0.9rem; padding:6px;" onblur="actualizarCostoInsumo(${i}, this.value)">
+                            </div>
+                            <small style="color:#6c757d; font-weight:500; font-size:0.7rem; text-align:center;">unitario</small>
+                        ` : `
+                            <div class="input-group" style="width:120px;">
+                                <span class="input-group-text" style="background:#6c757d; color:white; border:none; border-radius:4px 0 0 4px; font-weight:600; font-size:0.8rem; padding:6px 8px;">$</span>
+                                <input type="number" min="0" step="0.01" value="0" class="form-control form-control-sm costo-insumo-input" data-index="${i}" style="background:#f1f3f4; border:1px solid #adb5bd; border-left:none; border-radius:0 4px 4px 0; text-align:center; font-weight:600; font-size:0.9rem; padding:6px;" onblur="actualizarCostoInsumo(${i}, this.value)" placeholder="Sin costo">
+                            </div>
+                            <small style="color:#adb5bd; font-size:0.7rem; font-style:italic;">Sin costo</small>
+                        `}
                     </div>
                 </td>
-                <td style="vertical-align:middle; padding:8px 10px;">
-                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:1px;">
-                        <span style="font-size:1rem; font-weight:700; color:#007bff;">$${sub.toFixed(2)}</span>
+                <td style="vertical-align:top; padding:8px 10px; width:85px;">
+                    <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
+                        <input type="number" min="0" max="99" step="0.01" value="${margen}" class="form-control form-control-sm margen-insumo-input" data-index="${i}" style="width:70px; text-align:center; font-weight:700; background:${margenNegativo ? '#f8d7da' : '#d4edda'}; color:${margenNegativo ? '#dc3545' : '#28a745'}; border:1px solid ${margenNegativo ? '#f5c6cb' : '#c3e6cb'}; border-radius:4px; font-size:0.85rem; padding:4px;" title="Editar margen (%)" ${costoReal === undefined ? 'disabled' : ''}>
+                        ${(costoReal === undefined) ? '<span style="font-size:0.7rem; color:#dc3545; font-weight:500;">Sin costo</span>' : '<span style="font-size:0.7rem; color:#6c757d; font-weight:500;">%</span>'}
                     </div>
                 </td>
-                <td style="width:50px; text-align:center; vertical-align:middle; padding:6px;">
-                    <div style="display:flex; justify-content:center; align-items:center; height:100%;">
-                        <button type="button" class="btn btn-outline-danger btn-sm btn-eliminar-insumo" data-idx="${i}" title="Eliminar insumo" style="width:30px; height:30px; display:flex; justify-content:center; align-items:center; padding:0; border-radius:6px; border:1px solid #dc3545; transition:all 0.3s ease;">
-                            <i class="bi bi-trash" style="font-size:0.8rem;"></i>
+                <td style="vertical-align:top; padding:8px 10px; width:120px;">
+                    <div style="display:flex; flex-direction:column; align-items:center; gap:1px;">
+                        <span style="font-size:1.1rem; font-weight:700; color:#007bff;">$${sub.toFixed(2)}</span>
+                    </div>
+                </td>
+                <td style="width:60px; text-align:center; vertical-align:top; padding:6px;">
+                    <div style="display:flex; justify-content:center; align-items:flex-start; height:100%; padding-top:4px;">
+                        <button type="button" class="btn btn-outline-danger btn-sm btn-eliminar-insumo" data-idx="${i}" title="Eliminar insumo" style="width:32px; height:32px; display:flex; justify-content:center; align-items:center; padding:0; border-radius:6px; border:1px solid #dc3545; transition:all 0.3s ease;">
+                            <i class="bi bi-trash" style="font-size:0.85rem;"></i>
                         </button>
                     </div>
                 </td>
@@ -3810,7 +4188,7 @@ function renderTablaInsumos() {
         if (ins && costoReal !== undefined && !isNaN(porcentaje) && porcentaje >= 0) {
             // Calcular nuevo precio según margen sobre costo
             const nuevoPrecio = costoReal * (1 + porcentaje / 100);
-            ins.precio = parseFloat(nuevoPrecio.toFixed(4));
+            ins.precio = parseFloat(nuevoPrecio.toFixed(2));
             // Actualizar el margen en el objeto insumo
             ins.margen = porcentaje;
             // Re-renderizar la tabla para mostrar el margen actualizado
@@ -3915,7 +4293,7 @@ $(document).on('input', '.precio-insumo-input', function() {
     
     // Validación básica sin re-renderizar
     if (value && !isNaN(value) && value >= 0) {
-        ins.precio = parseFloat(value.toFixed(4));
+        ins.precio = parseFloat(value.toFixed(2));
         $(this).removeClass('is-invalid');
     } else {
         $(this).addClass('is-invalid');
@@ -4318,6 +4696,51 @@ if (paquetesPanel) {
         subtree: true
     });
 }
+
+// Función para auto-redimensionar textareas
+function autoResizeTextarea(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.max(45, textarea.scrollHeight) + 'px';
+}
+
+// Event listeners para auto-redimensionar textareas de nombres y descripciones
+$(document).on('input keyup paste', '.nombre-producto-input, .nombre-insumo-input, .descripcion-producto-input, .descripcion-insumo-input', function() {
+    autoResizeTextarea(this);
+});
+
+// Auto-redimensionar al cargar contenido
+$(document).on('focus', '.nombre-producto-input, .nombre-insumo-input, .descripcion-producto-input, .descripcion-insumo-input', function() {
+    autoResizeTextarea(this);
+});
+
+// Inicializar auto-redimensionado después de renderizar tablas
+function initAutoResize() {
+    $('.nombre-producto-input, .nombre-insumo-input, .descripcion-producto-input, .descripcion-insumo-input').each(function() {
+        autoResizeTextarea(this);
+    });
+}
+
+// Ejecutar después de cada renderizado
+const originalRenderTablaProductos = renderTablaProductos;
+renderTablaProductos = function() {
+    originalRenderTablaProductos.apply(this, arguments);
+    setTimeout(initAutoResize, 100);
+};
+
+const originalRenderTablaInsumos = renderTablaInsumos;
+renderTablaInsumos = function() {
+    originalRenderTablaInsumos.apply(this, arguments);
+    setTimeout(initAutoResize, 100);
+};
+
+// Función para limpiar inconsistencias existentes al cargar la página
+$(document).ready(function() {
+    // Normalizar productos existentes si los hay
+    if (productosCotizacion && productosCotizacion.length > 0) {
+        productosCotizacion = productosCotizacion.map(prod => normalizarProducto(prod));
+        renderTablaProductos(); // Re-renderizar para mostrar las descripciones correctamente
+    }
+});
 
 </script>
 </body>

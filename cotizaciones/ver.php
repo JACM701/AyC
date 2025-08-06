@@ -27,6 +27,26 @@ if (!$cotizacion) {
     exit;
 }
 
+// Extraer descripciones personalizadas de las observaciones
+$descripcionesPersonalizadas = [];
+if (!empty($cotizacion['observaciones']) && preg_match('/\[DESCRIPCIONES:([^\]]+)\]/', $cotizacion['observaciones'], $match)) {
+    $descripcionesData = base64_decode($match[1]);
+    $descripcionesJson = json_decode($descripcionesData, true);
+    if (is_array($descripcionesJson)) {
+        $descripcionesPersonalizadas = $descripcionesJson;
+    }
+}
+
+// Extraer descripciones personalizadas de insumos de las observaciones
+$descripcionesPersonalizadasInsumos = [];
+if (!empty($cotizacion['observaciones']) && preg_match('/\[DESCRIPCIONES_INSUMOS:([^\]]+)\]/', $cotizacion['observaciones'], $match)) {
+    $descripcionesData = base64_decode($match[1]);
+    $descripcionesJson = json_decode($descripcionesData, true);
+    if (is_array($descripcionesJson)) {
+        $descripcionesPersonalizadasInsumos = $descripcionesJson;
+    }
+}
+
 // Obtener productos de la cotización
 $stmt = $mysqli->prepare("
     SELECT cp.*, p.product_name, p.description, p.sku, p.image as product_image, p.cost_price, p.tipo_gestion,
@@ -212,7 +232,12 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
         }
         .tabla-cotizacion th { background: #232a7c; color: #fff; font-size: 1rem; }
         .tabla-cotizacion td.descripcion { text-align: left; font-size: 0.97rem; }
-        .tabla-cotizacion td.imagen { background: #f7f9fc; }
+        .tabla-cotizacion td.imagen { 
+            background: #f7f9fc; 
+            width: 100px; 
+            height: 100px; 
+            padding: 4px; 
+        }
         .tabla-cotizacion td.precio-total { font-weight: 700; color: #232a7c; }
         .tabla-cotizacion td.costo-total { background: #e0e0e0; color: #232a7c; font-weight: 500; }
         .tabla-cotizacion tfoot td { font-weight: 700; background: #f4f6fb; color: #121866; }
@@ -534,11 +559,13 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
         </div>
 
         <div class="cotizacion-header">
-            <img src="../assets/img/LogoWeb.png" alt="Logo empresa" class="logo-empresa">
+            <img src="../assets/img/LogoWeb.png" alt="Logo empresa" class="logo-empresa" style="height: 160px; margin-right: 18px;">
             <div class="datos-empresa">
-                <h2>ALARMAS & CAMARAS DEL SURESTE</h2>
-                <p>999 134 3979</p>
-                <p>Mérida, Yucatán</p>
+                <p style="margin: 0; font-size: 1rem; color: #232a7c;">999-270-3642</p>
+                <div class="direccion-fija" style="margin: 5px 0; color: #232a7c;">
+                    <strong>Dirección:</strong><br>
+                    Calle 20 #45B, Leandro Valle, Mérida, Yucatán
+                </div>
             </div>
             <div class="cotizacion-info">
                 <div class="titulo-cot quote-title">
@@ -638,8 +665,23 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                         <td><?= $i++ ?></td>
                         <td class="descripcion">
                             <?php
-                            // Mostrar descripción si existe, si no mostrar el nombre del producto
-                            $descripcion = $producto['description'] ?? $producto['product_name'] ?? $producto['descripcion'] ?? 'Producto sin descripción';
+                            // Priorizar descripción personalizada, luego descripción original, luego nombre del producto
+                            $product_id = $producto['product_id'];
+                            $descripcion = '';
+                            
+                            // 1. Verificar si hay descripción personalizada
+                            if (isset($descripcionesPersonalizadas[$product_id]) && !empty(trim($descripcionesPersonalizadas[$product_id]))) {
+                                $descripcion = $descripcionesPersonalizadas[$product_id];
+                            }
+                            // 2. Si no, usar descripción original del producto
+                            elseif (!empty(trim($producto['description']))) {
+                                $descripcion = $producto['description'];
+                            }
+                            // 3. Si no, usar el nombre del producto como fallback
+                            else {
+                                $descripcion = $producto['product_name'] ?? 'Producto sin descripción';
+                            }
+                            
                             echo htmlspecialchars($descripcion);
                             
                             // Mostrar badge "Sin stock" si el stock actual es menor que la cantidad requerida
@@ -668,7 +710,7 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                             }
                             ?>
                             <?php if ($img): ?>
-                                <img src="../<?= htmlspecialchars($img) ?>" alt="Imagen" style="height:38px;">
+                                <img src="../<?= htmlspecialchars($img) ?>" alt="Imagen" style="width:90px; height:90px; object-fit:cover; border-radius:6px; border:none; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
                             <?php else: ?>
                                 <span style="color:#ccc;">Sin imagen</span>
                             <?php endif; ?>
@@ -797,7 +839,22 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                     <tr>
                         <td><?= $i++ ?></td>
                         <td class="descripcion" style="max-width:320px;word-break:break-word;white-space:normal;">
-                            <strong><?= htmlspecialchars($insumo['nombre_insumo'] ?? $insumo['insumo_nombre']) ?></strong>
+                            <?php
+                            // Priorizar descripción personalizada, luego nombre del insumo
+                            $insumo_id = $insumo['insumo_id'];
+                            $descripcion = '';
+                            
+                            // 1. Verificar si hay descripción personalizada
+                            if (isset($descripcionesPersonalizadasInsumos[$insumo_id]) && !empty(trim($descripcionesPersonalizadasInsumos[$insumo_id]))) {
+                                $descripcion = $descripcionesPersonalizadasInsumos[$insumo_id];
+                            }
+                            // 2. Si no, usar el nombre del insumo como fallback
+                            else {
+                                $descripcion = $insumo['nombre_insumo'] ?? $insumo['insumo_nombre'] ?? 'Insumo sin descripción';
+                            }
+                            
+                            echo '<strong>' . htmlspecialchars($descripcion) . '</strong>';
+                            ?>
                             <?php if ($insumo['categoria'] || $insumo['categoria_nombre']): ?>
                                 <br><span class="badge bg-info" style="font-size: 0.75rem;"><?= htmlspecialchars($insumo['categoria'] ?? $insumo['categoria_nombre']) ?></span>
                             <?php endif; ?>
@@ -812,7 +869,7 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                             }
                             ?>
                             <?php if ($img): ?>
-                                <img src="../<?= htmlspecialchars($img) ?>" alt="Imagen Insumo" style="height:38px;">
+                                <img src="../<?= htmlspecialchars($img) ?>" alt="Imagen Insumo" style="width:90px; height:90px; object-fit:cover; border-radius:6px; border:none; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
                             <?php else: ?>
                                 <span style="color:#ccc;"><i class="bi bi-tools"></i> Insumo</span>
                             <?php endif; ?>
@@ -846,7 +903,7 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                             }
                             ?>
                             <?php if ($img): ?>
-                                <img src="../<?= htmlspecialchars($img) ?>" alt="Imagen" style="height:38px;">
+                                <img src="../<?= htmlspecialchars($img) ?>" alt="Imagen" style="width:90px; height:90px; object-fit:cover; border-radius:6px; border:none; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
                             <?php else: ?>
                                 <span style="color:#ccc;"><i class="bi bi-tools"></i> Servicio</span>
                             <?php endif; ?>
@@ -1068,24 +1125,20 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
 </div>
 <script>
-// Personalización de encabezado desde localStorage
+// Personalización de encabezado desde localStorage - DESACTIVADO PARA MANTENER DATOS FIJOS
 (function() {
+  // Solo mantener logos dinámicos si es necesario
   const cfg = JSON.parse(localStorage.getItem('cotiz_config_encabezado') || '{}');
-  // Teléfono y ubicación
-  if (cfg.telefono) {
-    const tel = document.querySelector('.datos-empresa p:nth-child(2)');
-    if (tel) tel.textContent = cfg.telefono;
-  }
-  if (cfg.ubicacion) {
-    const ubi = document.querySelector('.datos-empresa p:nth-child(3)');
-    if (ubi) ubi.textContent = cfg.ubicacion;
-  }
-  // Tamaño del logo de la empresa
-  if (cfg.logoSize) {
-    const logo = document.querySelector('.logo-empresa');
-    if (logo) logo.style.height = cfg.logoSize + 'px';
-  }
-  // Logos dinámicos
+  
+  console.log('Config encontrada (solo para logs):', cfg); // Debug
+  
+  // ❌ TELÉFONO Y LOGO FIJOS - NO CAMBIAR
+  // El teléfono y logo ahora están fijos en el HTML y no se modifican
+  
+  // ❌ DIRECCIÓN FIJA - NO CAMBIAR  
+  // La dirección está fija en el HTML y no se modifica
+  
+  // ✅ Solo mantener logos dinámicos si es necesario
   if (cfg.logos && Array.isArray(cfg.logos)) {
     const logosContainer = document.querySelector('.cotizacion-info .logos-dinamicos');
     if (logosContainer) logosContainer.innerHTML = '';

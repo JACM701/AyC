@@ -27,6 +27,26 @@ if (!$cotizacion) {
     exit;
 }
 
+// Extraer descripciones personalizadas de las observaciones
+$descripcionesPersonalizadas = [];
+if (!empty($cotizacion['observaciones']) && preg_match('/\[DESCRIPCIONES:([^\]]+)\]/', $cotizacion['observaciones'], $match)) {
+    $descripcionesData = base64_decode($match[1]);
+    $descripcionesJson = json_decode($descripcionesData, true);
+    if (is_array($descripcionesJson)) {
+        $descripcionesPersonalizadas = $descripcionesJson;
+    }
+}
+
+// Extraer descripciones personalizadas de insumos de las observaciones
+$descripcionesPersonalizadasInsumos = [];
+if (!empty($cotizacion['observaciones']) && preg_match('/\[DESCRIPCIONES_INSUMOS:([^\]]+)\]/', $cotizacion['observaciones'], $match)) {
+    $descripcionesData = base64_decode($match[1]);
+    $descripcionesJson = json_decode($descripcionesData, true);
+    if (is_array($descripcionesJson)) {
+        $descripcionesPersonalizadasInsumos = $descripcionesJson;
+    }
+}
+
 // Obtener productos de la cotización
 $stmt = $mysqli->prepare("
     SELECT cp.*, p.product_name, p.sku, p.image as product_image, c.name as categoria, s.name as proveedor, p.tipo_gestion
@@ -48,9 +68,14 @@ while ($prod = $productos_cotizacion->fetch_assoc()) {
     if ($img && strpos($img, 'uploads/products/') === false) {
         $img = 'uploads/products/' . $img;
     }
+    
+    // Obtener descripción personalizada si existe
+    $descripcionPersonalizada = isset($descripcionesPersonalizadas[$prod['product_id']]) ? $descripcionesPersonalizadas[$prod['product_id']] : '';
+    
     $productos_existentes[] = [
         'product_id' => $prod['product_id'],
         'nombre' => $prod['product_name'],
+        'description' => $descripcionPersonalizada, // Agregar descripción personalizada
         'sku' => $prod['sku'],
         'cantidad' => $prod['cantidad'],
         'precio' => $prod['precio_unitario'],
@@ -107,6 +132,9 @@ $stmt->execute();
 $insumos_cotizacion = $stmt->get_result();
 $insumos_existentes = [];
 while ($ins = $insumos_cotizacion->fetch_assoc()) {
+    $insumo_id = $ins['insumo_id'];
+    $descripcionPersonalizadaInsumo = isset($descripcionesPersonalizadasInsumos[$insumo_id]) ? $descripcionesPersonalizadasInsumos[$insumo_id] : '';
+    
     $insumos_existentes[] = [
         'insumo_id' => $ins['insumo_id'],
         'nombre' => $ins['nombre_insumo'] ?? $ins['insumo_nombre'],
@@ -115,6 +143,7 @@ while ($ins = $insumos_cotizacion->fetch_assoc()) {
         'stock' => $ins['stock_disponible'] ?? $ins['insumo_stock'],
         'cantidad' => $ins['cantidad'],
         'precio' => $ins['precio_unitario'],
+        'descripcion' => $descripcionPersonalizadaInsumo,
     ];
 }
 
@@ -222,6 +251,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $observaciones = trim($_POST['observaciones']);
         $descuento_porcentaje = floatval($_POST['descuento_porcentaje']);
         $estado_id = intval($_POST['estado_id']);
+        
+        // Guardar descripciones personalizadas de productos en observaciones
+        $descripcionesPersonalizadas = [];
+        foreach ($productos as $prod) {
+            if (isset($prod['description']) && !empty(trim($prod['description']))) {
+                $product_id = $prod['product_id'] ?? null;
+                if ($product_id) {
+                    $descripcionesPersonalizadas[$product_id] = trim($prod['description']);
+                }
+            }
+        }
+        
+        if (!empty($descripcionesPersonalizadas)) {
+            // Eliminar cualquier referencia anterior de descripciones
+            $observaciones = preg_replace('/\[DESCRIPCIONES:[^\]]*\]/', '', $observaciones);
+            // Agregar las nuevas descripciones
+            $observaciones .= ' [DESCRIPCIONES:' . base64_encode(json_encode($descripcionesPersonalizadas)) . ']';
+            $observaciones = trim($observaciones);
+        } else {
+            // Si no hay descripciones personalizadas, eliminar la referencia
+            $observaciones = preg_replace('/\[DESCRIPCIONES:[^\]]*\]/', '', $observaciones);
+            $observaciones = trim($observaciones);
+        }
+
+        // Guardar descripciones personalizadas de insumos en observaciones
+        $descripcionesPersonalizadasInsumos = [];
+        foreach ($insumos as $ins) {
+            if (isset($ins['descripcion']) && !empty(trim($ins['descripcion']))) {
+                $insumo_id = $ins['insumo_id'] ?? null;
+                if ($insumo_id) {
+                    $descripcionesPersonalizadasInsumos[$insumo_id] = trim($ins['descripcion']);
+                }
+            }
+        }
+        
+        if (!empty($descripcionesPersonalizadasInsumos)) {
+            // Eliminar cualquier referencia anterior de descripciones de insumos
+            $observaciones = preg_replace('/\[DESCRIPCIONES_INSUMOS:[^\]]*\]/', '', $observaciones);
+            // Agregar las nuevas descripciones de insumos
+            $observaciones .= ' [DESCRIPCIONES_INSUMOS:' . base64_encode(json_encode($descripcionesPersonalizadasInsumos)) . ']';
+            $observaciones = trim($observaciones);
+        } else {
+            // Si no hay descripciones personalizadas de insumos, eliminar la referencia
+            $observaciones = preg_replace('/\[DESCRIPCIONES_INSUMOS:[^\]]*\]/', '', $observaciones);
+            $observaciones = trim($observaciones);
+        }
         
         // Calcular totales
         $subtotal = 0;

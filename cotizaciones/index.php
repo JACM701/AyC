@@ -666,7 +666,7 @@ $img_files = array_filter(scandir($img_dir), function($f) {
         <div id="cotizacionesLista"><?php include __DIR__ . '/partials/lista.php'; ?>
         </div>
         
-        <!-- Contenedor de paginación -->
+        <!-- Contenedor de paginación --> 
         <div id="paginacionContainer">
             <!-- Paginación -->
             <?php if ($total_paginas > 1): ?>
