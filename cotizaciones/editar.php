@@ -164,6 +164,7 @@ $productos = $mysqli->query("
         p.sku, 
         p.price, 
         p.tipo_gestion,
+        p.image,
         c.name as categoria, 
         s.name as proveedor,
         CASE 
@@ -176,7 +177,7 @@ $productos = $mysqli->query("
     LEFT JOIN categories c ON p.category_id = c.category_id 
     LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id
     LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
-    GROUP BY p.product_id, p.product_name, p.sku, p.price, p.tipo_gestion, c.name, s.name, p.quantity
+    GROUP BY p.product_id, p.product_name, p.sku, p.price, p.tipo_gestion, p.image, c.name, s.name, p.quantity
     ORDER BY p.product_name ASC
 ");
 $productos_array = $productos ? $productos->fetch_all(MYSQLI_ASSOC) : [];
@@ -652,7 +653,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 data-precio="<?= $prod['price'] ?>" 
                                 data-stock="<?= $prod['stock_disponible'] ?>"
                                 data-categoria="<?= htmlspecialchars($prod['categoria'] ?? '') ?>"
-                                data-proveedor="<?= htmlspecialchars($prod['proveedor'] ?? '') ?>">
+                                data-proveedor="<?= htmlspecialchars($prod['proveedor'] ?? '') ?>"
+                                data-imagen="<?= htmlspecialchars($prod['image'] ?? '') ?>">
                             <?= htmlspecialchars($prod['product_name']) ?> - <?= htmlspecialchars($prod['sku']) ?> ($<?= number_format($prod['price'], 2) ?>)
                         </option>
                     <?php endforeach; ?>
@@ -1008,10 +1010,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         recalcularTotales();
     });
 
-    // Manejo del cliente
-    document.getElementById('cliente_select').addEventListener('change', function() {
-        const selectedOption = this.options[this.selectedIndex];
+    // Manejo del cliente con Select2
+    $('#cliente_select').on('change', function() {
         if (this.value) {
+            // Obtener la opción seleccionada
+            const selectedOption = this.options[this.selectedIndex];
             document.getElementById('cliente_nombre').value = selectedOption.dataset.nombre || '';
             document.getElementById('cliente_telefono').value = selectedOption.dataset.telefono || '';
             document.getElementById('cliente_ubicacion').value = selectedOption.dataset.ubicacion || '';
@@ -1019,12 +1022,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     });
 
-    // Manejo de productos
-    document.getElementById('producto_select').addEventListener('change', function() {
-        const selectedOption = this.options[this.selectedIndex];
+    // Manejo de productos con Select2
+    $('#producto_select').on('change', function() {
+        console.log('Producto seleccionado:', this.value);
         if (this.value) {
+            // Obtener la opción seleccionada
+            const selectedOption = this.options[this.selectedIndex];
+            console.log('selectedOption.dataset:', selectedOption.dataset);
+            
             // Buscar información completa del producto
             const productData = <?= json_encode($productos_array) ?>.find(p => p.product_id == this.value);
+            console.log('productData encontrado:', productData);
             const tipoGestion = productData ? productData.tipo_gestion : '';
             const precio = parseFloat(selectedOption.dataset.precio) || 0;
             const esBobina = tipoGestion === 'bobina';
@@ -1059,24 +1067,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 precio: precioInicial,
                 cantidad: cantidadInicial,
                 tipo_gestion: tipoGestion,
+                imagen: selectedOption.dataset.imagen || '',
                 _precioBase: precioBase,
                 _precioBobinaOriginal: esBobina && precio > 50 ? precio : undefined,
                 _modoPrecio: modoInicial
             };
             
+            console.log('Agregando producto:', nuevoProducto);
             productosCotizacion.push(nuevoProducto);
             renderTablaProductos();
             recalcularTotales();
             
-            this.value = '';
-            $('#producto_select').val('').trigger('change');
+            // Limpiar selección
+            $(this).val('').trigger('change');
         }
     });
 
-    // Manejo del selector de servicios
-    document.getElementById('servicio_select').addEventListener('change', function() {
-        const selectedOption = this.options[this.selectedIndex];
+    // Manejo del selector de servicios con Select2
+    $('#servicio_select').on('change', function() {
         if (this.value) {
+            // Obtener la opción seleccionada
+            const selectedOption = this.options[this.selectedIndex];
+            
             const nuevoServicio = {
                 servicio_id: this.value,
                 nombre: selectedOption.dataset.nombre,
@@ -1091,8 +1103,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             renderTablaServicios();
             recalcularTotales();
             
-            this.value = '';
-            $('#servicio_select').val('').trigger('change');
+            // Limpiar selección
+            $(this).val('').trigger('change');
         }
     });
 
@@ -1174,7 +1186,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             html += `
                 <tr style="border-left: 3px solid ${tipoColor};">
                     <td>
-                        ${p.imagen ? `<img src="../${p.imagen}" alt="Imagen" style="height:32px;max-width:40px;margin-right:6px;vertical-align:middle;">` : ''}
+                        ${p.imagen ? `<img src="${p.imagen.startsWith('uploads/') ? '../' + p.imagen : '../uploads/products/' + p.imagen}" alt="${p.nombre}" style="height:32px;max-width:40px;margin-right:6px;vertical-align:middle;object-fit:cover;border-radius:4px;">` : '<div style="width:32px;height:32px;background:#f8f9fa;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#6c757d;font-size:0.6rem;margin-right:6px;border:1px solid #dee2e6;">Sin<br>img</div>'}
                         ${p.nombre}
                     </td>
                     <td>${p.sku || ''}</td>
