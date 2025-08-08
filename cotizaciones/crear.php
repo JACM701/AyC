@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once '../auth/middleware.php';
 require_once '../connection.php';
 
@@ -15,6 +15,7 @@ $productos = $mysqli->query("
         p.description,
         p.tipo_gestion,
         p.image,
+        p.precio_venta_metro,
         c.name as categoria, 
         s.name as proveedor,
         CASE 
@@ -27,7 +28,7 @@ $productos = $mysqli->query("
     LEFT JOIN categories c ON p.category_id = c.category_id
     LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id
     LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
-    GROUP BY p.product_id, p.product_name, p.sku, p.price, p.cost_price, p.description, p.tipo_gestion, p.image, c.name, s.name, p.quantity
+    GROUP BY p.product_id, p.product_name, p.sku, p.price, p.cost_price, p.description, p.tipo_gestion, p.image, p.precio_venta_metro, c.name, s.name, p.quantity
     ORDER BY p.product_name ASC
 ");
 $productos_array = $productos ? $productos->fetch_all(MYSQLI_ASSOC) : [];
@@ -332,7 +333,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $product_id = $stmt_prod->insert_id;
                     $stmt_prod->close();
                 }
-                $stmt_cp = $mysqli->prepare("INSERT INTO cotizaciones_productos (cotizacion_id, product_id, cantidad, precio_unitario, precio_total) VALUES (?, ?, ?, ?, ?)");
+                $stmt_cp = $mysqli->prepare("INSERT INTO cotizaciones_productos (cotizacion_id, product_id, cantidad, precio_unitario, precio_total, modo_venta) VALUES (?, ?, ?, ?, ?, ?)");
                 
                 // 🎯 CÁLCULO CORRECTO DEL PRECIO TOTAL PARA BOBINAS
                 // Para bobinas, necesitamos calcular el precio total según el modo de precio
@@ -343,22 +344,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $esBobina = isset($prod['tipo_gestion']) && $prod['tipo_gestion'] === 'bobina';
                 $modoPrecio = $prod['_modoPrecio'] ?? null;
                 
-                if ($esBobina && $modoPrecio === 'POR_BOBINA') {
-                    // Para bobinas en modo POR_BOBINA: calcular precio total según bobinas completas
-                    $metrosPorBobina = 305; // Configuración estándar
-                    $bobinasCompletas = $cantidad / $metrosPorBobina;
-                    $precio_total = $bobinasCompletas * $precio_unitario;
-                    
-                    // DEBUG: Log para verificar cálculo
-                    error_log("🎯 INSERTAR BOBINA: {$cantidad}m ÷ {$metrosPorBobina}m = {$bobinasCompletas} bobinas × \${$precio_unitario} = \${$precio_total}");
+                // 🎯 DETERMINAR MODO DE VENTA PARA GUARDAR EN BD
+                $modo_venta = null;
+                if ($esBobina) {
+                    if ($modoPrecio === 'POR_BOBINA') {
+                        $modo_venta = 'bobina';
+                        // Para bobinas en modo POR_BOBINA: calcular precio total según bobinas completas
+                        $metrosPorBobina = 305; // Configuración estándar
+                        $bobinasCompletas = $cantidad / $metrosPorBobina;
+                        $precio_total = $bobinasCompletas * $precio_unitario;
+                        
+                        // DEBUG: Log para verificar cálculo
+                        error_log("🎯 INSERTAR BOBINA: {$cantidad}m ÷ {$metrosPorBobina}m = {$bobinasCompletas} bobinas × \${$precio_unitario} = \${$precio_total}");
+                    } else {
+                        $modo_venta = 'metro';
+                        // Para bobinas en modo metros
+                        $precio_total = $cantidad * $precio_unitario;
+                    }
                 } else {
-                    // Para productos normales o bobinas en modo metros
+                    // Para productos normales
                     $precio_total = $cantidad * $precio_unitario;
                 }
                 
-                $stmt_cp->bind_param('iiddd', $cotizacion_id, $product_id, $cantidad, $precio_unitario, $precio_total);
+                $stmt_cp->bind_param('iiddds', $cotizacion_id, $product_id, $cantidad, $precio_unitario, $precio_total, $modo_venta);
                 $stmt_cp->execute();
                 $stmt_cp->close();
+                
                 // Descontar stock si estado es aprobada (ID 1)
                 if ($estado_id == 1) {
                     // 🎯 USAR FLOATVAL PARA PERMITIR DESCUENTOS DE STOCK DECIMALES (BOBINAS)
@@ -1810,20 +1821,23 @@ $('#sugerencias_productos').on('click', 'button', function() {
     // 🎯 CONFIGURAR CANTIDAD Y MODO INICIAL PARA BOBINAS
     let cantidadInicial, precioInicial, modoInicial, precioBase;
     if (esBobina) {
-        // Para bobinas, el precio en DB es el precio de toda la bobina ($983.68)
-        // Pero el precio real de venta es $7/metro
+        // 🎯 USAR PRECIO_VENTA_METRO DE LA BASE DE DATOS
+        const precioVentaMetro = prod.precio_venta_metro ? parseFloat(prod.precio_venta_metro) : null;
+        
         if (precio > 50) { // Si el precio es alto, es precio por bobina completa
             cantidadInicial = PRECIO_CONFIG.metrosPorBobina; // 305m = 1 bobina completa
-            precioBase = 7.00; // Precio real: $7 pesos por metro
-            precioInicial = precio; // MANTENER precio original de bobina ($983.68)
+            // ✅ USAR precio_venta_metro de la DB si existe, sino calcular
+            precioBase = precioVentaMetro && precioVentaMetro > 0 ? precioVentaMetro : (precio / PRECIO_CONFIG.metrosPorBobina);
+            precioInicial = precio; // MANTENER precio original de bobina
             modoInicial = PRECIO_CONFIG.modosPrecio.POR_BOBINA;
-            console.log(`🔄 Bobina desde inventario: Bobina $${precio}, Metro $${precioBase} (precios independientes)`);
+            console.log(`🔄 Bobina desde inventario: Bobina $${precio}, Metro $${precioBase} (precio_venta_metro: ${precioVentaMetro || 'no disponible'})`);
         } else {
             cantidadInicial = 1.00; // 1 metro por defecto
-            precioBase = precio; // Es precio por metro
-            precioInicial = precio;
+            // ✅ USAR precio_venta_metro de la DB si existe, sino usar precio actual
+            precioBase = precioVentaMetro && precioVentaMetro > 0 ? precioVentaMetro : precio;
+            precioInicial = precioBase;
             modoInicial = PRECIO_CONFIG.modosPrecio.POR_METRO;
-            console.log(`📏 Bobina desde inventario: $${precio}/metro (precio base)`);
+            console.log(`📏 Bobina desde inventario: $${precioBase}/metro (precio_venta_metro: ${precioVentaMetro || 'no disponible'})`);
         }
     } else {
         cantidadInicial = 1;
@@ -1955,18 +1969,23 @@ function agregarProductoATabla(prod) {
         
         // Si no tiene precio base calculado, calcularlo
         if (!prod._precioBase) {
+            // 🎯 OBTENER PRECIO_VENTA_METRO DE LA BASE DE DATOS
+            const prodBase = productosArray.find(p => p.product_id == prod.product_id);
+            const precioVentaMetro = prodBase && prodBase.precio_venta_metro ? parseFloat(prodBase.precio_venta_metro) : null;
+            
             if (precio > 50) { // Precio alto = precio por bobina completa
-                // 🎯 PRECIO CORRECTO: Mantener precio de bobina original, $7/metro para metros sueltos
-                prod._precioBase = 7.00; // Precio real de venta por metro
+                // ✅ USAR precio_venta_metro de la DB si existe, sino calcular
+                prod._precioBase = precioVentaMetro && precioVentaMetro > 0 ? precioVentaMetro : (precio / PRECIO_CONFIG.metrosPorBobina);
                 prod._modoPrecio = PRECIO_CONFIG.modosPrecio.POR_BOBINA;
                 prod.cantidad = PRECIO_CONFIG.metrosPorBobina; // 305m por defecto
-                prod.precio = precio; // MANTENER precio original de bobina ($983.68)
+                prod.precio = precio; // MANTENER precio original de bobina
                 prod._precioBobinaOriginal = precio; // ✅ Guardar precio original
-                console.log(`🔄 Bobina desde inventario: Bobina $${precio}, Metro $${prod._precioBase} (precios independientes)`);
+                console.log(`🔄 Bobina desde inventario: Bobina $${precio}, Metro $${prod._precioBase} (precio_venta_metro: ${precioVentaMetro || 'no disponible'})`);
             } else {
-                prod._precioBase = precio; // Es precio por metro
+                // ✅ USAR precio_venta_metro de la DB si existe, sino usar precio actual
+                prod._precioBase = precioVentaMetro && precioVentaMetro > 0 ? precioVentaMetro : precio;
                 prod._modoPrecio = PRECIO_CONFIG.modosPrecio.POR_METRO;
-                console.log(`📏 Bobina desde inventario: $${precio}/metro (precio base)`);
+                console.log(`📏 Bobina desde inventario: $${prod._precioBase}/metro (precio_venta_metro: ${precioVentaMetro || 'no disponible'})`);
             }
         }
     }
@@ -2727,12 +2746,17 @@ $(document).on('click', '.cambiar-modo-btn', function() {
     if (prod._precioBase) {
         precioBasePorMetro = prod._precioBase;
     } else {
-        // Calcular precio base según modo actual
-        const precioActual = parseFloat(prod.precio) || 0;
-        if (modoActual === PRECIO_CONFIG.modosPrecio.POR_BOBINA) {
-            precioBasePorMetro = precioActual / metrosPorBobina;
+        // 🎯 USAR PRECIO_VENTA_METRO DE LA BASE DE DATOS SI EXISTE
+        if (prod.precio_venta_metro && parseFloat(prod.precio_venta_metro) > 0) {
+            precioBasePorMetro = parseFloat(prod.precio_venta_metro);
         } else {
-            precioBasePorMetro = precioActual;
+            // Calcular precio base según modo actual como fallback
+            const precioActual = parseFloat(prod.precio) || 0;
+            if (modoActual === PRECIO_CONFIG.modosPrecio.POR_BOBINA) {
+                precioBasePorMetro = precioActual / metrosPorBobina;
+            } else {
+                precioBasePorMetro = precioActual;
+            }
         }
         prod._precioBase = precioBasePorMetro;
     }

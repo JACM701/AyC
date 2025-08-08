@@ -60,7 +60,7 @@ $stmt = $mysqli->prepare("
     LEFT JOIN products p ON cp.product_id = p.product_id
     LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
     WHERE cp.cotizacion_id = ?
-    GROUP BY cp.cotizacion_producto_id, cp.cotizacion_id, cp.product_id, cp.cantidad, cp.precio_unitario, cp.precio_total, p.product_name, p.description, p.sku, p.image, p.cost_price, p.tipo_gestion, p.quantity
+    GROUP BY cp.cotizacion_producto_id, cp.cotizacion_id, cp.product_id, cp.cantidad, cp.precio_unitario, cp.precio_total, cp.modo_venta, p.product_name, p.description, p.sku, p.image, p.cost_price, p.tipo_gestion, p.quantity
     ORDER BY cp.cotizacion_producto_id
 ");
 $stmt->bind_param('i', $cotizacion_id);
@@ -717,42 +717,54 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                         </td>
                         <td>
                             <?php
-                            // 🎯 DETECTAR MODO ORIGINAL USANDO LA MISMA LÓGICA QUE CREAR.PHP
+                            // 🎯 USAR MODO DE VENTA GUARDADO CON FALLBACK A LÓGICA ANTERIOR
                             $cantidad_mostrar = $producto['cantidad'];
                             $unidad = '';
                             
-                            // Detectar si es un cable/bobina usando tipo_gestion primero, luego nombre específico
+                            // Detectar si es un cable/bobina
                             $tipo_gestion = $producto['tipo_gestion'] ?? '';
+                            $modo_venta = $producto['modo_venta'] ?? null;
                             $es_cable = ($tipo_gestion === 'bobina') || 
                                        (stripos($producto['product_name'] ?? '', 'bobina') !== false) ||
                                        (stripos($producto['product_name'] ?? '', 'cable utp') !== false) ||
                                        (stripos($producto['product_name'] ?? '', 'saxxon out') !== false);
                             
                             if ($es_cable) {
-                                $metros_por_bobina = 305; // Misma constante que crear.php PRECIO_CONFIG
+                                $metros_por_bobina = 305;
                                 $cantidad = $producto['cantidad'];
-                                $precio_unitario = $producto['precio_unitario'];
                                 
-                                // 🎯 DETECTAR MODO AUTOMÁTICAMENTE COMO EN CREAR.PHP
-                                // Si los metros son múltiplo exacto de 305 → modo bobinas
-                                // Si NO son múltiplo exacto de 305 → modo metros
-                                $bobinas_completas = $cantidad / $metros_por_bobina;
-                                $es_multiplo_exacto = (abs($bobinas_completas - round($bobinas_completas)) < 0.001);
-                                
-                                if ($es_multiplo_exacto) {
-                                    // MODO BOBINAS COMPLETAS - 305m, 610m, etc.
-                                    $bobinas_enteras = round($bobinas_completas);
+                                // 🎯 PRIORIZAR MODO_VENTA GUARDADO, FALLBACK A DETECCIÓN AUTOMÁTICA
+                                if ($modo_venta === 'bobina') {
+                                    // MODO BOBINAS GUARDADO
+                                    $bobinas_enteras = round($cantidad / $metros_por_bobina);
                                     $cantidad_mostrar = $bobinas_enteras;
                                     $unidad = $bobinas_enteras !== 1 ? ' bobinas' : ' bobina';
                                     echo number_format($cantidad_mostrar, 0) . $unidad;
-                                } else {
-                                    // MODO POR METROS - 90m, 150m, etc.
+                                } elseif ($modo_venta === 'metro') {
+                                    // MODO METROS GUARDADO
                                     $cantidad_mostrar = $cantidad;
                                     $unidad = ' m';
                                     echo number_format($cantidad_mostrar, 0) . $unidad;
+                                } else {
+                                    // FALLBACK: DETECCIÓN AUTOMÁTICA (para cotizaciones antiguas)
+                                    $bobinas_completas = $cantidad / $metros_por_bobina;
+                                    $es_multiplo_exacto = (abs($bobinas_completas - round($bobinas_completas)) < 0.001);
+                                    
+                                    if ($es_multiplo_exacto) {
+                                        // MODO BOBINAS DETECTADO
+                                        $bobinas_enteras = round($bobinas_completas);
+                                        $cantidad_mostrar = $bobinas_enteras;
+                                        $unidad = $bobinas_enteras !== 1 ? ' bobinas' : ' bobina';
+                                        echo number_format($cantidad_mostrar, 0) . $unidad;
+                                    } else {
+                                        // MODO METROS DETECTADO
+                                        $cantidad_mostrar = $cantidad;
+                                        $unidad = ' m';
+                                        echo number_format($cantidad_mostrar, 0) . $unidad;
+                                    }
                                 }
                             } else {
-                                // Para productos normales (no bobinas/cables): mostrar solo enteros
+                                // Para productos normales: mostrar cantidad normal
                                 $cantidad_mostrar = round($producto['cantidad']);
                                 echo number_format($cantidad_mostrar, 0);
                             }
@@ -760,31 +772,39 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                         </td>
                         <td>
                             <?php
-                            // 🎯 DETECTAR MODO ORIGINAL USANDO LA MISMA LÓGICA QUE CREAR.PHP
+                            // 🎯 USAR MODO DE VENTA GUARDADO CON FALLBACK PARA PRECIO
                             $precio_mostrar = $producto['precio_unitario'];
                             $precio_unidad = '';
                             
-                            // Usar la misma detección de modo que en cantidad
+                            // Usar la misma detección de cable que en cantidad
                             if ($es_cable) {
                                 $precio_unitario = $producto['precio_unitario'];
-                                $cantidad = $producto['cantidad'];
                                 $metros_por_bobina = 305;
                                 
-                                // 🎯 DETECTAR MODO AUTOMÁTICAMENTE COMO EN CREAR.PHP
-                                // Si los metros son múltiplo exacto de 305 → modo bobinas  
-                                // Si NO son múltiplo exacto de 305 → modo metros
-                                $bobinas_completas = $cantidad / $metros_por_bobina;
-                                $es_multiplo_exacto = (abs($bobinas_completas - round($bobinas_completas)) < 0.001);
-                                
-                                if ($es_multiplo_exacto) {
-                                    // MODO BOBINAS COMPLETAS - 305m, 610m, etc.
-                                    $precio_mostrar = $precio_unitario; // Precio está por bobina
+                                // 🎯 PRIORIZAR MODO_VENTA GUARDADO, FALLBACK A DETECCIÓN AUTOMÁTICA
+                                if ($modo_venta === 'bobina') {
+                                    // MODO BOBINAS GUARDADO - precio está por bobina
+                                    $precio_mostrar = $precio_unitario;
                                     $precio_unidad = ' /bobina';
-                                } else {
-                                    // MODO POR METROS - 90m, 150m, etc.
-                                    // Convertir precio de bobina a precio por metro
-                                    $precio_mostrar = $precio_unitario / $metros_por_bobina;
+                                } elseif ($modo_venta === 'metro') {
+                                    // MODO METROS GUARDADO - precio está por metro
+                                    $precio_mostrar = $precio_unitario;
                                     $precio_unidad = ' /m';
+                                } else {
+                                    // FALLBACK: DETECCIÓN AUTOMÁTICA (para cotizaciones antiguas)
+                                    $cantidad = $producto['cantidad'];
+                                    $bobinas_completas = $cantidad / $metros_por_bobina;
+                                    $es_multiplo_exacto = (abs($bobinas_completas - round($bobinas_completas)) < 0.001);
+                                    
+                                    if ($es_multiplo_exacto) {
+                                        // MODO BOBINAS DETECTADO - precio está por bobina
+                                        $precio_mostrar = $precio_unitario;
+                                        $precio_unidad = ' /bobina';
+                                    } else {
+                                        // MODO METROS DETECTADO - convertir precio de bobina a precio por metro
+                                        $precio_mostrar = $precio_unitario / $metros_por_bobina;
+                                        $precio_unidad = ' /m';
+                                    }
                                 }
                             }
                             
@@ -793,27 +813,25 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                         </td>
                         <td class="precio-total">
                             <?php
-                            // Verificar si el precio total necesita recálculo para cables/bobinas
+                            // 🎯 USAR PRECIO TOTAL GUARDADO CON FALLBACK A CÁLCULO AUTOMÁTICO
                             $precio_total_mostrar = $producto['precio_total'];
                             
-                            if ($es_cable) {
+                            // Para cables sin modo_venta guardado, recalcular usando detección automática
+                            if ($es_cable && !$modo_venta) {
                                 $precio_unitario = $producto['precio_unitario'];
                                 $cantidad = $producto['cantidad'];
                                 $metros_por_bobina = 305;
                                 
-                                // 🎯 DETECTAR MODO AUTOMÁTICAMENTE COMO EN CREAR.PHP
-                                // Si los metros son múltiplo exacto de 305 → modo bobinas
-                                // Si NO son múltiplo exacto de 305 → modo metros
+                                // FALLBACK: DETECCIÓN AUTOMÁTICA (para cotizaciones antiguas)
                                 $bobinas_completas = $cantidad / $metros_por_bobina;
                                 $es_multiplo_exacto = (abs($bobinas_completas - round($bobinas_completas)) < 0.001);
                                 
                                 if ($es_multiplo_exacto) {
-                                    // MODO BOBINAS COMPLETAS - 305m, 610m, etc.
+                                    // MODO BOBINAS DETECTADO
                                     $bobinas_enteras = round($bobinas_completas);
                                     $precio_total_recalculado = $precio_unitario * $bobinas_enteras;
                                 } else {
-                                    // MODO POR METROS - 90m, 150m, etc.
-                                    // Convertir precio de bobina a precio por metro y multiplicar
+                                    // MODO METROS DETECTADO
                                     $precio_por_metro = $precio_unitario / $metros_por_bobina;
                                     $precio_total_recalculado = $precio_por_metro * $cantidad;
                                 }
@@ -943,9 +961,73 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                         <td class="costo-total">N/A</td>
                     </tr>
                 <?php endwhile; ?>
-            </tbody>
-        </table>
-        
+            <tbody>
+                <?php $i = 1; while ($producto = $productos->fetch_assoc()): ?>
+                <tr>
+                    <td><?= $i++ ?></td>
+                    <td><?= htmlspecialchars($producto['product_name']) ?></td>
+                    <td><?= htmlspecialchars($producto['sku']) ?></td>
+                    <td>
+                        <?php
+                        $tipo_gestion = $producto['tipo_gestion'] ?? '';
+                        $es_cable = ($tipo_gestion === 'bobina') || 
+                                   (stripos($producto['product_name'] ?? '', 'bobina') !== false) ||
+                                   (stripos($producto['product_name'] ?? '', 'cable utp') !== false) ||
+                                   (stripos($producto['product_name'] ?? '', 'saxxon out') !== false);
+                        $modo_venta = $producto['modo_venta'] ?? '';
+                        if ($es_cable && $modo_venta === 'bobina') {
+                            $metrosPorBobina = 305;
+                            $bobinas = floatval($producto['cantidad']) / $metrosPorBobina;
+                            echo number_format($bobinas, 2) . ' bobina(s)';
+                        } elseif ($es_cable && $modo_venta === 'metro') {
+                            echo number_format($producto['cantidad'], 2) . ' m';
+                        } else {
+                            echo htmlspecialchars($producto['cantidad']);
+                        }
+                        ?>
+                    </td>
+                    <td>
+                        <?php
+                        if ($es_cable) {
+                            echo isset($producto['modo_venta']) && $producto['modo_venta'] ? strtoupper($producto['modo_venta']) : '<span style="color:#888">N/A</span>';
+                        } else {
+                            echo '-';
+                        }
+                        ?>
+                    </td>
+                    <td>
+                        <?php
+                        // Mostrar el precio correcto según el modo guardado
+                        if ($es_cable && $modo_venta === 'bobina') {
+                            // Precio por bobina
+                            echo '$' . number_format($producto['price'], 2) . ' /bobina';
+                        } elseif ($es_cable && $modo_venta === 'metro') {
+                            // Precio por metro
+                            echo '$' . number_format($producto['precio_venta_metro'], 2) . ' /m';
+                        } else {
+                            // Otros productos
+                            echo '$' . number_format($producto['precio_unitario'], 2);
+                        }
+                        ?>
+                    </td>
+                    <td>
+                        <?php
+                        // Mostrar el total correcto según el modo guardado
+                        if ($es_cable && $modo_venta === 'bobina') {
+                            $metrosPorBobina = 305;
+                            $bobinas = floatval($producto['cantidad']) / $metrosPorBobina;
+                            $precio_total = $producto['price'] * $bobinas;
+                            echo '$' . number_format($precio_total, 2);
+                        } elseif ($es_cable && $modo_venta === 'metro') {
+                            $precio_total = $producto['precio_venta_metro'] * floatval($producto['cantidad']);
+                            echo '$' . number_format($precio_total, 2);
+                        } else {
+                            echo '$' . number_format($producto['precio_total'], 2);
+                        }
+                        ?>
+                    </td>
+                </tr>
+                <?php endwhile; ?>
         <?php
         // 🎯 CALCULAR SUBTOTAL REAL USANDO LA MISMA LÓGICA QUE LA TABLA
         $subtotal_real = 0;
@@ -955,40 +1037,11 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
         $servicios->data_seek(0);
         $insumos->data_seek(0);
         
-        // Sumar productos con detección automática
+        // 🎯 SUMAR PRODUCTOS USANDO PRECIO TOTAL GUARDADO (YA CALCULADO CORRECTAMENTE)
         while ($producto = $productos->fetch_assoc()) {
-            $tipo_gestion = $producto['tipo_gestion'] ?? '';
-            $es_cable = ($tipo_gestion === 'bobina') || 
-                       (stripos($producto['product_name'] ?? '', 'bobina') !== false) ||
-                       (stripos($producto['product_name'] ?? '', 'cable utp') !== false) ||
-                       (stripos($producto['product_name'] ?? '', 'saxxon out') !== false);
-            
-            if ($es_cable) {
-                // Usar la misma lógica que en la tabla
-                $precio_unitario = $producto['precio_unitario'];
-                $cantidad = $producto['cantidad'];
-                $metros_por_bobina = 305;
-                
-                // 🎯 DETECTAR MODO AUTOMÁTICAMENTE COMO EN CREAR.PHP
-                // Si los metros son múltiplo exacto de 305 → modo bobinas
-                // Si NO son múltiplo exacto de 305 → modo metros
-                $bobinas_completas = $cantidad / $metros_por_bobina;
-                $es_multiplo_exacto = (abs($bobinas_completas - round($bobinas_completas)) < 0.001);
-                
-                if ($es_multiplo_exacto) {
-                    // MODO BOBINAS COMPLETAS - 305m, 610m, etc.
-                    $bobinas_enteras = round($bobinas_completas);
-                    $precio_total_producto = $precio_unitario * $bobinas_enteras;
-                                } else {
-                                    // MODO POR METROS - 90m, 150m, etc.
-                                    // Convertir precio de bobina a precio por metro y multiplicar
-                                    $precio_por_metro = $precio_unitario / $metros_por_bobina;
-                                    $precio_total_producto = $precio_por_metro * $cantidad;
-                                }                $subtotal_real += $precio_total_producto;
-            } else {
-                // Productos normales
-                $subtotal_real += $producto['precio_total'];
-            }
+            // Usar directamente el precio_total guardado en la base de datos
+            // que ya fue calculado correctamente según el modo de venta
+            $subtotal_real += floatval($producto['precio_total']);
         }
         
         // Sumar servicios
@@ -1142,15 +1195,30 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                                 <strong>OBSERVACIONES:</strong>
                                 <div class="text-dark mt-1">
                                     <?php 
-                                    // Debug: verificar si el campo existe y su contenido
+                                    // 🎯 LIMPIAR OBSERVACIONES DE CÓDIGOS INTERNOS
                                     $observaciones_valor = isset($cotizacion['observaciones']) ? trim($cotizacion['observaciones']) : '';
                                     
-                                    if (!empty($observaciones_valor)): 
+                                    if (!empty($observaciones_valor)) {
+                                        // Remover códigos internos de descripciones y otros metadatos
+                                        $observaciones_limpias = $observaciones_valor;
+                                        $observaciones_limpias = preg_replace('/\[DESCRIPCIONES:[^\]]*\]/', '', $observaciones_limpias);
+                                        $observaciones_limpias = preg_replace('/\[DESCRIPCIONES_INSUMOS:[^\]]*\]/', '', $observaciones_limpias);
+                                        $observaciones_limpias = preg_replace('/\[IVA_ESPECIAL:[^\]]*\]/', '', $observaciones_limpias);
+                                        $observaciones_limpias = trim($observaciones_limpias);
+                                        
+                                        if (!empty($observaciones_limpias)): 
                                     ?>
-                                        <?= htmlspecialchars($observaciones_valor) ?>
-                                    <?php else: ?>
+                                        <?= nl2br(htmlspecialchars($observaciones_limpias)) ?>
+                                    <?php 
+                                        else: 
+                                    ?>
                                         <em class="text-muted">Sin observaciones</em>
-                                    <?php endif; ?>
+                                    <?php 
+                                        endif;
+                                    } else { 
+                                    ?>
+                                        <em class="text-muted">Sin observaciones</em>
+                                    <?php } ?>
                                 </div>
                             </div>
                         </div>
