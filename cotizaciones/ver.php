@@ -27,9 +27,29 @@ if (!$cotizacion) {
     exit;
 }
 
+// Extraer descripciones personalizadas de las observaciones
+$descripcionesPersonalizadas = [];
+if (!empty($cotizacion['observaciones']) && preg_match('/\[DESCRIPCIONES:([^\]]+)\]/', $cotizacion['observaciones'], $match)) {
+    $descripcionesData = base64_decode($match[1]);
+    $descripcionesJson = json_decode($descripcionesData, true);
+    if (is_array($descripcionesJson)) {
+        $descripcionesPersonalizadas = $descripcionesJson;
+    }
+}
+
+// Extraer descripciones personalizadas de insumos de las observaciones
+$descripcionesPersonalizadasInsumos = [];
+if (!empty($cotizacion['observaciones']) && preg_match('/\[DESCRIPCIONES_INSUMOS:([^\]]+)\]/', $cotizacion['observaciones'], $match)) {
+    $descripcionesData = base64_decode($match[1]);
+    $descripcionesJson = json_decode($descripcionesData, true);
+    if (is_array($descripcionesJson)) {
+        $descripcionesPersonalizadasInsumos = $descripcionesJson;
+    }
+}
+
 // Obtener productos de la cotización
 $stmt = $mysqli->prepare("
-    SELECT cp.*, p.product_name, p.sku, p.image as product_image, p.cost_price, p.tipo_gestion,
+    SELECT cp.*, p.product_name, p.description, p.sku, p.image as product_image, p.cost_price, p.tipo_gestion,
            CASE 
                WHEN p.tipo_gestion = 'bobina' THEN 
                    COALESCE(SUM(b.metros_actuales), 0)
@@ -40,7 +60,7 @@ $stmt = $mysqli->prepare("
     LEFT JOIN products p ON cp.product_id = p.product_id
     LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
     WHERE cp.cotizacion_id = ?
-    GROUP BY cp.cotizacion_producto_id, cp.cotizacion_id, cp.product_id, cp.cantidad, cp.precio_unitario, cp.precio_total, p.product_name, p.sku, p.image, p.cost_price, p.tipo_gestion, p.quantity
+    GROUP BY cp.cotizacion_producto_id, cp.cotizacion_id, cp.product_id, cp.cantidad, cp.precio_unitario, cp.precio_total, p.product_name, p.description, p.sku, p.image, p.cost_price, p.tipo_gestion, p.quantity
     ORDER BY cp.cotizacion_producto_id
 ");
 $stmt->bind_param('i', $cotizacion_id);
@@ -72,6 +92,61 @@ $stmt = $mysqli->prepare("
 $stmt->bind_param('i', $cotizacion_id);
 $stmt->execute();
 $insumos = $stmt->get_result();
+
+// Calcular costo total de la cotización
+$costo_total = 0;
+
+// Costo de productos
+$productos_temp = $productos;
+$productos_temp->data_seek(0); // Reset pointer
+while ($producto = $productos_temp->fetch_assoc()) {
+    $cost_price = floatval($producto['cost_price'] ?? 0);
+    $cantidad = floatval($producto['cantidad'] ?? 0);
+    
+    // Detectar si es un cable/bobina para ajustar el cálculo del costo
+    $tipo_gestion = $producto['tipo_gestion'] ?? '';
+    $es_cable_costo = ($tipo_gestion === 'bobina') || 
+                     (stripos($producto['product_name'] ?? '', 'bobina') !== false) ||
+                     (stripos($producto['product_name'] ?? '', 'cable utp') !== false) ||
+                     (stripos($producto['product_name'] ?? '', 'saxxon out') !== false);
+    
+    if ($es_cable_costo && $cost_price > 0) {
+        $precio_unitario = floatval($producto['precio_unitario'] ?? 0);
+        $metros_por_bobina = 305;
+        
+        // Para cables: cost_price es por BOBINA COMPLETA (como en crear.php)
+        // Calcular número de bobinas desde los metros
+        $bobinas_completas = round($cantidad / $metros_por_bobina);
+        $costo_total += $cost_price * $bobinas_completas;
+    } else {
+        // Productos normales: cost_price por unidad
+        $costo_total += $cost_price * $cantidad;
+    }
+}
+
+// Costo de servicios - Los servicios son ganancia pura (costo = 0)
+$servicios_temp = $servicios;
+$servicios_temp->data_seek(0); // Reset pointer
+while ($servicio = $servicios_temp->fetch_assoc()) {
+    // Los servicios son ganancia pura, por lo que no tienen costo
+    // Su precio de venta se incluye automáticamente en el total de la cotización
+    // y al tener costo 0, toda su facturación es ganancia
+}
+
+// Costo de insumos
+$insumos_temp = $insumos;
+$insumos_temp->data_seek(0); // Reset pointer
+while ($insumo = $insumos_temp->fetch_assoc()) {
+    // Los insumos pueden tener costo en el campo precio_unitario o un campo específico de costo
+    $costo_insumo = floatval($insumo['precio_unitario'] ?? 0); // Usar precio como costo por ahora
+    $cantidad = floatval($insumo['cantidad'] ?? 0);
+    $costo_total += $costo_insumo * $cantidad;
+}
+
+// Reset pointers para uso posterior
+$productos->data_seek(0);
+$servicios->data_seek(0);
+$insumos->data_seek(0);
 ?>
 
 <!DOCTYPE html>
@@ -124,6 +199,23 @@ $insumos = $stmt->get_result();
         }
         .datos-cliente .campo { font-size: 1rem; margin-bottom: 2px; }
         .datos-cliente .campo strong { color: #121866; min-width: 90px; display: inline-block; }
+        .info-creador {
+            background: linear-gradient(135deg, rgba(35, 42, 124, 0.08), rgba(35, 42, 124, 0.12));
+            padding: 8px 14px;
+            border-radius: 8px;
+            border-left: 4px solid #232a7c;
+            font-style: italic;
+            box-shadow: 0 2px 8px rgba(35, 42, 124, 0.05);
+            transition: all 0.2s ease;
+        }
+        .info-creador:hover {
+            background: linear-gradient(135deg, rgba(35, 42, 124, 0.12), rgba(35, 42, 124, 0.16));
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(35, 42, 124, 0.08);
+        }
+        .info-creador i {
+            font-size: 1.1rem;
+        }
         .tabla-cotizacion { 
             width: 100%; 
             border-collapse: collapse; 
@@ -138,7 +230,12 @@ $insumos = $stmt->get_result();
         }
         .tabla-cotizacion th { background: #232a7c; color: #fff; font-size: 1rem; }
         .tabla-cotizacion td.descripcion { text-align: left; font-size: 0.97rem; }
-        .tabla-cotizacion td.imagen { background: #f7f9fc; }
+        .tabla-cotizacion td.imagen { 
+            background: #f7f9fc; 
+            width: 100px; 
+            height: 100px; 
+            padding: 4px; 
+        }
         .tabla-cotizacion td.precio-total { font-weight: 700; color: #232a7c; }
         .tabla-cotizacion td.costo-total { background: #e0e0e0; color: #232a7c; font-weight: 500; }
         .tabla-cotizacion tfoot td { font-weight: 700; background: #f4f6fb; color: #121866; }
@@ -214,12 +311,120 @@ $insumos = $stmt->get_result();
             opacity: .75;
         }
         @media print { 
-            body { background: #fff; } 
-            .cotizacion-container { box-shadow: none; border-radius: 0; margin: 0; padding: 0; } 
+            /* Limpiar página de impresión */
+            body { 
+                background: #fff !important; 
+                color: #000 !important;
+                font-size: 12pt;
+                line-height: 1.3;
+                margin: 0;
+                padding: 0;
+            } 
+            
+            /* Ocultar elementos innecesarios */
+            .cotizacion-container { 
+                box-shadow: none !important; 
+                border-radius: 0 !important; 
+                margin: 0 !important; 
+                padding: 15px !important;
+                max-width: none !important;
+            }
+            
+            /* Ocultar información del creador en impresión */
+            .info-creador { display: none !important; }
+            
+            /* Ocultar columnas de costo e información interna */
             th.costo-total, td.costo-total { display: none !important; }
+            .fila-costo-total, .fila-ganancia { display: none !important; }
             .badge.bg-danger { display: none !important; }
             .text-muted { display: none !important; }
             .acciones-cotizacion { display: none !important; }
+            .col-md-8 { display: none !important; } /* Ocultar mensaje explicativo */
+            
+            /* Ocultar separador e información interna completa */
+            tr[style*="background: #e9ecef"] { display: none !important; }
+            .fila-costo-total { display: none !important; }
+            .fila-ganancia { display: none !important; }
+            tr[style*="background: #fff3cd"] { display: none !important; }
+            tr[style*="background: #d4edda"] { display: none !important; }
+            
+            /* Ocultar específicamente las filas de información interna */
+            .resumen-cotizacion-ver tr:has(.text-center) ~ tr { display: none !important; }
+            .resumen-cotizacion-ver tr:has([style*="📊"]) { display: none !important; }
+            .resumen-cotizacion-ver tr:has([style*="📊"]) ~ tr { display: none !important; }
+            
+            /* Marca de agua PAGADO más grande y visible */
+            .pagado-watermark {
+                position: fixed !important;
+                top: 50% !important;
+                left: 50% !important;
+                transform: translate(-50%, -50%) rotate(-45deg) !important;
+                font-size: 120pt !important;
+                font-weight: 900 !important;
+                color: rgba(40, 167, 69, 0.15) !important;
+                z-index: 1000 !important;
+                pointer-events: none !important;
+                user-select: none !important;
+                text-transform: uppercase !important;
+                letter-spacing: 1rem !important;
+                text-shadow: 2px 2px 4px rgba(0,0,0,0.1) !important;
+                font-family: Arial, sans-serif !important;
+            }
+            
+            /* Asegurar que la marca aparezca para cotizaciones convertidas */
+            .cotizacion-container.pagado .pagado-watermark {
+                display: block !important;
+            }
+            
+            /* Optimizar tabla para impresión */
+            .tabla-cotizacion {
+                width: 100% !important;
+                font-size: 10pt !important;
+                border-collapse: collapse !important;
+            }
+            
+            .tabla-cotizacion th,
+            .tabla-cotizacion td {
+                border: 1px solid #000 !important;
+                padding: 6px 4px !important;
+                font-size: 10pt !important;
+            }
+            
+            .tabla-cotizacion th {
+                background: #f0f0f0 !important;
+                color: #000 !important;
+                font-weight: bold !important;
+            }
+            
+            /* Ajustar resumen para impresión */
+            .resumen-cotizacion-ver table {
+                border: 2px solid #000 !important;
+                background: #fff !important;
+            }
+            
+            .resumen-cotizacion-ver td {
+                border: none !important;
+                color: #000 !important;
+            }
+            
+            /* Ocultar observaciones si están vacías */
+            .mt-3.p-3:has(em.text-muted) {
+                display: none !important;
+            }
+            
+            /* Forzar salto de página si es necesario */
+            .cotizacion-header {
+                page-break-inside: avoid !important;
+            }
+            
+            .tabla-cotizacion {
+                page-break-inside: auto !important;
+            }
+            
+            /* Asegurar que el resumen se mantenga junto */
+            .resumen-cotizacion-ver {
+                page-break-inside: avoid !important;
+            }
         }
         .alert.shadow.rounded-4 {
             box-shadow: 0 4px 24px rgba(18,24,102,0.10) !important;
@@ -246,10 +451,45 @@ $insumos = $stmt->get_result();
         #modalConfirmarEstado .btn-success:hover {
             background: #388e3c;
         }
+        
+        /* Marca de agua PAGADO para cotizaciones convertidas */
+        .pagado-watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 8rem;
+            font-weight: 900;
+            color: rgba(40, 167, 69, 0.25);
+            z-index: 1000;
+            pointer-events: none;
+            user-select: none;
+            text-transform: uppercase;
+            letter-spacing: 0.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .cotizacion-container.pagado {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        @media print {
+            .pagado-watermark {
+                position: absolute;
+                color: rgba(40, 167, 69, 0.4) !important;
+                font-size: 6rem;
+                z-index: 1;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="cotizacion-container">
+    <div class="cotizacion-container<?= $cotizacion['nombre_estado'] === 'Convertida' ? ' pagado' : '' ?>">
+        <?php if ($cotizacion['nombre_estado'] === 'Convertida'): ?>
+            <div class="pagado-watermark">PAGADO</div>
+        <?php endif; ?>
+        
         <?php if (isset($_SESSION['success'])): ?>
             <div class="alert alert-success alert-dismissible fade show shadow rounded-4" role="alert" style="font-size:1.08rem;">
                 <i class="bi bi-check-circle-fill me-2"></i> <?= 
@@ -317,17 +557,51 @@ $insumos = $stmt->get_result();
         </div>
 
         <div class="cotizacion-header">
-            <img src="../assets/img/LogoWeb.png" alt="Logo empresa" class="logo-empresa">
+            <img src="../assets/img/LogoWeb.png" alt="Logo empresa" class="logo-empresa" style="height: 160px; margin-right: 18px;">
             <div class="datos-empresa">
-                <h2>ALARMAS & CAMARAS DEL SURESTE</h2>
-                <p>999 134 3979</p>
-                <p>Mérida, Yucatán</p>
+                <p style="margin: 0; font-size: 1rem; color: #232a7c;">999-270-3642</p>
+                <div class="direccion-fija" style="margin: 5px 0; color: #232a7c;">
+                    <strong>Dirección:</strong><br>
+                    Calle 20 #45B, Leandro Valle, Mérida, Yucatán
+                </div>
             </div>
             <div class="cotizacion-info">
-                <div class="titulo-cot">Cotización</div>
+                <div class="titulo-cot quote-title">
+                    <?php
+                    if ($cotizacion['nombre_estado'] === 'Aprobada') {
+                        echo 'Nota de pago';
+                    } elseif ($cotizacion['nombre_estado'] === 'Convertida') {
+                        echo 'Factura';
+                    } else {
+                        echo 'Cotización';
+                    }
+                    ?>
+                </div>
+                
+                <!-- Título personalizado de cotización -->
+                <?php 
+                // Buscar título personalizado en observaciones con formato [TITULO:texto]
+                $titulo_personalizado = '';
+                if (!empty($cotizacion['observaciones']) && preg_match('/\[TITULO:([^\]]+)\]/', $cotizacion['observaciones'], $match)) {
+                    $titulo_personalizado = trim($match[1]);
+                }
+                
+                if (!empty($titulo_personalizado)): 
+                ?>
+                <div style="margin: 5px 0; font-size: 0.9rem; color: #333; font-weight: bold;">
+                    <?= htmlspecialchars($titulo_personalizado) ?>
+                </div>
+                <?php endif; ?>
+                
                 <div><strong><?= htmlspecialchars($cotizacion['numero_cotizacion']) ?></strong></div>
                 <div>Fecha: <?= date('d/m/Y', strtotime($cotizacion['fecha_cotizacion'])) ?></div>
                 <div>Válida hasta: <?= date('d/m/Y', strtotime($cotizacion['fecha_cotizacion'] . ' + ' . $cotizacion['validez_dias'] . ' days')) ?></div>
+                
+                <!-- Nota de garantía -->
+                <div style="margin-top: 8px; padding: 6px 10px; background-color: rgba(255,255,255,0.2); border-radius: 4px; font-size: 0.85rem; font-weight: bold;">
+                    ⚡ 1 AÑO DE GARANTÍA POR DEFECTOS DE FÁBRICA
+                </div>
+                
                 <br>
                 <div class="logos-dinamicos"></div>
             </div>
@@ -342,6 +616,12 @@ $insumos = $stmt->get_result();
                 <div class="campo"><strong>Ubicación:</strong> <?= htmlspecialchars($cotizacion['cliente_direccion_real'] ?? $cotizacion['cliente_ubicacion']) ?></div>
             <?php endif; ?>
             <div class="campo"><strong>Fecha:</strong> <?= date('d/m/Y', strtotime($cotizacion['fecha_cotizacion'])) ?></div>
+            <!-- Información del creador - NO se imprime -->
+            <div class="campo info-creador">
+                <i class="bi bi-person-fill me-1" style="color: #232a7c;"></i>
+                <strong>Creada por:</strong> <?= htmlspecialchars($cotizacion['usuario_nombre'] ?? 'Usuario desconocido') ?>
+                <small class="text-muted ms-2">(<?= date('d/m/Y H:i', strtotime($cotizacion['created_at'] ?? $cotizacion['fecha_cotizacion'])) ?>)</small>
+            </div>
         </div>
 
         <table class="tabla-cotizacion">
@@ -383,8 +663,24 @@ $insumos = $stmt->get_result();
                         <td><?= $i++ ?></td>
                         <td class="descripcion">
                             <?php
-                            $nombre = $producto['product_name'] ?? $producto['descripcion'] ?? 'Producto sin nombre';
-                            echo htmlspecialchars($nombre);
+                            // Priorizar descripción personalizada, luego descripción original, luego nombre del producto
+                            $product_id = $producto['product_id'];
+                            $descripcion = '';
+                            
+                            // 1. Verificar si hay descripción personalizada
+                            if (isset($descripcionesPersonalizadas[$product_id]) && !empty(trim($descripcionesPersonalizadas[$product_id]))) {
+                                $descripcion = $descripcionesPersonalizadas[$product_id];
+                            }
+                            // 2. Si no, usar descripción original del producto
+                            elseif (!empty(trim($producto['description']))) {
+                                $descripcion = $producto['description'];
+                            }
+                            // 3. Si no, usar el nombre del producto como fallback
+                            else {
+                                $descripcion = $producto['product_name'] ?? 'Producto sin descripción';
+                            }
+                            
+                            echo htmlspecialchars($descripcion);
                             
                             // Mostrar badge "Sin stock" si el stock actual es menor que la cantidad requerida
                             if ($producto['product_id'] && $producto['stock_actual'] < $producto['cantidad']) {
@@ -412,18 +708,124 @@ $insumos = $stmt->get_result();
                             }
                             ?>
                             <?php if ($img): ?>
-                                <img src="../<?= htmlspecialchars($img) ?>" alt="Imagen" style="height:38px;">
+                                <img src="../<?= htmlspecialchars($img) ?>" alt="Imagen" style="width:90px; height:90px; object-fit:cover; border-radius:6px; border:none; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
                             <?php else: ?>
                                 <span style="color:#ccc;">Sin imagen</span>
                             <?php endif; ?>
                         </td>
-                        <td><?= $producto['cantidad'] ?></td>
-                        <td>$<?= number_format($producto['precio_unitario'], 2) ?></td>
-                        <td class="precio-total">$<?= number_format($producto['precio_total'], 2) ?></td>
+                        <td>
+                            <?php
+                            // 🎯 DETECTAR MODO ORIGINAL USANDO LA MISMA LÓGICA QUE CREAR.PHP
+                            $cantidad_mostrar = $producto['cantidad'];
+                            $unidad = '';
+                            
+                            // Detectar si es un cable/bobina usando tipo_gestion primero, luego nombre específico
+                            $tipo_gestion = $producto['tipo_gestion'] ?? '';
+                            $es_cable = ($tipo_gestion === 'bobina') || 
+                                       (stripos($producto['product_name'] ?? '', 'bobina') !== false) ||
+                                       (stripos($producto['product_name'] ?? '', 'cable utp') !== false) ||
+                                       (stripos($producto['product_name'] ?? '', 'saxxon out') !== false);
+                            
+                            if ($es_cable) {
+                                $metros_por_bobina = 305; // Misma constante que crear.php PRECIO_CONFIG
+                                $cantidad = $producto['cantidad'];
+                                $precio_unitario = $producto['precio_unitario'];
+                                
+                                // DETECTAR MODO ORIGINAL usando la misma heurística que crear.php
+                                // Si precio > 50, es precio por bobina completa (líneas 1579-1583)
+                                // Si precio <= 50, es precio por metro (líneas 1587-1590)
+                                if ($precio_unitario > 50) {
+                                    // MODO BOBINAS COMPLETAS (como crear.php línea 1580)
+                                    // 🎯 PERMITIR FRACCIONES DE BOBINAS (1.5, 2.5, etc.)
+                                    $bobinas_completas = $cantidad / $metros_por_bobina;
+                                    // Redondear a 1 decimal para mostrar fracciones como 1.5
+                                    $cantidad_mostrar = round($bobinas_completas, 1);
+                                    $unidad = $cantidad_mostrar !== 1 ? ' bobinas' : ' bobina';
+                                    echo number_format($cantidad_mostrar, 1) . $unidad;
+                                } else {
+                                    // MODO POR METROS (como crear.php línea 1587)
+                                    $cantidad_mostrar = $cantidad;
+                                    $unidad = ' m';
+                                    echo number_format($cantidad_mostrar, 2) . $unidad;
+                                }
+                            } else {
+                                // Para productos normales (no bobinas/cables): mostrar solo enteros
+                                $cantidad_mostrar = round($producto['cantidad']);
+                                echo number_format($cantidad_mostrar, 0);
+                            }
+                            ?>
+                        </td>
+                        <td>
+                            <?php
+                            // 🎯 DETECTAR MODO ORIGINAL USANDO LA MISMA LÓGICA QUE CREAR.PHP
+                            $precio_mostrar = $producto['precio_unitario'];
+                            $precio_unidad = '';
+                            
+                            // Usar la misma detección de modo que en cantidad
+                            if ($es_cable) {
+                                $precio_unitario = $producto['precio_unitario'];
+                                
+                                // DETECTAR MODO ORIGINAL usando la misma heurística que crear.php
+                                // Si precio > 50, es precio por bobina completa (líneas 1579-1583)
+                                // Si precio <= 50, es precio por metro (líneas 1587-1590)
+                                if ($precio_unitario > 50) {
+                                    // MODO BOBINAS COMPLETAS - Precio está por bobina
+                                    $precio_unidad = ' /bobina';
+                                } else {
+                                    // MODO POR METROS - Precio está por metro
+                                    $precio_unidad = ' /m';
+                                }
+                            }
+                            
+                            echo '$' . number_format($precio_mostrar, 2) . $precio_unidad;
+                            ?>
+                        </td>
+                        <td class="precio-total">
+                            <?php
+                            // Verificar si el precio total necesita recálculo para cables/bobinas
+                            $precio_total_mostrar = $producto['precio_total'];
+                            
+                            if ($es_cable) {
+                                $precio_unitario = $producto['precio_unitario'];
+                                $cantidad = $producto['cantidad'];
+                                $metros_por_bobina = 305;
+                                
+                                if ($precio_unitario > 50) {
+                                    // MODO BOBINAS COMPLETAS
+                                    // 🎯 PERMITIR FRACCIONES DE BOBINAS PARA CÁLCULO CORRECTO
+                                    $bobinas_completas = $cantidad / $metros_por_bobina;
+                                    $precio_total_recalculado = $precio_unitario * $bobinas_completas;
+                                } else {
+                                    // MODO POR METROS
+                                    $precio_total_recalculado = $precio_unitario * $cantidad;
+                                }
+                                
+                                // Usar el precio total recalculado si difiere significativamente del almacenado
+                                if (abs($precio_total_mostrar - $precio_total_recalculado) > 0.01) {
+                                    $precio_total_mostrar = $precio_total_recalculado;
+                                }
+                            }
+                            
+                            echo '$' . number_format($precio_total_mostrar, 2);
+                            ?>
+                        </td>
                         <td class="costo-total">
                             <?php
                             if (!empty($producto['cost_price'])) {
-                                echo '$' . number_format($producto['cost_price'] * $producto['cantidad'], 2);
+                                $cantidad_para_costo = $producto['cantidad'];
+                                
+                                // Para cables/bobinas, el cost_price es por BOBINA COMPLETA (como en crear.php)
+                                if ($es_cable) {
+                                    $metros_por_bobina = 305;
+                                    // 🎯 PERMITIR FRACCIONES DE BOBINAS PARA CÁLCULO CORRECTO DEL COSTO
+                                    $bobinas_completas = $cantidad_para_costo / $metros_por_bobina;
+                                    $costo_total_producto = $producto['cost_price'] * $bobinas_completas;
+                                } else {
+                                    // Productos normales: cost_price por unidad
+                                    $costo_total_producto = $producto['cost_price'] * $cantidad_para_costo;
+                                }
+                                
+                                echo '$' . number_format($costo_total_producto, 2);
                             } else {
                                 echo 'N/A';
                             }
@@ -435,7 +837,22 @@ $insumos = $stmt->get_result();
                     <tr>
                         <td><?= $i++ ?></td>
                         <td class="descripcion" style="max-width:320px;word-break:break-word;white-space:normal;">
-                            <strong><?= htmlspecialchars($insumo['nombre_insumo'] ?? $insumo['insumo_nombre']) ?></strong>
+                            <?php
+                            // Priorizar descripción personalizada, luego nombre del insumo
+                            $insumo_id = $insumo['insumo_id'];
+                            $descripcion = '';
+                            
+                            // 1. Verificar si hay descripción personalizada
+                            if (isset($descripcionesPersonalizadasInsumos[$insumo_id]) && !empty(trim($descripcionesPersonalizadasInsumos[$insumo_id]))) {
+                                $descripcion = $descripcionesPersonalizadasInsumos[$insumo_id];
+                            }
+                            // 2. Si no, usar el nombre del insumo como fallback
+                            else {
+                                $descripcion = $insumo['nombre_insumo'] ?? $insumo['insumo_nombre'] ?? 'Insumo sin descripción';
+                            }
+                            
+                            echo '<strong>' . htmlspecialchars($descripcion) . '</strong>';
+                            ?>
                             <?php if ($insumo['categoria'] || $insumo['categoria_nombre']): ?>
                                 <br><span class="badge bg-info" style="font-size: 0.75rem;"><?= htmlspecialchars($insumo['categoria'] ?? $insumo['categoria_nombre']) ?></span>
                             <?php endif; ?>
@@ -450,7 +867,7 @@ $insumos = $stmt->get_result();
                             }
                             ?>
                             <?php if ($img): ?>
-                                <img src="../<?= htmlspecialchars($img) ?>" alt="Imagen Insumo" style="height:38px;">
+                                <img src="../<?= htmlspecialchars($img) ?>" alt="Imagen Insumo" style="width:90px; height:90px; object-fit:cover; border-radius:6px; border:none; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
                             <?php else: ?>
                                 <span style="color:#ccc;"><i class="bi bi-tools"></i> Insumo</span>
                             <?php endif; ?>
@@ -484,7 +901,7 @@ $insumos = $stmt->get_result();
                             }
                             ?>
                             <?php if ($img): ?>
-                                <img src="../<?= htmlspecialchars($img) ?>" alt="Imagen" style="height:38px;">
+                                <img src="../<?= htmlspecialchars($img) ?>" alt="Imagen" style="width:90px; height:90px; object-fit:cover; border-radius:6px; border:none; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
                             <?php else: ?>
                                 <span style="color:#ccc;"><i class="bi bi-tools"></i> Servicio</span>
                             <?php endif; ?>
@@ -496,62 +913,195 @@ $insumos = $stmt->get_result();
                     </tr>
                 <?php endwhile; ?>
             </tbody>
-            <tfoot>
-                <tr>
-                    <td colspan="5" style="text-align:right;">SUBTOTAL</td>
-                    <td colspan="2" style="text-align:center;">$<?= number_format($cotizacion['subtotal'], 2) ?></td>
-                </tr>
-                <?php if ($cotizacion['descuento_porcentaje'] > 0): ?>
-                    <tr>
-                        <td colspan="5" style="text-align:right;">DESCUENTO (<?= $cotizacion['descuento_porcentaje'] ?>%)</td>
-                        <td colspan="2" style="text-align:center;">$<?= number_format($cotizacion['descuento_monto'], 2) ?></td>
-                    </tr>
-                <?php endif; ?>
-                <?php if ($ivaManual > 0): ?>
-                <tr>
-                    <td colspan="5" style="text-align:right; color:#198754; font-size:1.05em;">IVA especial</td>
-                    <td colspan="2" style="text-align:center; color:#198754; font-weight:600; background:#e9fbe9; border-radius:6px;">
-                        <i class="bi bi-info-circle" style="font-size:1.2em;"></i> $<?= number_format($ivaManual, 2) ?>
-                    </td>
-                </tr>
-                <?php endif; ?>
-                <tr>
-                    <td colspan="5" style="text-align:right; font-size:1.1rem; color:#121866;">TOTAL</td>
-                    <td colspan="2" style="text-align:center; font-size:1.1rem; color:#e53935;">$<?= number_format($cotizacion['total'], 2) ?></td>
-                </tr>
-            </tfoot>
         </table>
-        <!-- RESUMEN card removed as requested -->
-
-        <div style="margin-top:10px; font-size:0.97rem; color:#888;">
-            <i class="bi bi-info-circle" style="color:#198754;"></i>
-            <?php
-            $base = $cotizacion['subtotal'] - $cotizacion['descuento_monto'];
-            $diferencia = $cotizacion['total'] - $base;
-            if ($base > 0) {
-                $porcentaje = ($diferencia / $base) * 100;
-                if ($porcentaje < 0) {
-                    echo 'El <strong>total</strong> es menor al <strong>subtotal</strong> por un descuento aplicado de <strong>' . number_format(abs($porcentaje), 2) . '%</strong>.';
-                } else if ($porcentaje > 0) {
-                    echo 'El <strong>total</strong> es mayor al <strong>subtotal</strong> por un cargo adicional (ej. IVA especial) de <strong>' . number_format($porcentaje, 2) . '%</strong>.';
-                } else {
-                    echo 'El <strong>total</strong> coincide con el <strong>subtotal</strong>.';
-                }
-            } else {
-                echo 'El <strong>total</strong> puede diferir del <strong>subtotal</strong> por descuentos o cargos adicionales.';
-            }
-            ?>
-        </div>
-        <?php if ($cotizacion['condiciones_pago'] || $cotizacion['observaciones']): ?>
-            <div class="condiciones">
-                <?php if ($cotizacion['condiciones_pago']): ?>
-                    <strong>CONDICIONES DE PAGO:</strong> <?= htmlspecialchars($cotizacion['condiciones_pago']) ?><br>
-                <?php endif; ?>
-                <?php if ($cotizacion['observaciones']): ?>
-                    <strong>OBSERVACIONES:</strong> <?= htmlspecialchars($cotizacion['observaciones']) ?>
-                <?php endif; ?>
+        
+        <!-- Resumen Visual Mejorado -->
+        <div class="row mt-4">
+            <div class="col-md-8">
+                <div style="margin-top:10px; font-size:0.97rem; color:#888;">
+                    <i class="bi bi-info-circle" style="color:#198754;"></i>
+                    <?php
+                    $subtotal_base = $cotizacion['subtotal'];
+                    $descuento_monto = $cotizacion['descuento_monto'];
+                    $subtotal_con_descuento = $subtotal_base - $descuento_monto;
+                    $total_final = $cotizacion['total'];
+                    $iva_calculado = $total_final - $subtotal_con_descuento;
+                    
+                    $mensaje = '';
+                    
+                    if ($descuento_monto > 0) {
+                        $mensaje .= 'Se aplicó un descuento de <strong>' . $cotizacion['descuento_porcentaje'] . '%</strong> ($' . number_format($descuento_monto, 2) . '). ';
+                    }
+                    
+                    if ($iva_calculado > 0) {
+                        // Calcular el porcentaje de IVA
+                        $porcentaje_iva = ($iva_calculado / $subtotal_con_descuento) * 100;
+                        $mensaje .= 'Se aplicó un IVA especial de <strong>' . number_format($porcentaje_iva, 2) . '%</strong> ($' . number_format($iva_calculado, 2) . ').';
+                    }
+                    
+                    if (empty($mensaje)) {
+                        if (abs($total_final - $subtotal_con_descuento) < 0.01) {
+                            $mensaje = 'El <strong>total</strong> coincide con el <strong>subtotal</strong>.';
+                        } else {
+                            $mensaje = 'El <strong>total</strong> puede diferir del <strong>subtotal</strong> por descuentos o cargos adicionales.';
+                        }
+                    }
+                    
+                    echo $mensaje;
+                    ?>
+                </div>
             </div>
-        <?php endif; ?>
+            <div class="col-md-4">
+                <div class="resumen-cotizacion-ver">
+                    <table class="table table-borderless mb-0" style="border: 2px solid #dee2e6; border-radius: 8px; background: #f8f9fa;">
+                        <tbody>
+                            <!-- IMPORTE (subtotal original antes de descuento) -->
+                            <tr>
+                                <td class="text-end fw-bold" style="padding: 12px;">IMPORTE</td>
+                                <td class="text-end" style="width: 120px; padding: 12px;">
+                                    <span class="fw-bold">$<?= number_format($cotizacion['subtotal'], 2) ?></span>
+                                </td>
+                            </tr>
+                            
+                            <!-- DESCUENTO (si hay) -->
+                            <?php if ($cotizacion['descuento_porcentaje'] > 0): ?>
+                            <tr>
+                                <td class="text-end fw-bold" style="padding: 12px; color: #dc3545;">DESCUENTO <?= $cotizacion['descuento_porcentaje'] ?>%</td>
+                                <td class="text-end" style="padding: 12px;">
+                                    <span class="fw-bold text-danger">-$<?= number_format($cotizacion['descuento_monto'], 2) ?></span>
+                                </td>
+                            </tr>
+                            <?php endif; ?>
+                            
+                            <!-- SUBTOTAL (después de descuento) -->
+                            <tr style="border-top: 1px solid #dee2e6;">
+                                <td class="text-end fw-bold" style="padding: 12px;">SUBTOTAL</td>
+                                <td class="text-end" style="padding: 12px;">
+                                    <span class="fw-bold">$<?= number_format($cotizacion['subtotal'] - $cotizacion['descuento_monto'], 2) ?></span>
+                                </td>
+                            </tr>
+                            
+                            <!-- IVA ESPECIAL (si hay) -->
+                            <?php 
+                            $subtotal_con_descuento = $cotizacion['subtotal'] - $cotizacion['descuento_monto'];
+                            $iva_especial_calculado = $cotizacion['total'] - $subtotal_con_descuento;
+                            if ($iva_especial_calculado > 0.01): 
+                            ?>
+                            <tr>
+                                <td class="text-end fw-bold" style="padding: 12px; color:#198754;">IVA ESPECIAL</td>
+                                <td class="text-end" style="padding: 12px;">
+                                    <span class="fw-bold" style="color:#198754;">+$<?= number_format($iva_especial_calculado, 2) ?></span>
+                                </td>
+                            </tr>
+                            <?php endif; ?>
+                            
+                            <!-- TOTAL FINAL -->
+                            <tr class="border-top" style="border-top: 2px solid #232a7c !important; background: #f8f9fa;">
+                                <td class="text-end fw-bold fs-5" style="padding: 15px; color: #232a7c;">TOTAL</td>
+                                <td class="text-end fw-bold fs-5" style="padding: 15px; color: #e53935;">
+                                    <span>$<?= number_format($cotizacion['total'], 2) ?></span>
+                                </td>
+                            </tr>
+                            
+                            <!-- SEPARADOR PARA INFORMACIÓN INTERNA -->
+                            <tr style="background: #e9ecef;">
+                                <td colspan="2" class="text-center" style="padding: 8px; font-size: 0.85rem; color: #6c757d; font-weight: bold; letter-spacing: 0.5px;">
+                                    📊 INFORMACIÓN INTERNA
+                                </td>
+                            </tr>
+                            
+                            <!-- COSTO TOTAL -->
+                            <tr class="fila-costo-total" style="background: #fff3cd;">
+                                <td class="text-end fw-bold" style="padding: 12px; color: #856404;">COSTO TOTAL</td>
+                                <td class="text-end" style="padding: 12px;">
+                                    <span class="fw-bold" style="color: #856404;">$<?= number_format($costo_total, 2) ?></span>
+                                </td>
+                            </tr>
+                            
+                            <!-- GANANCIAS -->
+                            <tr class="fila-ganancia" style="background: #d4edda;">
+                                <td class="text-end fw-bold" style="padding: 12px; color: #155724;">GANANCIAS</td>
+                                <td class="text-end fw-bold" style="padding: 12px; color: #155724;">
+                                    <?php
+                                    // Cálculo robusto para asegurar que los servicios se incluyan correctamente
+                                    $ganancia_total = 0;
+                                    $ganancia_servicios = 0;
+                                    
+                                    // Reset pointers para cálculo seguro
+                                    $productos->data_seek(0);
+                                    $servicios->data_seek(0);
+                                    $insumos->data_seek(0);
+                                    
+                                    // MÉTODO 1: Cálculo simple base
+                                    $ganancia_simple = floatval($cotizacion['total']) - floatval($costo_total);
+                                    
+                                    // MÉTODO 2: Verificar ganancia de servicios por separado
+                                    while ($serv = $servicios->fetch_assoc()) {
+                                        $ganancia_servicios += floatval($serv['precio_total']);
+                                    }
+                                    
+                                    // Usar el método simple como base
+                                    $ganancia_total = $ganancia_simple;
+                                    
+                                    // Reset pointers para uso posterior
+                                    $productos->data_seek(0);
+                                    $servicios->data_seek(0);
+                                    $insumos->data_seek(0);
+                                    ?>
+                                    <span>$<?= number_format($ganancia_total, 2) ?></span>
+                                    <?php if ($ganancia_servicios > 0): ?>
+                                        <br><small style="font-size: 0.75rem; color: #155724; font-weight: normal;">
+                                            (Servicios: $<?= number_format($ganancia_servicios, 2) ?>)
+                                        </small>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <div class="mt-3 p-3" style="background: #e9ecef; border-radius: 8px; border: 1px solid #dee2e6;">
+                        <div class="row g-2">
+                            <div class="col-12">
+                                <strong>OBSERVACIONES:</strong>
+                                <div class="text-dark mt-1">
+                                    <?php 
+                                    // Obtener observaciones y limpiar códigos técnicos
+                                    $observaciones_valor = isset($cotizacion['observaciones']) ? trim($cotizacion['observaciones']) : '';
+                                    
+                                    if (!empty($observaciones_valor)) {
+                                        // Remover todos los códigos técnicos del sistema
+                                        $observaciones_limpias = $observaciones_valor;
+                                        
+                                        // Remover códigos de descripciones personalizadas
+                                        $observaciones_limpias = preg_replace('/\[DESCRIPCIONES:[^\]]+\]/', '', $observaciones_limpias);
+                                        $observaciones_limpias = preg_replace('/\[DESCRIPCIONES_INSUMOS:[^\]]+\]/', '', $observaciones_limpias);
+                                        
+                                        // Remover código de título personalizado
+                                        $observaciones_limpias = preg_replace('/\[TITULO:[^\]]+\]/', '', $observaciones_limpias);
+                                        
+                                        // Remover código de IVA especial
+                                        $observaciones_limpias = preg_replace('/\[IVA_ESPECIAL:[^\]]+\]/', '', $observaciones_limpias);
+                                        
+                                        // Limpiar espacios extra y saltos de línea
+                                        $observaciones_limpias = trim($observaciones_limpias);
+                                        $observaciones_limpias = preg_replace('/\s+/', ' ', $observaciones_limpias);
+                                        
+                                        if (!empty($observaciones_limpias)) {
+                                            echo nl2br(htmlspecialchars($observaciones_limpias));
+                                        } else {
+                                            echo '<em class="text-muted">Sin observaciones adicionales</em>';
+                                        }
+                                    } else {
+                                        echo '<em class="text-muted">Sin observaciones</em>';
+                                    }
+                                    ?>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="../assets/js/script.js"></script>
@@ -625,24 +1175,20 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
 </div>
 <script>
-// Personalización de encabezado desde localStorage
+// Personalización de encabezado desde localStorage - DESACTIVADO PARA MANTENER DATOS FIJOS
 (function() {
+  // Solo mantener logos dinámicos si es necesario
   const cfg = JSON.parse(localStorage.getItem('cotiz_config_encabezado') || '{}');
-  // Teléfono y ubicación
-  if (cfg.telefono) {
-    const tel = document.querySelector('.datos-empresa p:nth-child(2)');
-    if (tel) tel.textContent = cfg.telefono;
-  }
-  if (cfg.ubicacion) {
-    const ubi = document.querySelector('.datos-empresa p:nth-child(3)');
-    if (ubi) ubi.textContent = cfg.ubicacion;
-  }
-  // Tamaño del logo de la empresa
-  if (cfg.logoSize) {
-    const logo = document.querySelector('.logo-empresa');
-    if (logo) logo.style.height = cfg.logoSize + 'px';
-  }
-  // Logos dinámicos
+  
+  console.log('Config encontrada (solo para logs):', cfg); // Debug
+  
+  // ❌ TELÉFONO Y LOGO FIJOS - NO CAMBIAR
+  // El teléfono y logo ahora están fijos en el HTML y no se modifican
+  
+  // ❌ DIRECCIÓN FIJA - NO CAMBIAR  
+  // La dirección está fija en el HTML y no se modifica
+  
+  // ✅ Solo mantener logos dinámicos si es necesario
   if (cfg.logos && Array.isArray(cfg.logos)) {
     const logosContainer = document.querySelector('.cotizacion-info .logos-dinamicos');
     if (logosContainer) logosContainer.innerHTML = '';
@@ -657,6 +1203,40 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 })();
+
+// Mejorar impresión - ocultar información interna
+window.addEventListener('beforeprint', function() {
+  // Ocultar filas de información interna
+  const informacionInterna = document.querySelectorAll('.fila-costo-total, .fila-ganancia');
+  informacionInterna.forEach(row => {
+    row.style.display = 'none';
+  });
+  
+  // Ocultar separador de información interna y filas siguientes
+  const separador = document.querySelector('td[colspan="2"]:contains("📊")');
+  if (separador) {
+    let currentRow = separador.closest('tr');
+    while (currentRow) {
+      currentRow.style.display = 'none';
+      currentRow = currentRow.nextElementSibling;
+    }
+  }
+  
+  // Cambiar título de la página para impresión
+  document.title = 'Cotización ' + (document.querySelector('.cotizacion-info strong')?.textContent || '');
+});
+
+window.addEventListener('afterprint', function() {
+  // Restaurar visibilidad después de imprimir
+  const informacionInterna = document.querySelectorAll('.fila-costo-total, .fila-ganancia');
+  informacionInterna.forEach(row => {
+    row.style.display = '';
+  });
+  
+  // Restaurar título original
+  document.title = 'Cotización <?= $cotizacion['numero_cotizacion'] ?> | Gestor de inventarios';
+});
+
 // Lanzar impresión automática si la URL tiene ?imprimir=1
 if (window.location.search.includes('imprimir=1')) {
   window.addEventListener('DOMContentLoaded', function() {
