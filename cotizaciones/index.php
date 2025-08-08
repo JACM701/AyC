@@ -41,10 +41,8 @@ if ($filtro_mes) {
     $filtro_fecha_hasta = date('Y-m-t', strtotime($filtro_fecha_desde)); // Último día del mes
 }
 
-// Si no hay filtro de usuario, mostrar solo las del usuario actual
-if (!$filtro_usuario) {
-    $filtro_usuario = $_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? '';
-}
+// Mostrar cotizaciones de todos los usuarios por defecto
+// Se mantiene la variable $filtro_usuario vacía para no filtrar por usuario
 
 // Construir consulta con filtros
 $where_conditions = [];
@@ -80,11 +78,8 @@ if ($filtro_estado) {
     $where_conditions[] = "c.estado_id = ?";
     $params[] = $filtro_estado;
     $param_types .= 'i';
-} else {
-    // Si no hay filtro de estado específico, excluir las rechazadas por defecto
-    $where_conditions[] = "c.estado_id != 4";
 }
-$where_clause = !empty($where_conditions) ? 'WHERE ' . implode(' AND ', $where_conditions) : 'WHERE c.estado_id != 4';
+$where_clause = !empty($where_conditions) ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
 
 // Obtener lista de usuarios para el filtro
 $usuarios = $mysqli->query("SELECT user_id, username FROM users ORDER BY username ASC");
@@ -655,18 +650,11 @@ $img_files = array_filter(scandir($img_dir), function($f) {
         </div>
         <?php endif; ?>
         
-        <!-- Información sobre cotizaciones rechazadas ocultas -->
-        <?php if (!$filtro_estado): ?>
-        <div class="alert alert-info d-flex align-items-center mb-3">
-            <i class="bi bi-eye-slash me-2"></i>
-            <span>Las cotizaciones <strong>rechazadas</strong> están ocultas por defecto. Usa el filtro de estado para mostrarlas específicamente.</span>
-        </div>
-        <?php endif; ?>
-        
-        <div id="cotizacionesLista"><?php include __DIR__ . '/partials/lista.php'; ?>
+        <div id="cotizacionesLista">
+            <?php include __DIR__ . '/partials/lista.php'; ?>
         </div>
         
-        <!-- Contenedor de paginación --> 
+        <!-- Contenedor de paginación -->
         <div id="paginacionContainer">
             <!-- Paginación -->
             <?php if ($total_paginas > 1): ?>

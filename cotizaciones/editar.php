@@ -907,8 +907,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         metrosPorBobina: 305,
         tolerancia: 10,
         modosPrecio: {
-            POR_BOBINA: 'POR_BOBINA',
-            POR_METRO: 'POR_METRO'
+            POR_METRO: 'por_metro',           // Precio por metro  
+            POR_BOBINA: 'por_bobina_completa' // Precio por bobina completa
         }
     };
     

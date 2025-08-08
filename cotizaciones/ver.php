@@ -638,7 +638,7 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                 $ivaVal = floatval($cotizacion['condicion_iva']);
             }
             if ($ivaVal !== null && is_numeric($ivaVal) && $ivaVal > 0) {
-                $base = $cotizacion['subtotal'] - $cotizacion['descuento_monto'];
+                $base = $subtotal_real - $descuento_real; // USAR VALORES RECALCULADOS
                 if ($ivaVal <= 1) {
                     $ivaManual = $base * $ivaVal;
                 } else if ($ivaVal > 1 && $ivaVal <= 100) {
@@ -733,22 +733,23 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                                 $cantidad = $producto['cantidad'];
                                 $precio_unitario = $producto['precio_unitario'];
                                 
-                                // DETECTAR MODO ORIGINAL usando la misma heurística que crear.php
-                                // Si precio > 50, es precio por bobina completa (líneas 1579-1583)
-                                // Si precio <= 50, es precio por metro (líneas 1587-1590)
-                                if ($precio_unitario > 50) {
-                                    // MODO BOBINAS COMPLETAS (como crear.php línea 1580)
-                                    // 🎯 PERMITIR FRACCIONES DE BOBINAS (1.5, 2.5, etc.)
-                                    $bobinas_completas = $cantidad / $metros_por_bobina;
-                                    // Redondear a 1 decimal para mostrar fracciones como 1.5
-                                    $cantidad_mostrar = round($bobinas_completas, 1);
-                                    $unidad = $cantidad_mostrar !== 1 ? ' bobinas' : ' bobina';
-                                    echo number_format($cantidad_mostrar, 1) . $unidad;
+                                // 🎯 DETECTAR MODO AUTOMÁTICAMENTE COMO EN CREAR.PHP
+                                // Si los metros son múltiplo exacto de 305 → modo bobinas
+                                // Si NO son múltiplo exacto de 305 → modo metros
+                                $bobinas_completas = $cantidad / $metros_por_bobina;
+                                $es_multiplo_exacto = (abs($bobinas_completas - round($bobinas_completas)) < 0.001);
+                                
+                                if ($es_multiplo_exacto) {
+                                    // MODO BOBINAS COMPLETAS - 305m, 610m, etc.
+                                    $bobinas_enteras = round($bobinas_completas);
+                                    $cantidad_mostrar = $bobinas_enteras;
+                                    $unidad = $bobinas_enteras !== 1 ? ' bobinas' : ' bobina';
+                                    echo number_format($cantidad_mostrar, 0) . $unidad;
                                 } else {
-                                    // MODO POR METROS (como crear.php línea 1587)
+                                    // MODO POR METROS - 90m, 150m, etc.
                                     $cantidad_mostrar = $cantidad;
                                     $unidad = ' m';
-                                    echo number_format($cantidad_mostrar, 2) . $unidad;
+                                    echo number_format($cantidad_mostrar, 0) . $unidad;
                                 }
                             } else {
                                 // Para productos normales (no bobinas/cables): mostrar solo enteros
@@ -766,15 +767,23 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                             // Usar la misma detección de modo que en cantidad
                             if ($es_cable) {
                                 $precio_unitario = $producto['precio_unitario'];
+                                $cantidad = $producto['cantidad'];
+                                $metros_por_bobina = 305;
                                 
-                                // DETECTAR MODO ORIGINAL usando la misma heurística que crear.php
-                                // Si precio > 50, es precio por bobina completa (líneas 1579-1583)
-                                // Si precio <= 50, es precio por metro (líneas 1587-1590)
-                                if ($precio_unitario > 50) {
-                                    // MODO BOBINAS COMPLETAS - Precio está por bobina
+                                // 🎯 DETECTAR MODO AUTOMÁTICAMENTE COMO EN CREAR.PHP
+                                // Si los metros son múltiplo exacto de 305 → modo bobinas  
+                                // Si NO son múltiplo exacto de 305 → modo metros
+                                $bobinas_completas = $cantidad / $metros_por_bobina;
+                                $es_multiplo_exacto = (abs($bobinas_completas - round($bobinas_completas)) < 0.001);
+                                
+                                if ($es_multiplo_exacto) {
+                                    // MODO BOBINAS COMPLETAS - 305m, 610m, etc.
+                                    $precio_mostrar = $precio_unitario; // Precio está por bobina
                                     $precio_unidad = ' /bobina';
                                 } else {
-                                    // MODO POR METROS - Precio está por metro
+                                    // MODO POR METROS - 90m, 150m, etc.
+                                    // Convertir precio de bobina a precio por metro
+                                    $precio_mostrar = $precio_unitario / $metros_por_bobina;
                                     $precio_unidad = ' /m';
                                 }
                             }
@@ -792,14 +801,21 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                                 $cantidad = $producto['cantidad'];
                                 $metros_por_bobina = 305;
                                 
-                                if ($precio_unitario > 50) {
-                                    // MODO BOBINAS COMPLETAS
-                                    // 🎯 PERMITIR FRACCIONES DE BOBINAS PARA CÁLCULO CORRECTO
-                                    $bobinas_completas = $cantidad / $metros_por_bobina;
-                                    $precio_total_recalculado = $precio_unitario * $bobinas_completas;
+                                // 🎯 DETECTAR MODO AUTOMÁTICAMENTE COMO EN CREAR.PHP
+                                // Si los metros son múltiplo exacto de 305 → modo bobinas
+                                // Si NO son múltiplo exacto de 305 → modo metros
+                                $bobinas_completas = $cantidad / $metros_por_bobina;
+                                $es_multiplo_exacto = (abs($bobinas_completas - round($bobinas_completas)) < 0.001);
+                                
+                                if ($es_multiplo_exacto) {
+                                    // MODO BOBINAS COMPLETAS - 305m, 610m, etc.
+                                    $bobinas_enteras = round($bobinas_completas);
+                                    $precio_total_recalculado = $precio_unitario * $bobinas_enteras;
                                 } else {
-                                    // MODO POR METROS
-                                    $precio_total_recalculado = $precio_unitario * $cantidad;
+                                    // MODO POR METROS - 90m, 150m, etc.
+                                    // Convertir precio de bobina a precio por metro y multiplicar
+                                    $precio_por_metro = $precio_unitario / $metros_por_bobina;
+                                    $precio_total_recalculado = $precio_por_metro * $cantidad;
                                 }
                                 
                                 // Usar el precio total recalculado si difiere significativamente del almacenado
@@ -819,9 +835,22 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                                 // Para cables/bobinas, el cost_price es por BOBINA COMPLETA (como en crear.php)
                                 if ($es_cable) {
                                     $metros_por_bobina = 305;
-                                    // 🎯 PERMITIR FRACCIONES DE BOBINAS PARA CÁLCULO CORRECTO DEL COSTO
-                                    $bobinas_completas = $cantidad_para_costo / $metros_por_bobina;
-                                    $costo_total_producto = $producto['cost_price'] * $bobinas_completas;
+                                    $cantidad = $producto['cantidad'];
+                                    
+                                    // 🎯 DETECTAR MODO AUTOMÁTICAMENTE COMO EN CREAR.PHP
+                                    // Si los metros son múltiplo exacto de 305 → modo bobinas
+                                    // Si NO son múltiplo exacto de 305 → modo metros  
+                                    $bobinas_completas = $cantidad / $metros_por_bobina;
+                                    $es_multiplo_exacto = (abs($bobinas_completas - round($bobinas_completas)) < 0.001);
+                                    
+                                    if ($es_multiplo_exacto) {
+                                        // MODO BOBINAS COMPLETAS - Costo por bobinas enteras
+                                        $bobinas_enteras = round($bobinas_completas);
+                                        $costo_total_producto = $producto['cost_price'] * $bobinas_enteras;
+                                    } else {
+                                        // MODO POR METROS - Costo SIEMPRE bobina completa (según regla de negocio)
+                                        $costo_total_producto = $producto['cost_price'];
+                                    }
                                 } else {
                                     // Productos normales: cost_price por unidad
                                     $costo_total_producto = $producto['cost_price'] * $cantidad_para_costo;
@@ -917,16 +946,90 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
             </tbody>
         </table>
         
+        <?php
+        // 🎯 CALCULAR SUBTOTAL REAL USANDO LA MISMA LÓGICA QUE LA TABLA
+        $subtotal_real = 0;
+        
+        // Reset pointers para cálculo
+        $productos->data_seek(0);
+        $servicios->data_seek(0);
+        $insumos->data_seek(0);
+        
+        // Sumar productos con detección automática
+        while ($producto = $productos->fetch_assoc()) {
+            $tipo_gestion = $producto['tipo_gestion'] ?? '';
+            $es_cable = ($tipo_gestion === 'bobina') || 
+                       (stripos($producto['product_name'] ?? '', 'bobina') !== false) ||
+                       (stripos($producto['product_name'] ?? '', 'cable utp') !== false) ||
+                       (stripos($producto['product_name'] ?? '', 'saxxon out') !== false);
+            
+            if ($es_cable) {
+                // Usar la misma lógica que en la tabla
+                $precio_unitario = $producto['precio_unitario'];
+                $cantidad = $producto['cantidad'];
+                $metros_por_bobina = 305;
+                
+                // 🎯 DETECTAR MODO AUTOMÁTICAMENTE COMO EN CREAR.PHP
+                // Si los metros son múltiplo exacto de 305 → modo bobinas
+                // Si NO son múltiplo exacto de 305 → modo metros
+                $bobinas_completas = $cantidad / $metros_por_bobina;
+                $es_multiplo_exacto = (abs($bobinas_completas - round($bobinas_completas)) < 0.001);
+                
+                if ($es_multiplo_exacto) {
+                    // MODO BOBINAS COMPLETAS - 305m, 610m, etc.
+                    $bobinas_enteras = round($bobinas_completas);
+                    $precio_total_producto = $precio_unitario * $bobinas_enteras;
+                                } else {
+                                    // MODO POR METROS - 90m, 150m, etc.
+                                    // Convertir precio de bobina a precio por metro y multiplicar
+                                    $precio_por_metro = $precio_unitario / $metros_por_bobina;
+                                    $precio_total_producto = $precio_por_metro * $cantidad;
+                                }                $subtotal_real += $precio_total_producto;
+            } else {
+                // Productos normales
+                $subtotal_real += $producto['precio_total'];
+            }
+        }
+        
+        // Sumar servicios
+        while ($servicio = $servicios->fetch_assoc()) {
+            $subtotal_real += $servicio['precio_total'];
+        }
+        
+        // Sumar insumos
+        while ($insumo = $insumos->fetch_assoc()) {
+            $subtotal_real += $insumo['precio_total'];
+        }
+        
+        // Reset pointers para uso posterior
+        $productos->data_seek(0);
+        $servicios->data_seek(0);
+        $insumos->data_seek(0);
+        
+        // Calcular descuento y total reales
+        $descuento_porcentaje = $cotizacion['descuento_porcentaje'];
+        $descuento_real = $subtotal_real * ($descuento_porcentaje / 100);
+        $subtotal_con_descuento_real = $subtotal_real - $descuento_real;
+        $total_real = $subtotal_con_descuento_real; // Sin IVA especial por ahora
+        
+        // 🔥 USAR TOTALES RECALCULADOS EN LUGAR DE LOS DE BD
+        $cotizacion['subtotal'] = $subtotal_real;
+        $cotizacion['descuento_monto'] = $descuento_real;
+        $cotizacion['total'] = $total_real;
+        
+        error_log("VER.PHP TOTALES DEBUG - SubtotalBD: {$cotizacion['subtotal']}, SubtotalReal: $subtotal_real, DescuentoReal: $descuento_real, TotalReal: $total_real");
+        ?>
+        
         <!-- Resumen Visual Mejorado -->
         <div class="row mt-4">
             <div class="col-md-8">
                 <div style="margin-top:10px; font-size:0.97rem; color:#888;">
                     <i class="bi bi-info-circle" style="color:#198754;"></i>
                     <?php
-                    $subtotal_base = $cotizacion['subtotal'];
-                    $descuento_monto = $cotizacion['descuento_monto'];
+                    $subtotal_base = $subtotal_real; // USAR SUBTOTAL REAL
+                    $descuento_monto = $descuento_real; // USAR DESCUENTO REAL
                     $subtotal_con_descuento = $subtotal_base - $descuento_monto;
-                    $total_final = $cotizacion['total'];
+                    $total_final = $total_real; // USAR TOTAL REAL
                     $iva_calculado = $total_final - $subtotal_con_descuento;
                     
                     $mensaje = '';
@@ -957,20 +1060,20 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                 <div class="resumen-cotizacion-ver">
                     <table class="table table-borderless mb-0" style="border: 2px solid #dee2e6; border-radius: 8px; background: #f8f9fa;">
                         <tbody>
-                            <!-- IMPORTE (subtotal original antes de descuento) -->
+                            <!-- IMPORTE (subtotal real calculado) -->
                             <tr>
                                 <td class="text-end fw-bold" style="padding: 12px;">IMPORTE</td>
                                 <td class="text-end" style="width: 120px; padding: 12px;">
-                                    <span class="fw-bold">$<?= number_format($cotizacion['subtotal'], 2) ?></span>
+                                    <span class="fw-bold">$<?= number_format($subtotal_real, 2) ?></span>
                                 </td>
                             </tr>
                             
                             <!-- DESCUENTO (si hay) -->
-                            <?php if ($cotizacion['descuento_porcentaje'] > 0): ?>
+                            <?php if ($descuento_porcentaje > 0): ?>
                             <tr>
-                                <td class="text-end fw-bold" style="padding: 12px; color: #dc3545;">DESCUENTO <?= $cotizacion['descuento_porcentaje'] ?>%</td>
+                                <td class="text-end fw-bold" style="padding: 12px; color: #dc3545;">DESCUENTO <?= $descuento_porcentaje ?>%</td>
                                 <td class="text-end" style="padding: 12px;">
-                                    <span class="fw-bold text-danger">-$<?= number_format($cotizacion['descuento_monto'], 2) ?></span>
+                                    <span class="fw-bold text-danger">-$<?= number_format($descuento_real, 2) ?></span>
                                 </td>
                             </tr>
                             <?php endif; ?>
@@ -979,14 +1082,13 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                             <tr style="border-top: 1px solid #dee2e6;">
                                 <td class="text-end fw-bold" style="padding: 12px;">SUBTOTAL</td>
                                 <td class="text-end" style="padding: 12px;">
-                                    <span class="fw-bold">$<?= number_format($cotizacion['subtotal'] - $cotizacion['descuento_monto'], 2) ?></span>
+                                    <span class="fw-bold">$<?= number_format($subtotal_con_descuento_real, 2) ?></span>
                                 </td>
                             </tr>
                             
                             <!-- IVA ESPECIAL (si hay) -->
                             <?php 
-                            $subtotal_con_descuento = $cotizacion['subtotal'] - $cotizacion['descuento_monto'];
-                            $iva_especial_calculado = $cotizacion['total'] - $subtotal_con_descuento;
+                            $iva_especial_calculado = $total_real - $subtotal_con_descuento_real;
                             if ($iva_especial_calculado > 0.01): 
                             ?>
                             <tr>
@@ -1001,7 +1103,11 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                             <tr class="border-top" style="border-top: 2px solid #232a7c !important; background: #f8f9fa;">
                                 <td class="text-end fw-bold fs-5" style="padding: 15px; color: #232a7c;">TOTAL</td>
                                 <td class="text-end fw-bold fs-5" style="padding: 15px; color: #e53935;">
-                                    <span>$<?= number_format($cotizacion['total'], 2) ?></span>
+                                    <span>$<?= number_format($total_real, 2) ?></span>
+                                    <!-- DEBUG: Mostrar comparación con BD -->
+                                    <br><small style="font-size: 0.7rem; color: #666; font-weight: normal;">
+                                        Real: $<?= number_format($subtotal_real, 2) ?> | BD: $<?= number_format($cotizacion['subtotal'], 2) ?>
+                                    </small>
                                 </td>
                             </tr>
                             
@@ -1024,7 +1130,7 @@ $observaciones_debug = isset($cotizacion['observaciones']) ? $cotizacion['observ
                             <tr class="fila-ganancia" style="background: #d4edda;">
                                 <td class="text-end fw-bold" style="padding: 12px; color: #155724;">GANANCIAS</td>
                                 <td class="text-end fw-bold" style="padding: 12px; color: #155724;">
-                                    <span>$<?= number_format($cotizacion['total'] - $costo_total, 2) ?></span>
+                                    <span>$<?= number_format($total_real - $costo_total, 2) ?></span>
                                 </td>
                             </tr>
                         </tbody>
@@ -1222,6 +1328,10 @@ if (window.location.search.includes('imprimir=1')) {
         bsAlert.close();
       }
     });
+  }, 4000);
+</script>
+</body>
+</html>
   }, 4000);
 </script>
 </body>
