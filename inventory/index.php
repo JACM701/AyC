@@ -6,6 +6,7 @@ require_once '../connection.php';
 $categoria_filtro = isset($_GET['categoria']) ? $_GET['categoria'] : '';
 $busqueda = isset($_GET['busqueda']) ? $_GET['busqueda'] : '';
 $estado_filtro = isset($_GET['estado']) ? $_GET['estado'] : '';
+$activo_filtro = isset($_GET['activo']) ? $_GET['activo'] : '1'; // Por defecto mostrar solo activos
 
 // --- PAGINADO ---
 $por_pagina = 20;
@@ -20,7 +21,9 @@ $query = "SELECT p.*, c.name as categoria, s.name as proveedor,
           LEFT JOIN categories c ON p.category_id = c.category_id
           LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id
           LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
-          WHERE 1=1";
+          WHERE " . ($activo_filtro === '' ? '1=1' : 
+                    ($activo_filtro === '1' ? '(p.is_active = 1 OR p.is_active IS NULL)' : 
+                    ($activo_filtro === '2' ? 'p.is_active = 2' : 'p.is_active = 0')));
 $params = [];
 $types = '';
 
@@ -76,7 +79,9 @@ $count_query = "SELECT COUNT(DISTINCT p.product_id) as total FROM products p
     LEFT JOIN categories c ON p.category_id = c.category_id
     LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id
     LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
-    WHERE 1=1";
+    WHERE " . ($activo_filtro === '' ? '1=1' : 
+                    ($activo_filtro === '1' ? '(p.is_active = 1 OR p.is_active IS NULL)' : 
+                    ($activo_filtro === '2' ? 'p.is_active = 2' : 'p.is_active = 0')));
 $count_params = [];
 $count_types = '';
 if ($categoria_filtro) {
@@ -340,6 +345,30 @@ $total_paginas = max(1, ceil($total_productos_filtrados / $por_pagina));
             background: #1565c0;
             color: #fff;
         }
+        .btn-activate {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+        .btn-activate:hover {
+            background: #2e7d32;
+            color: #fff;
+        }
+        .btn-deactivate {
+            background: #ffebee;
+            color: #c62828;
+        }
+        .btn-deactivate:hover {
+            background: #c62828;
+            color: #fff;
+        }
+        .btn-discontinue {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+        .btn-discontinue:hover {
+            background: #f57c00;
+            color: #fff;
+        }
         .empty-state {
             text-align: center;
             padding: 60px 20px;
@@ -444,6 +473,15 @@ $total_paginas = max(1, ceil($total_productos_filtrados / $por_pagina));
                         <option value="disponible" <?= $estado_filtro === 'disponible' ? 'selected' : '' ?>>Disponible</option>
                         <option value="bajo_stock" <?= $estado_filtro === 'bajo_stock' ? 'selected' : '' ?>>Bajo Stock</option>
                         <option value="agotado" <?= $estado_filtro === 'agotado' ? 'selected' : '' ?>>Agotado</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="activo" class="form-label">Estado del producto</label>
+                    <select class="form-select" id="activo" name="activo">
+                        <option value="1" <?= $activo_filtro === '1' ? 'selected' : '' ?>>Solo activos</option>
+                        <option value="0" <?= $activo_filtro === '0' ? 'selected' : '' ?>>Solo inactivos</option>
+                        <option value="2" <?= $activo_filtro === '2' ? 'selected' : '' ?>>Solo descontinuados</option>
+                        <option value="" <?= $activo_filtro === '' ? 'selected' : '' ?>>Todos</option>
                     </select>
                 </div>
                 <div class="col-md-3">
@@ -596,6 +634,18 @@ $total_paginas = max(1, ceil($total_productos_filtrados / $por_pagina));
                             <button class="btn-action btn-prices" onclick="buscarPrecios(<?= $producto['product_id'] ?>)">
                                 <i class="bi bi-search"></i> Precios
                             </button>
+                            <?php 
+                                $current_status = $producto['is_active'] ?? 1; // Tratar NULL como activo
+                                $next_status = ($current_status == 1 || $current_status === null) ? 0 : ($current_status == 0 ? 2 : 1);
+                                $status_text = ($current_status == 1 || $current_status === null) ? 'Desactivar' : ($current_status == 0 ? 'Descontinuar' : 'Activar');
+                                $status_icon = ($current_status == 1 || $current_status === null) ? 'eye-slash' : ($current_status == 0 ? 'archive' : 'eye');
+                                $status_class = ($current_status == 1 || $current_status === null) ? 'btn-deactivate' : ($current_status == 0 ? 'btn-discontinue' : 'btn-activate');
+                            ?>
+                            <button class="btn-action <?= $status_class ?>" 
+                                    onclick="toggleProductStatus(<?= $producto['product_id'] ?>, <?= $next_status ?>)">
+                                <i class="bi bi-<?= $status_icon ?>"></i> 
+                                <?= $status_text ?>
+                            </button>
                             <?php if (!empty($producto['barcode'])): ?>
                             <button class="btn-action btn-print" onclick="imprimirEtiqueta(<?= $producto['product_id'] ?>, '<?= htmlspecialchars($producto['product_name']) ?>', '<?= htmlspecialchars($producto['barcode']) ?>')">
                                 <i class="bi bi-printer"></i> Imprimir
@@ -697,6 +747,34 @@ $total_paginas = max(1, ceil($total_productos_filtrados / $por_pagina));
         
         function buscarPrecios(id) {
             window.location.href = '../proveedores/buscar_producto.php?id=' + id;
+        }
+        
+        function toggleProductStatus(productId, newStatus) {
+            let action = newStatus == 1 ? 'activar' : (newStatus == 2 ? 'marcar como descontinuado' : 'desactivar');
+            if (confirm('¿Estás seguro de que quieres ' + action + ' este producto?')) {
+                fetch('../products/toggle_status.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        product_id: productId,
+                        is_active: newStatus
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload(); // Recargar la página para mostrar los cambios
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error al cambiar el estado del producto');
+                });
+            }
         }
         
         function imprimirEtiqueta(productId, productName, barcode) {

@@ -2,8 +2,17 @@
     require_once '../auth/middleware.php';
     require_once '../connection.php';
 
-    // Obtener todos los productos con información de categoría, proveedor y bobinas
-    $result = $mysqli->query("
+    // Filtro de estado activo/inactivo
+    $activo_filtro = isset($_GET['activo']) ? $_GET['activo'] : '1'; // Por defecto mostrar solo activos
+
+    // Construir consulta con filtro de estado activo (NULL se trata como activo)
+    $where_clause = "WHERE " . ($activo_filtro === '' ? '1=1' : 
+                    ($activo_filtro === '1' ? '(p.is_active = 1 OR p.is_active IS NULL)' : 
+                    ($activo_filtro === '2' ? 'p.is_active = 2' : 'p.is_active = 0')));
+    $params = [];
+    $types = '';
+
+    $query = "
         SELECT p.*, c.name as category_name, s.name as supplier_name,
                COALESCE(SUM(b.metros_actuales), 0) as metros_totales,
                COUNT(b.bobina_id) as total_bobinas
@@ -11,9 +20,17 @@
         LEFT JOIN categories c ON p.category_id = c.category_id 
         LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id
         LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
+        $where_clause
         GROUP BY p.product_id, p.product_name, p.sku, p.price, p.quantity, p.category_id, p.supplier_id, p.description, p.barcode, p.image, p.tipo_gestion, p.cost_price, p.min_stock, p.max_stock, p.unit_measure, p.is_active, p.created_at, p.updated_at, c.name, s.name
         ORDER BY p.created_at DESC
-    ");
+    ";
+
+    $stmt = $mysqli->prepare($query);
+    if (!empty($params)) {
+        $stmt->bind_param($types, ...$params);
+    }
+    $stmt->execute();
+    $result = $stmt->get_result();
 
     // Obtener categorías únicas para el filtro
     $categorias = $mysqli->query("SELECT category_id, name FROM categories ORDER BY name");
@@ -174,6 +191,12 @@
                         <option value="<?= htmlspecialchars($prov['supplier_id']) ?>"><?= htmlspecialchars($prov['name']) ?></option>
                     <?php endwhile; ?>
                 </select>
+                <select id="filtroActivo" class="form-select" onchange="filtrarPorEstado()">
+                    <option value="1" <?= $activo_filtro === '1' ? 'selected' : '' ?>>Solo activos</option>
+                    <option value="0" <?= $activo_filtro === '0' ? 'selected' : '' ?>>Solo inactivos</option>
+                    <option value="2" <?= $activo_filtro === '2' ? 'selected' : '' ?>>Solo descontinuados</option>
+                    <option value="" <?= $activo_filtro === '' ? 'selected' : '' ?>>Todos</option>
+                </select>
             </div>
             <a href="add.php"><button class="add-btn"><i class="bi bi-plus-circle"></i> Agregar producto</button></a>
             <a href="categories.php"><button class="btn-outline-info"><i class="bi bi-tags"></i> Gestionar Categorías</button></a>
@@ -274,6 +297,18 @@
                                                 <i class="bi bi-receipt"></i>
                                         </a>
                                         <?php endif; ?>
+                                        <?php 
+                                            $current_status = $row['is_active'] ?? 1; // Tratar NULL como activo
+                                            $next_status = ($current_status == 1 || $current_status === null) ? 0 : ($current_status == 0 ? 2 : 1);
+                                            $status_text = ($current_status == 1 || $current_status === null) ? 'Desactivar' : ($current_status == 0 ? 'Descontinuar' : 'Activar');
+                                            $status_icon = ($current_status == 1 || $current_status === null) ? 'eye-slash' : ($current_status == 0 ? 'archive' : 'eye');
+                                            $btn_color = ($current_status == 1 || $current_status === null) ? 'warning' : ($current_status == 0 ? 'secondary' : 'success');
+                                        ?>
+                                        <button class="btn btn-outline-<?= $btn_color ?> btn-sm" 
+                                                title="<?= $status_text ?> producto"
+                                                onclick="toggleProductStatus(<?= $row['product_id'] ?>, <?= $next_status ?>)">
+                                            <i class="bi bi-<?= $status_icon ?>"></i>
+                                        </button>
                                         <a href="delete.php?id=<?= $row['product_id'] ?>" class="btn btn-outline-danger btn-sm btn-delete" title="Eliminar" 
                                            onclick="return confirm('¿Estás seguro de que quieres eliminar este producto?')">
                                             <i class="bi bi-trash"></i>
@@ -345,6 +380,47 @@
         }
         
         busquedaInput.addEventListener('input', filtrarProductos);
+        
+        // Función para cambiar el estado activo/inactivo/descontinuado de un producto
+        function toggleProductStatus(productId, newStatus) {
+            let action = newStatus == 1 ? 'activar' : (newStatus == 2 ? 'marcar como descontinuado' : 'desactivar');
+            if (confirm('¿Estás seguro de que quieres ' + action + ' este producto?')) {
+                fetch('toggle_status.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        product_id: productId,
+                        is_active: newStatus
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload(); // Recargar la página para mostrar los cambios
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error al cambiar el estado del producto');
+                });
+            }
+        }
+        
+        // Función para filtrar por estado activo/inactivo
+        function filtrarPorEstado() {
+            const activo = document.getElementById('filtroActivo').value;
+            const url = new URL(window.location);
+            if (activo !== '') {
+                url.searchParams.set('activo', activo);
+            } else {
+                url.searchParams.delete('activo');
+            }
+            window.location.href = url.toString();
+        }
         filtroCategoria.addEventListener('change', filtrarProductos);
         filtroProveedor.addEventListener('change', filtrarProductos);
         

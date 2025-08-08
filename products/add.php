@@ -112,7 +112,8 @@
         }
 
         // Validación básica
-        if ($product_name && $price >= 0 && $quantity >= 0 && $quantity > 0) {
+    // Permitir cantidad 0
+    if ($product_name && $price >= 0 && $quantity >= 0) {
             $cantidad_inicial = $quantity; // Asignar la cantidad ingresada al principio
             if ($tipo_gestion === 'bobina') {
                 $cantidad_inicial = 0; // Para gestión de bobina, la cantidad inicial es 0

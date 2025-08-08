@@ -153,6 +153,7 @@
         $min_stock = isset($_POST['min_stock']) && $_POST['min_stock'] !== '' ? intval($_POST['min_stock']) : null;
         $max_stock = isset($_POST['max_stock']) && $_POST['max_stock'] !== '' ? intval($_POST['max_stock']) : null;
         $unit_measure = isset($_POST['unit_measure']) ? trim($_POST['unit_measure']) : null;
+        $is_active = isset($_POST['is_active']) ? 1 : 0;
 
         // Validación específica para bobinas (solo si se está editando la cantidad)
         if ($tipo_gestion === 'bobina' && isset($_POST['quantity']) && $_POST['quantity'] !== $product['quantity']) {
@@ -232,6 +233,10 @@
             $update_fields[] = "unit_measure = ?";
             $params[] = $unit_measure;
             $types .= 's';
+            
+            $update_fields[] = "is_active = ?";
+            $params[] = $is_active;
+            $types .= 'i';
             
             $params[] = $product_id;
             $types .= 'i';
@@ -534,6 +539,33 @@
                         </div>
                     </div>
 
+                    <!-- SECCIÓN 5: ESTADO DEL PRODUCTO -->
+                    <div class="form-section">
+                        <h6><i class="bi bi-toggle-on"></i> Estado del producto</h6>
+                        <div class="form-row-horizontal">
+                            <label for="is_active">Estado del producto</label>
+                            <div class="d-flex align-items-center gap-3">
+                                <?php $current_status = $product['is_active'] ?? 1; // Tratar NULL como activo ?>
+                                <select class="form-select" name="is_active" id="is_active" style="max-width: 200px;">
+                                    <option value="1" <?= $current_status == 1 || $current_status === null ? 'selected' : '' ?>>Activo</option>
+                                    <option value="0" <?= $current_status == 0 ? 'selected' : '' ?>>Inactivo</option>
+                                    <option value="2" <?= $current_status == 2 ? 'selected' : '' ?>>Descontinuado</option>
+                                </select>
+                                <small class="text-muted status-description">
+                                    <?php 
+                                        if ($current_status == 2) {
+                                            echo 'El producto está marcado como descontinuado (no disponible para nuevas ventas)';
+                                        } elseif ($current_status == 0) {
+                                            echo 'El producto está temporalmente deshabilitado';
+                                        } else {
+                                            echo 'El producto está visible en listados y cotizaciones';
+                                        }
+                                    ?>
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="form-actions">
                         <button type="submit" class="btn btn-primary">
                             <i class="bi bi-check-circle"></i> Actualizar producto
@@ -653,6 +685,21 @@
                         form.submit();
                     }
                 });
+            });
+            
+            // Lógica para el dropdown de estado del producto
+            const statusSelect = document.getElementById('is_active');
+            const statusDescription = document.querySelector('.status-description');
+            
+            statusSelect.addEventListener('change', function() {
+                const value = this.value;
+                if (value == '2') {
+                    statusDescription.textContent = 'El producto está marcado como descontinuado (no disponible para nuevas ventas)';
+                } else if (value == '0') {
+                    statusDescription.textContent = 'El producto está temporalmente deshabilitado';
+                } else {
+                    statusDescription.textContent = 'El producto está visible en listados y cotizaciones';
+                }
             });
             
             // Lógica para manejar cambios en tipo de gestión
