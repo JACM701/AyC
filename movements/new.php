@@ -4,7 +4,7 @@ require_once '../connection.php';
 require_once '../includes/bobina_helpers.php';
 
 // Obtener productos y tipos para JS
-$products = $mysqli->query("SELECT product_id, product_name, tipo_gestion, barcode FROM products ORDER BY product_name");
+$products = $mysqli->query("SELECT product_id, product_name, tipo_gestion, barcode FROM products WHERE is_active = 1 OR is_active IS NULL ORDER BY product_name");
 $productos_array = [];
 while ($row = $products->fetch_assoc()) {
     $productos_array[] = $row;
