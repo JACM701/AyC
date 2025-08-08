@@ -66,7 +66,8 @@ $stats_query = "SELECT COUNT(*) as total_productos,
     SUM(CASE WHEN quantity > 0 AND quantity <= 10 THEN 1 ELSE 0 END) as bajo_stock,
     SUM(CASE WHEN quantity = 0 THEN 1 ELSE 0 END) as agotados,
     SUM(quantity * price) as valor_total
-    FROM products";
+    FROM products
+    WHERE is_active = 1 OR is_active IS NULL";
 $stats = $mysqli->query($stats_query)->fetch_assoc();
 $total_productos = $stats['total_productos'];
 $disponibles = $stats['disponibles'];
@@ -80,7 +81,7 @@ $count_query = "SELECT COUNT(DISTINCT p.product_id) as total FROM products p
     LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id
     LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
     WHERE " . ($activo_filtro === '' ? '1=1' : 
-                    ($activo_filtro === '1' ? '(p.is_active = 1 OR p.is_active IS NULL)' : 
+                    ($activo_filtro === '1' ? 'p.is_active = 1' : 
                     ($activo_filtro === '2' ? 'p.is_active = 2' : 'p.is_active = 0')));
 $count_params = [];
 $count_types = '';
@@ -627,9 +628,6 @@ $total_paginas = max(1, ceil($total_productos_filtrados / $por_pagina));
                         <div class="product-actions">
                             <button class="btn-action btn-edit" onclick="editarProducto(<?= $producto['product_id'] ?>)">
                                 <i class="bi bi-pencil"></i> Editar
-                            </button>
-                            <button class="btn-action btn-movement" onclick="registrarMovimiento(<?= $producto['product_id'] ?>)">
-                                <i class="bi bi-arrow-left-right"></i> Movimiento
                             </button>
                             <button class="btn-action btn-prices" onclick="buscarPrecios(<?= $producto['product_id'] ?>)">
                                 <i class="bi bi-search"></i> Precios

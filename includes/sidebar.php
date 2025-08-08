@@ -2,7 +2,7 @@
 // Obtener total de productos para el badge
 if (!isset($total_products)) {
     require_once __DIR__ . '/../connection.php';
-    $total_query = "SELECT COUNT(*) as total FROM products";
+    $total_query = "SELECT COUNT(*) as total FROM products WHERE is_active = 1 OR is_active IS NULL";
     $total_result = $mysqli->query($total_query);
     $total_products = $total_result ? $total_result->fetch_assoc()['total'] : 0;
 }

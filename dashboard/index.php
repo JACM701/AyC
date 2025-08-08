@@ -15,6 +15,7 @@
             SUM(CASE WHEN quantity = 0 THEN 1 ELSE 0 END) as agotados,
             SUM(quantity * price) as valor_total
         FROM products
+        WHERE is_active = 1
     ";
     $stats_result = $mysqli->query($stats_query);
     $stats = $stats_result->fetch_assoc();
