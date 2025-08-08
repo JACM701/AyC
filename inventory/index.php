@@ -451,7 +451,86 @@ $total_paginas = max(1, ceil($total_productos_filtrados / $por_pagina));
                     <label for="busqueda" class="form-label">Buscar producto</label>
                     <input type="text" class="form-control" id="busqueda" name="busqueda" 
                            value="<?= htmlspecialchars($busqueda) ?>" 
-                           placeholder="Nombre, SKU, descripción...">
+                           placeholder="Nombre, SKU, descripción..." autocomplete="off">
+                    <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                        const busquedaInput = document.getElementById('busqueda');
+                        const categoriaSelect = document.getElementById('categoria');
+                        const estadoSelect = document.getElementById('estado');
+                        const activoSelect = document.getElementById('activo');
+                        let timeout;
+                        busquedaInput.addEventListener('input', function() {
+                            clearTimeout(timeout);
+                            timeout = setTimeout(() => {
+                                fetchResultados();
+                            }, 350);
+                        });
+                        [categoriaSelect, estadoSelect, activoSelect].forEach(el => {
+                            if (el) el.addEventListener('change', fetchResultados);
+                        });
+                        function fetchResultados() {
+                            const busqueda = busquedaInput.value;
+                            const categoria = categoriaSelect ? categoriaSelect.value : '';
+                            const estado = estadoSelect ? estadoSelect.value : '';
+                            const activo = activoSelect ? activoSelect.value : '';
+                            fetch('ajax_search.php?busqueda=' + encodeURIComponent(busqueda) + '&categoria=' + encodeURIComponent(categoria) + '&estado=' + encodeURIComponent(estado) + '&activo=' + encodeURIComponent(activo))
+                                .then(res => res.json())
+                                .then(data => {
+                                    renderResultados(data);
+                                });
+                        }
+                        function renderResultados(productos) {
+                            const grid = document.querySelector('.product-grid');
+                            if (!grid) return;
+                            grid.innerHTML = '';
+                            if (productos.length === 0) {
+                                grid.innerHTML = '<div class="alert alert-info">No se encontraron productos.</div>';
+                                return;
+                            }
+                            productos.forEach(producto => {
+                                // Calcula stock y estado
+                                let stock = producto.tipo_gestion === 'bobina' ? producto.metros_totales : producto.quantity;
+                                let estado = stock > 10 ? 'disponible' : (stock > 0 ? 'bajo_stock' : 'agotado');
+                                let estadoHtml = stock > 10 ? '<i class="bi bi-check-circle"></i> Disponible' : (stock > 0 ? '<i class="bi bi-exclamation-triangle"></i> Bajo Stock' : '<i class="bi bi-x-circle"></i> Agotado');
+                                let valorTotal = ((producto.tipo_gestion === 'bobina' ? producto.metros_totales : producto.quantity) * producto.price).toFixed(2);
+                                let status = producto.is_active == 1 || producto.is_active === null ? 0 : (producto.is_active == 0 ? 2 : 1);
+                                let statusText = producto.is_active == 1 || producto.is_active === null ? 'Desactivar' : (producto.is_active == 0 ? 'Descontinuar' : 'Activar');
+                                let statusIcon = producto.is_active == 1 || producto.is_active === null ? 'eye-slash' : (producto.is_active == 0 ? 'archive' : 'eye');
+                                let statusClass = producto.is_active == 1 || producto.is_active === null ? 'btn-deactivate' : (producto.is_active == 0 ? 'btn-discontinue' : 'btn-activate');
+                                grid.innerHTML += `
+                                <div class="product-card">
+                                    <div class="product-header">
+                                        <div style="width:100%;text-align:center;">
+                                            ${producto.image ? `<img src="../${producto.image}" alt="Imagen de producto" style="max-height:90px;max-width:95%;object-fit:contain;margin-bottom:10px;display:block;margin-left:auto;margin-right:auto;">` : `<div style="height:90px;display:flex;align-items:center;justify-content:center;background:#f4f6fb;border-radius:10px;margin-bottom:10px;"><i class="bi bi-image" style="font-size:2.5rem;color:#cfd8dc;"></i></div>`}
+                                        </div>
+                                        <div>
+                                            <h5 class="product-title">${producto.product_name}</h5>
+                                            <div class="product-sku">SKU: ${producto.sku} <span class="tipo-gestion-badge">${producto.tipo_gestion}</span></div>
+                                        </div>
+                                    </div>
+                                    <div class="product-category">${producto.categoria || ''}</div>
+                                    <div class="product-description">${producto.description || ''}</div>
+                                    <div class="stock-status">
+                                        <span class="status-badge status-${estado}">${estadoHtml}</span>
+                                    </div>
+                                    <div class="product-details">
+                                        <div class="detail-item"><div class="detail-label">Stock</div><div class="detail-value">${producto.tipo_gestion === 'bobina' ? (producto.metros_totales + ' m') : producto.quantity}</div></div>
+                                        <div class="detail-item"><div class="detail-label">Precio</div><div class="detail-value">$${parseFloat(producto.price).toFixed(2)}</div></div>
+                                        <div class="detail-item"><div class="detail-label">Proveedor</div><div class="detail-value">${producto.proveedor || ''}</div></div>
+                                        <div class="detail-item"><div class="detail-label">Valor Total</div><div class="detail-value">$${valorTotal}</div></div>
+                                    </div>
+                                    <div class="product-actions">
+                                        <button class="btn-action btn-edit" onclick="editarProducto(${producto.product_id})"><i class="bi bi-pencil"></i> Editar</button>
+                                        <button class="btn-action btn-prices" onclick="buscarPrecios(${producto.product_id})"><i class="bi bi-search"></i> Precios</button>
+                                        <button class="btn-action ${statusClass}" onclick="toggleProductStatus(${producto.product_id}, ${status})"><i class="bi bi-${statusIcon}"></i> ${statusText}</button>
+                                        ${producto.barcode ? `<button class="btn-action btn-print" onclick="imprimirEtiqueta(${producto.product_id}, '${producto.product_name}', '${producto.barcode}')"><i class="bi bi-printer"></i> Imprimir</button>` : ''}
+                                    </div>
+                                </div>
+                                `;
+                            });
+                        }
+                    });
+                    </script>
                 </div>
                 <div class="col-md-2">
                     <label for="categoria" class="form-label">Categoría</label>

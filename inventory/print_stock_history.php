@@ -11,7 +11,7 @@ $estado_filtro = isset($_GET['estado']) ? $_GET['estado'] : '';
 $query = "SELECT p.product_name, p.sku, p.quantity, c.name as categoria
           FROM products p
           LEFT JOIN categories c ON p.category_id = c.category_id
-          WHERE p.quantity > 0";
+          WHERE p.quantity > 0 AND (p.is_active = 1 OR p.is_active IS NULL)";
 
 $params = [];
 $types = '';
