@@ -153,6 +153,13 @@
         $min_stock = isset($_POST['min_stock']) && $_POST['min_stock'] !== '' ? intval($_POST['min_stock']) : null;
         $max_stock = isset($_POST['max_stock']) && $_POST['max_stock'] !== '' ? intval($_POST['max_stock']) : null;
         $unit_measure = isset($_POST['unit_measure']) ? trim($_POST['unit_measure']) : null;
+        
+        // 🎯 NUEVO: Precio de venta por metro para bobinas
+        $precio_venta_metro = null;
+        if ($tipo_gestion === 'bobina' && isset($_POST['precio_venta_metro']) && $_POST['precio_venta_metro'] !== '') {
+            $precio_venta_metro = floatval($_POST['precio_venta_metro']);
+            if ($precio_venta_metro <= 0) $precio_venta_metro = null;
+        }
 
         // Validación específica para bobinas (solo si se está editando la cantidad)
         if ($tipo_gestion === 'bobina' && isset($_POST['quantity']) && $_POST['quantity'] !== $product['quantity']) {
@@ -232,6 +239,10 @@
             $update_fields[] = "unit_measure = ?";
             $params[] = $unit_measure;
             $types .= 's';
+            
+            $update_fields[] = "precio_venta_metro = ?";
+            $params[] = $precio_venta_metro;
+            $types .= 'd';
             
             $params[] = $product_id;
             $types .= 'i';
@@ -450,6 +461,22 @@
                                 </div>
                             </div>
                         </div>
+                        
+                        <!-- 🎯 NUEVO CAMPO: Precio de venta por metro para bobinas -->
+                        <div class="form-row-horizontal" id="rowPrecioVentaMetro" style="display:none;">
+                            <label for="precio_venta_metro">
+                                <i class="bi bi-currency-dollar"></i> Precio de venta por metro
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" class="form-control" name="precio_venta_metro" id="precio_venta_metro" 
+                                       value="<?= htmlspecialchars($product['precio_venta_metro'] ?? '') ?>"
+                                       step="0.01" min="0" placeholder="7.00">
+                                <span class="input-group-text">/metro</span>
+                            </div>
+                            <small class="text-muted">Precio que cobrarás por metro de cable vendido</small>
+                        </div>
+                        
                         <div class="form-row-horizontal" id="rowCantidadInicial">
                             <label for="quantity">Cantidad actual del stock</label>
                             <input type="number" class="form-control" name="quantity" id="quantity" value="<?= $product['quantity'] ?>" readonly tabindex="-1">
@@ -663,14 +690,31 @@
             
             function actualizarComportamientoBobina() {
                 const checked = document.querySelector('input[name="tipo_gestion"]:checked');
+                const rowPrecioVentaMetro = document.getElementById('rowPrecioVentaMetro');
+                const precioVentaMetroInput = document.getElementById('precio_venta_metro');
+                
                 if (checked && checked.value === 'bobina') {
                     if (cantidadLabel) cantidadLabel.textContent = 'Metros totales en bobinas';
                     if (smallText) smallText.textContent = 'El stock solo se puede modificar mediante movimientos de inventario';
                     cantidadInput.placeholder = 'Ej: 305, 610, etc.';
+                    
+                    // 🎯 MOSTRAR campo precio por metro para bobinas
+                    if (rowPrecioVentaMetro) rowPrecioVentaMetro.style.display = '';
+                    if (precioVentaMetroInput) {
+                        precioVentaMetroInput.required = true;
+                        precioVentaMetroInput.disabled = false;
+                    }
                 } else {
                     if (cantidadLabel) cantidadLabel.textContent = 'Cantidad actual del stock';
                     if (smallText) smallText.textContent = 'El stock solo se puede modificar mediante movimientos de inventario';
                     cantidadInput.placeholder = 'Ej: 10, 50, etc.';
+                    
+                    // 🎯 OCULTAR campo precio por metro para productos normales
+                    if (rowPrecioVentaMetro) rowPrecioVentaMetro.style.display = 'none';
+                    if (precioVentaMetroInput) {
+                        precioVentaMetroInput.required = false;
+                        precioVentaMetroInput.disabled = true;
+                    }
                 }
             }
             

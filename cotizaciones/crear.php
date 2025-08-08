@@ -15,6 +15,7 @@ $productos = $mysqli->query("
         p.description,
         p.tipo_gestion,
         p.image,
+        p.precio_venta_metro,
         c.name as categoria, 
         s.name as proveedor,
         CASE 
@@ -359,6 +360,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt_cp->bind_param('iiddd', $cotizacion_id, $product_id, $cantidad, $precio_unitario, $precio_total);
                 $stmt_cp->execute();
                 $stmt_cp->close();
+                
                 // Descontar stock si estado es aprobada (ID 1)
                 if ($estado_id == 1) {
                     // 🎯 USAR FLOATVAL PARA PERMITIR DESCUENTOS DE STOCK DECIMALES (BOBINAS)

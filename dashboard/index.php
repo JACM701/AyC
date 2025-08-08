@@ -7,40 +7,122 @@
     $user_role = $_SESSION['user_role'] ?? 'Usuario';
 
     // Obtener estadísticas reales de la base de datos
-    $stats_query = "
-        SELECT 
-            COUNT(*) as total_products,
-            SUM(CASE WHEN quantity > 10 THEN 1 ELSE 0 END) as disponibles,
-            SUM(CASE WHEN quantity > 0 AND quantity <= 10 THEN 1 ELSE 0 END) as bajo_stock,
-            SUM(CASE WHEN quantity = 0 THEN 1 ELSE 0 END) as agotados,
-            SUM(quantity * price) as valor_total
-        FROM products
-    ";
+    // Primero verificar si existe la columna tipo_gestion
+    $check_column = $mysqli->query("SHOW COLUMNS FROM products LIKE 'tipo_gestion'");
+    $has_tipo_gestion = $check_column->num_rows > 0;
+    
+    if (!$has_tipo_gestion) {
+        // Si no existe la columna, usar consulta simple
+        $stats_query = "
+            SELECT 
+                COUNT(*) as total_products,
+                SUM(CASE WHEN quantity > 10 THEN 1 ELSE 0 END) as disponibles,
+                SUM(CASE WHEN quantity > 0 AND quantity <= 10 THEN 1 ELSE 0 END) as bajo_stock,
+                SUM(CASE WHEN quantity = 0 THEN 1 ELSE 0 END) as agotados,
+                SUM(quantity * price) as valor_total
+            FROM products
+        ";
+    } else {
+        // Si existe la columna, usar consulta avanzada
+        $stats_query = "
+            SELECT 
+                COUNT(*) as total_products,
+                SUM(CASE 
+                    WHEN COALESCE(tipo_gestion, 'unidad') = 'bobina' THEN 
+                        CASE WHEN quantity > 100 THEN 1 ELSE 0 END
+                    ELSE 
+                        CASE WHEN quantity > 10 THEN 1 ELSE 0 END
+                END) as disponibles,
+                SUM(CASE 
+                    WHEN COALESCE(tipo_gestion, 'unidad') = 'bobina' THEN 
+                        CASE WHEN quantity > 0 AND quantity <= 100 THEN 1 ELSE 0 END
+                    ELSE 
+                        CASE WHEN quantity > 0 AND quantity <= 10 THEN 1 ELSE 0 END
+                END) as bajo_stock,
+                SUM(CASE WHEN quantity = 0 THEN 1 ELSE 0 END) as agotados,
+                SUM(quantity * price) as valor_total
+            FROM products
+        ";
+    }
+    
     $stats_result = $mysqli->query($stats_query);
-    $stats = $stats_result->fetch_assoc();
+    $stats = $stats_result ? $stats_result->fetch_assoc() : [
+        'total_products' => 0,
+        'disponibles' => 0,
+        'bajo_stock' => 0,
+        'agotados' => 0,
+        'valor_total' => 0
+    ];
 
-    // Obtener producto con menor stock
-    $min_stock_query = "
-        SELECT product_name, quantity, c.name as category_name
-        FROM products p
-        LEFT JOIN categories c ON p.category_id = c.category_id
-        WHERE quantity > 0
-        ORDER BY quantity ASC
-        LIMIT 1
-    ";
+    // Obtener producto con menor stock (considerando tipo de gestión)
+    if (!$has_tipo_gestion) {
+        $min_stock_query = "
+            SELECT product_name, quantity, c.name as category_name,
+                   CONCAT(quantity, ' unidades') as stock_display
+            FROM products p
+            LEFT JOIN categories c ON p.category_id = c.category_id
+            WHERE quantity > 0
+            ORDER BY quantity ASC
+            LIMIT 1
+        ";
+    } else {
+        $min_stock_query = "
+            SELECT 
+                product_name, 
+                quantity, 
+                c.name as category_name,
+                COALESCE(tipo_gestion, 'unidad') as tipo_gestion,
+                CASE 
+                    WHEN COALESCE(tipo_gestion, 'unidad') = 'bobina' THEN CONCAT(ROUND(quantity, 1), ' metros')
+                    ELSE CONCAT(quantity, ' unidades')
+                END as stock_display
+            FROM products p
+            LEFT JOIN categories c ON p.category_id = c.category_id
+            WHERE quantity > 0
+            ORDER BY 
+                CASE 
+                    WHEN COALESCE(tipo_gestion, 'unidad') = 'bobina' THEN quantity / 100
+                    ELSE quantity
+                END ASC
+            LIMIT 1
+        ";
+    }
     $min_stock_result = $mysqli->query($min_stock_query);
-    $min_stock = $min_stock_result->fetch_assoc();
+    $min_stock = $min_stock_result ? $min_stock_result->fetch_assoc() : null;
 
-    // Obtener producto con mayor stock
-    $max_stock_query = "
-        SELECT product_name, quantity, c.name as category_name
-        FROM products p
-        LEFT JOIN categories c ON p.category_id = c.category_id
-        ORDER BY quantity DESC
-        LIMIT 1
-    ";
+    // Obtener producto con mayor stock (considerando tipo de gestión)
+    if (!$has_tipo_gestion) {
+        $max_stock_query = "
+            SELECT product_name, quantity, c.name as category_name,
+                   CONCAT(quantity, ' unidades') as stock_display
+            FROM products p
+            LEFT JOIN categories c ON p.category_id = c.category_id
+            ORDER BY quantity DESC
+            LIMIT 1
+        ";
+    } else {
+        $max_stock_query = "
+            SELECT 
+                product_name, 
+                quantity, 
+                c.name as category_name,
+                COALESCE(tipo_gestion, 'unidad') as tipo_gestion,
+                CASE 
+                    WHEN COALESCE(tipo_gestion, 'unidad') = 'bobina' THEN CONCAT(ROUND(quantity, 1), ' metros')
+                    ELSE CONCAT(quantity, ' unidades')
+                END as stock_display
+            FROM products p
+            LEFT JOIN categories c ON p.category_id = c.category_id
+            ORDER BY 
+                CASE 
+                    WHEN COALESCE(tipo_gestion, 'unidad') = 'bobina' THEN quantity / 100
+                    ELSE quantity
+                END DESC
+            LIMIT 1
+        ";
+    }
     $max_stock_result = $mysqli->query($max_stock_query);
-    $max_stock = $max_stock_result->fetch_assoc();
+    $max_stock = $max_stock_result ? $max_stock_result->fetch_assoc() : null;
 
     // Obtener último producto agregado
     $last_product_query = "
@@ -50,7 +132,7 @@
         LIMIT 1
     ";
     $last_product_result = $mysqli->query($last_product_query);
-    $last_product = $last_product_result->fetch_assoc();
+    $last_product = $last_product_result ? $last_product_result->fetch_assoc() : null;
 
     // Obtener movimientos de hoy
     $movimientos_hoy_query = "
@@ -59,7 +141,7 @@
         WHERE DATE(movement_date) = CURDATE()
     ";
     $movimientos_hoy_result = $mysqli->query($movimientos_hoy_query);
-    $movimientos_hoy = $movimientos_hoy_result->fetch_assoc()['total'];
+    $movimientos_hoy = $movimientos_hoy_result ? $movimientos_hoy_result->fetch_assoc()['total'] : 0;
 
     // Obtener producto más movido
     $most_moved_query = "
@@ -71,7 +153,7 @@
         LIMIT 1
     ";
     $most_moved_result = $mysqli->query($most_moved_query);
-    $most_moved = $most_moved_result->fetch_assoc();
+    $most_moved = $most_moved_result ? $most_moved_result->fetch_assoc() : null;
 
     // Obtener categoría más popular
     $top_category_query = "
@@ -83,7 +165,7 @@
         LIMIT 1
     ";
     $top_category_result = $mysqli->query($top_category_query);
-    $top_category = $top_category_result->fetch_assoc();
+    $top_category = $top_category_result ? $top_category_result->fetch_assoc() : null;
 
     // Obtener proveedor más popular
     $top_supplier_query = "
@@ -95,21 +177,48 @@
         LIMIT 1
     ";
     $top_supplier_result = $mysqli->query($top_supplier_query);
-    $top_supplier = $top_supplier_result->fetch_assoc();
+    $top_supplier = $top_supplier_result ? $top_supplier_result->fetch_assoc() : null;
 
-    // Obtener datos para gráficas
-    $stock_data_query = "
-        SELECT p.product_name, p.quantity
-        FROM products p
-        ORDER BY p.quantity DESC
-        LIMIT 6
-    ";
+    // Obtener datos para gráficas (distinguiendo bobinas de productos normales)
+    if (!$has_tipo_gestion) {
+        $stock_data_query = "
+            SELECT 
+                CONCAT(product_name, ' (unidades)') as product_display,
+                quantity as quantity_display
+            FROM products p
+            WHERE quantity > 0
+            ORDER BY quantity DESC
+            LIMIT 6
+        ";
+    } else {
+        $stock_data_query = "
+            SELECT 
+                CASE 
+                    WHEN COALESCE(tipo_gestion, 'unidad') = 'bobina' THEN CONCAT(product_name, ' (metros)')
+                    ELSE CONCAT(product_name, ' (unidades)')
+                END as product_display,
+                CASE 
+                    WHEN COALESCE(tipo_gestion, 'unidad') = 'bobina' THEN ROUND(quantity, 1)
+                    ELSE quantity
+                END as quantity_display
+            FROM products p
+            WHERE quantity > 0
+            ORDER BY 
+                CASE 
+                    WHEN COALESCE(tipo_gestion, 'unidad') = 'bobina' THEN quantity / 100
+                    ELSE quantity
+                END DESC
+            LIMIT 6
+        ";
+    }
     $stock_data_result = $mysqli->query($stock_data_query);
     $labels_stock = [];
     $data_stock = [];
-    while ($row = $stock_data_result->fetch_assoc()) {
-        $labels_stock[] = $row['product_name'];
-        $data_stock[] = $row['quantity'];
+    if ($stock_data_result) {
+        while ($row = $stock_data_result->fetch_assoc()) {
+            $labels_stock[] = $row['product_display'];
+            $data_stock[] = $row['quantity_display'];
+        }
     }
 
     // Obtener movimientos de la semana
@@ -141,283 +250,667 @@
 <head>
     <meta charset="UTF-8">
     <title>Dashboard | Gestor de inventarios Alarmas y Cámaras de seguridad del sureste</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../assets/css/style.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
+        :root {
+            --primary-color: #2563eb;
+            --primary-light: #3b82f6;
+            --primary-dark: #1d4ed8;
+            --secondary-color: #64748b;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --info-color: #06b6d4;
+            
+            --bg-primary: #f8fafc;
+            --bg-secondary: #f1f5f9;
+            --bg-card: #ffffff;
+            --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --text-muted: #94a3b8;
+            
+            --border-color: #e2e8f0;
+            --border-radius: 16px;
+            --border-radius-lg: 24px;
+            
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+            
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            background: #f4f6fb;
+            background: var(--bg-primary);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: var(--text-primary);
+            line-height: 1.6;
         }
+
         .main-content {
-            background: #f4f6fb;
-            border-radius: 18px;
-            box-shadow: 0 4px 32px rgba(18,24,102,0.07);
-            margin-top: 18px;
-            padding: 0 0 32px 0;
+            margin-left: 270px;
+            padding: 2rem;
+            min-height: 100vh;
+            background: var(--bg-primary);
         }
+
+        /* Header profesional */
         .dashboard-header {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin-bottom: 36px;
-            align-items: center;
-        }
-        .dashboard-header h2 {
-            font-size: 2.2rem;
-            color: #121866;
-            font-weight: 800;
-            margin-bottom: 0;
-            letter-spacing: 0.5px;
-        }
-        .dashboard-header p {
-            color: #232a7c;
-            font-size: 1.15rem;
-            margin: 0;
-        }
-        .dashboard-cards {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 32px;
-            margin: 0 0 18px 0;
-            justify-content: center;
-        }
-        .card {
-            flex: 1 1 220px;
-            background: #fff;
-            padding: 38px 24px 30px 24px;
-            border-radius: 14px;
-            text-align: center;
-            box-shadow: 0 2px 16px rgba(18,24,102,0.10);
-            border: 1.5px solid #e3e6f0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-width: 220px;
-            min-height: 140px;
+            background: var(--bg-card);
+            border-radius: var(--border-radius-lg);
+            padding: 2.5rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--border-color);
             position: relative;
+            overflow: hidden;
         }
-        .card h3 {
-            color: #121866;
-            font-size: 1.15rem;
-            margin-bottom: 12px;
-            font-weight: 700;
+
+        .dashboard-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 6px;
+            background: var(--bg-gradient);
         }
-        .card p {
-            font-size: 2.2rem;
-            font-weight: 700;
-            color: #232a7c;
-            margin: 0;
-        }
-        .card .icon {
-            font-size: 2.2rem;
-            color: #232a7c;
-            margin-bottom: 8px;
-        }
-        .dashboard-extra {
+
+        .header-content {
             display: flex;
-            flex-wrap: wrap;
-            gap: 24px;
-            margin-bottom: 32px;
-            justify-content: center;
-        }
-        .extra-card {
-            flex: 1 1 220px;
-            background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(18,24,102,0.07);
-            padding: 18px 18px 14px 18px;
-            min-width: 220px;
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            border-left: 5px solid #121866;
-        }
-        .extra-card h4 {
-            color: #121866;
-            font-size: 1.05rem;
-            margin-bottom: 6px;
-            font-weight: 700;
-        }
-        .extra-card p {
-            font-size: 1.1rem;
-            color: #232a7c;
-            margin: 0;
-        }
-        .header-hora {
-            display: flex;
-            align-items: center;
             justify-content: space-between;
-            background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(18,24,102,0.07);
-            padding: 18px 28px;
-            margin-bottom: 32px;
+            align-items: center;
+            margin-bottom: 1.5rem;
         }
-        .header-hora .saludo {
-            font-size: 1.3rem;
-            color: #121866;
-            font-weight: 700;
-        }
-        .header-hora .hora {
-            font-size: 1.1rem;
-            color: #232a7c;
-            font-weight: 500;
-            letter-spacing: 1px;
-        }
-        .header-hora .usuario {
-            font-size: 1.1rem;
-            color: #121866;
-            font-weight: 600;
-            margin-left: 18px;
-        }
-        .dashboard-graficas {
+
+        .header-title {
             display: flex;
-            flex-wrap: wrap;
-            gap: 32px;
-            margin-top: 38px;
-            justify-content: center;
+            align-items: center;
+            gap: 1rem;
         }
-        .grafica-card {
-            flex: 1 1 380px;
-            min-width: 320px;
-            max-width: 480px;
-            background: #fff;
-            padding: 28px 18px 18px 18px;
-            border-radius: 18px;
-            box-shadow: 0 4px 24px rgba(18,24,102,0.10);
-            margin-bottom: 18px;
+
+        .header-title h1 {
+            font-size: 2.25rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+        .header-title .icon {
+            width: 3rem;
+            height: 3rem;
+            background: var(--bg-gradient);
+            border-radius: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5rem;
+        }
+
+        .header-subtitle {
+            color: var(--text-secondary);
+            font-size: 1.125rem;
+            font-weight: 500;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            background: var(--bg-secondary);
+            padding: 1rem 1.5rem;
+            border-radius: var(--border-radius);
+            border: 1px solid var(--border-color);
+        }
+
+        .user-avatar {
+            width: 3rem;
+            height: 3rem;
+            background: var(--bg-gradient);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .user-details h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .user-details p {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin: 0;
+        }
+
+        .live-time {
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+            color: var(--primary-color);
+            font-size: 1.125rem;
+        }
+
+        /* Cards estadísticas profesionales */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-md);
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-xl);
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--card-accent);
+        }
+
+        .stat-card.primary::before { background: var(--primary-color); }
+        .stat-card.success::before { background: var(--success-color); }
+        .stat-card.warning::before { background: var(--warning-color); }
+        .stat-card.danger::before { background: var(--danger-color); }
+
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .stat-icon {
+            width: 3rem;
+            height: 3rem;
+            border-radius: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            color: white;
+        }
+
+        .stat-icon.primary { background: var(--primary-color); }
+        .stat-icon.success { background: var(--success-color); }
+        .stat-icon.warning { background: var(--warning-color); }
+        .stat-icon.danger { background: var(--danger-color); }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            line-height: 1;
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-change {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .stat-change.positive { color: var(--success-color); }
+        .stat-change.negative { color: var(--danger-color); }
+
+        /* Sección de información detallada */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .info-card {
+            background: var(--bg-card);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-md);
+            transition: var(--transition);
+        }
+
+        .info-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .info-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .info-icon {
+            width: 2.5rem;
+            height: 2.5rem;
+            background: var(--bg-secondary);
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-color);
+            font-size: 1.125rem;
+        }
+
+        .info-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .info-content {
             display: flex;
             flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .info-main {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .info-detail {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        /* Sección de gráficas profesional */
+        .charts-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .chart-card {
+            background: var(--bg-card);
+            border-radius: var(--border-radius-lg);
+            padding: 2rem;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-lg);
+            transition: var(--transition);
+        }
+
+        .chart-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-xl);
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
             align-items: center;
-            border: 1.5px solid #e3e6f0;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--bg-secondary);
         }
-        .grafica-card h3 {
-            color: #121866;
-            font-size: 1.13rem;
-            margin-bottom: 18px;
-            text-align: center;
+
+        .chart-title {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .chart-title h3 {
+            font-size: 1.25rem;
             font-weight: 700;
-            letter-spacing: 0.5px;
+            color: var(--text-primary);
+            margin: 0;
         }
-        .grafica-card canvas {
-            display: block;
-            width: 340px !important;
-            height: 340px !important;
-            max-width: 100vw;
-            max-height: 60vw;
-            aspect-ratio: 1/1;
-            margin: 0 auto;
-            background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(18,24,102,0.07);
+
+        .chart-title .icon {
+            width: 2.5rem;
+            height: 2.5rem;
+            background: var(--bg-gradient);
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.125rem;
         }
-        .grafica-card.barras {
-            align-items: stretch;
-            overflow-x: auto;
-            padding: 18px 0 18px 0;
+
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin-top: 1rem;
         }
-        .grafica-card.barras canvas {
-            width: 100% !important;
-            height: 340px !important;
-            max-width: 520px;
-            min-width: 240px;
-            max-height: 400px;
-            display: block;
-            margin: 0 auto;
+
+        /* Responsive design mejorado */
+        @media (max-width: 1200px) {
+            .main-content {
+                margin-left: 250px;
+            }
+            
+            .charts-section {
+                grid-template-columns: 1fr;
+            }
         }
-        @media (max-width: 900px) {
-            .dashboard-graficas { flex-direction: column; gap: 18px; margin-top: 24px; }
-            .grafica-card { max-width: 98vw; }
-            .grafica-card canvas { width: 90vw !important; height: 90vw !important; max-width: 350px; max-height: 350px; }
-            .grafica-card.barras canvas { width: 100% !important; height: 240px !important; max-width: 98vw; max-height: 300px; }
+
+        @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0;
+                padding: 1rem;
+            }
+            
+            .header-content {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .dashboard-header {
+                padding: 1.5rem;
+            }
+            
+            .header-title h1 {
+                font-size: 1.875rem;
+            }
         }
+
+        @media (max-width: 480px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 1rem;
+            }
+            
+            .stat-card {
+                padding: 1rem;
+            }
+            
+            .stat-value {
+                font-size: 2rem;
+            }
+        }
+
+        /* Animaciones suaves */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .stat-card, .info-card, .chart-card {
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        .stat-card:nth-child(1) { animation-delay: 0.1s; }
+        .stat-card:nth-child(2) { animation-delay: 0.2s; }
+        .stat-card:nth-child(3) { animation-delay: 0.3s; }
+        .stat-card:nth-child(4) { animation-delay: 0.4s; }
     </style>
 </head>
 <body>
     <?php include '../includes/sidebar.php'; ?>
     <main class="main-content">
-        <div class="dashboard-container">
-            <div class="header-empresa">
-                <div class="header-logo-nombre">
-                    <img src="../assets/img/LogoWeb.png" alt="Logo empresa" class="logo-empresa">
-                    <div class="nombre-empresa">ALARMAS & CAMARAS DEL SURESTE</div>
+        <!-- Header Profesional -->
+        <header class="dashboard-header">
+            <div class="header-content">
+                <div class="header-title">
+                    <div class="icon">
+                        <i class="bi bi-speedometer2"></i>
+                    </div>
+                    <div>
+                        <h1>Dashboard Ejecutivo</h1>
+                        <p class="header-subtitle">Panel de control del sistema de gestión de inventarios</p>
+                    </div>
+                </div>
+                <div class="user-info">
+                    <div class="user-avatar">
+                        <?= strtoupper(substr($username, 0, 2)) ?>
+                    </div>
+                    <div class="user-details">
+                        <h3><?= htmlspecialchars($username) ?></h3>
+                        <p><?= htmlspecialchars($user_role) ?></p>
+                    </div>
+                    <div class="live-time" id="horaActual"></div>
                 </div>
             </div>
-            <div class="header-hora">
-                <div class="saludo">
-                    ¡Bienvenido, <?= htmlspecialchars($username) ?>!
+        </header>
+
+        <!-- Estadísticas Principales -->
+        <section class="stats-grid">
+            <div class="stat-card primary">
+                <div class="stat-header">
+                    <div>
+                        <div class="stat-label">Total Productos</div>
+                        <div class="stat-value"><?= number_format($stats['total_products'] ?? 0) ?></div>
+                    </div>
+                    <div class="stat-icon primary">
+                        <i class="bi bi-box-seam"></i>
+                    </div>
                 </div>
-                <div class="hora" id="horaActual"></div>
-                <div class="usuario">
-                    <i class="bi bi-person-circle"></i> <?= htmlspecialchars($user_role) ?>
-                </div>
-            </div>
-            <!-- INICIO DEL CONTENIDO PRINCIPAL -->
-            <div class="dashboard-header">
-                <h2><i class="bi bi-speedometer2"></i> Dashboard</h2>
-                <p>Panel de control del sistema de gestión de inventarios</p>
-            </div>
-            <div class="dashboard-cards">
-                <div class="card">
-                    <div class="icon"><i class="bi bi-box"></i></div>
-                    <h3>Total Productos</h3>
-                    <p><?= $stats['total_products'] ?? 0 ?></p>
-                </div>
-                <div class="card">
-                    <div class="icon"><i class="bi bi-check-circle"></i></div>
-                    <h3>Disponibles</h3>
-                    <p><?= $stats['disponibles'] ?? 0 ?></p>
-                </div>
-                <div class="card">
-                    <div class="icon"><i class="bi bi-exclamation-triangle"></i></div>
-                    <h3>Bajo Stock</h3>
-                    <p><?= $stats['bajo_stock'] ?? 0 ?></p>
-                </div>
-                <div class="card">
-                    <div class="icon"><i class="bi bi-x-circle"></i></div>
-                    <h3>Agotados</h3>
-                    <p><?= $stats['agotados'] ?? 0 ?></p>
+                <div class="stat-change positive">
+                    <i class="bi bi-arrow-up"></i>
+                    <span>Inventario completo</span>
                 </div>
             </div>
-            <div class="dashboard-extra">
-                <div class="extra-card alert-stock">
-                    <h4><i class="bi bi-exclamation-triangle"></i> Menor Stock</h4>
-                    <p><?= $min_stock ? htmlspecialchars($min_stock['product_name']) : 'N/A' ?> (<?= $min_stock ? $min_stock['quantity'] : 0 ?>)</p>
+
+            <div class="stat-card success">
+                <div class="stat-header">
+                    <div>
+                        <div class="stat-label">Disponibles</div>
+                        <div class="stat-value"><?= number_format($stats['disponibles'] ?? 0) ?></div>
+                    </div>
+                    <div class="stat-icon success">
+                        <i class="bi bi-check-circle-fill"></i>
+                    </div>
                 </div>
-                <div class="extra-card alert-movido">
-                    <h4><i class="bi bi-arrow-left-right"></i> Movimientos Hoy</h4>
-                    <p><?= $movimientos_hoy ?> movimientos</p>
+                <div class="stat-change positive">
+                    <i class="bi bi-arrow-up"></i>
+                    <span><?= round((($stats['disponibles'] ?? 0) / max($stats['total_products'] ?? 1, 1)) * 100, 1) ?>% del total</span>
                 </div>
-                <div class="extra-card alert-ultimo">
-                    <h4><i class="bi bi-clock"></i> Último Producto</h4>
-                    <p><?= $last_product ? htmlspecialchars($last_product['product_name']) : 'N/A' ?></p>
+            </div>
+
+            <div class="stat-card warning">
+                <div class="stat-header">
+                    <div>
+                        <div class="stat-label">Bajo Stock</div>
+                        <div class="stat-value"><?= number_format($stats['bajo_stock'] ?? 0) ?></div>
+                    </div>
+                    <div class="stat-icon warning">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                    </div>
                 </div>
-                <div class="extra-card alert-categoria">
-                    <h4><i class="bi bi-tags"></i> Categoría Top</h4>
-                    <p><?= $top_category ? htmlspecialchars($top_category['category_name']) : 'N/A' ?> (<?= $top_category ? $top_category['total'] : 0 ?>)</p>
+                <div class="stat-change negative">
+                    <i class="bi bi-arrow-down"></i>
+                    <span>Requiere atención</span>
                 </div>
-                <div class="extra-card alert-proveedor">
-                    <h4><i class="bi bi-truck"></i> Proveedor Top</h4>
-                    <p><?= $top_supplier ? htmlspecialchars($top_supplier['supplier_name']) : 'N/A' ?> (<?= $top_supplier ? $top_supplier['total'] : 0 ?>)</p>
+            </div>
+
+            <div class="stat-card danger">
+                <div class="stat-header">
+                    <div>
+                        <div class="stat-label">Agotados</div>
+                        <div class="stat-value"><?= number_format($stats['agotados'] ?? 0) ?></div>
+                    </div>
+                    <div class="stat-icon danger">
+                        <i class="bi bi-x-circle-fill"></i>
+                    </div>
                 </div>
-                <div class="extra-card alert-mayor">
-                    <h4><i class="bi bi-graph-up"></i> Mayor Stock</h4>
-                    <p><?= $max_stock ? htmlspecialchars($max_stock['product_name']) : 'N/A' ?> (<?= $max_stock ? $max_stock['quantity'] : 0 ?>)</p>
+                <div class="stat-change negative">
+                    <i class="bi bi-exclamation-circle"></i>
+                    <span>Crítico</span>
                 </div>
+            </div>
+        </section>
+
+        <!-- Información Detallada -->
+        <section class="info-grid">
+            <div class="info-card">
+                <div class="info-header">
+                    <div class="info-icon">
+                        <i class="bi bi-graph-down-arrow"></i>
+                    </div>
+                    <div class="info-title">Producto con Menor Stock</div>
                 </div>
-            <div class="dashboard-graficas">
-                <div class="grafica-card">
-                    <h3><i class="bi bi-pie-chart"></i> Stock por Producto</h3>
+                <div class="info-content">
+                    <div class="info-main"><?= $min_stock ? htmlspecialchars($min_stock['product_name']) : 'Sin datos' ?></div>
+                    <div class="info-detail"><?= $min_stock ? $min_stock['stock_display'] : 'No hay productos disponibles' ?></div>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <div class="info-header">
+                    <div class="info-icon">
+                        <i class="bi bi-arrow-left-right"></i>
+                    </div>
+                    <div class="info-title">Movimientos Hoy</div>
+                </div>
+                <div class="info-content">
+                    <div class="info-main"><?= number_format($movimientos_hoy) ?> movimientos</div>
+                    <div class="info-detail">Actividad del día actual</div>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <div class="info-header">
+                    <div class="info-icon">
+                        <i class="bi bi-clock-history"></i>
+                    </div>
+                    <div class="info-title">Último Producto Agregado</div>
+                </div>
+                <div class="info-content">
+                    <div class="info-main"><?= $last_product ? htmlspecialchars($last_product['product_name']) : 'Sin datos' ?></div>
+                    <div class="info-detail"><?= $last_product ? date('d/m/Y H:i', strtotime($last_product['created_at'])) : 'No disponible' ?></div>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <div class="info-header">
+                    <div class="info-icon">
+                        <i class="bi bi-tags-fill"></i>
+                    </div>
+                    <div class="info-title">Categoría Principal</div>
+                </div>
+                <div class="info-content">
+                    <div class="info-main"><?= $top_category ? htmlspecialchars($top_category['category_name']) : 'Sin datos' ?></div>
+                    <div class="info-detail"><?= $top_category ? number_format($top_category['total']) . ' productos' : 'No disponible' ?></div>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <div class="info-header">
+                    <div class="info-icon">
+                        <i class="bi bi-truck"></i>
+                    </div>
+                    <div class="info-title">Proveedor Principal</div>
+                </div>
+                <div class="info-content">
+                    <div class="info-main"><?= $top_supplier ? htmlspecialchars($top_supplier['supplier_name']) : 'Sin datos' ?></div>
+                    <div class="info-detail"><?= $top_supplier ? number_format($top_supplier['total']) . ' productos' : 'No disponible' ?></div>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <div class="info-header">
+                    <div class="info-icon">
+                        <i class="bi bi-graph-up-arrow"></i>
+                    </div>
+                    <div class="info-title">Producto con Mayor Stock</div>
+                </div>
+                <div class="info-content">
+                    <div class="info-main"><?= $max_stock ? htmlspecialchars($max_stock['product_name']) : 'Sin datos' ?></div>
+                    <div class="info-detail"><?= $max_stock ? $max_stock['stock_display'] : 'No disponible' ?></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Gráficas -->
+        <section class="charts-section">
+            <div class="chart-card">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <div class="icon">
+                            <i class="bi bi-pie-chart-fill"></i>
+                        </div>
+                        <h3>Distribución de Stock</h3>
+                    </div>
+                </div>
+                <div class="chart-container">
                     <canvas id="stockChart"></canvas>
                 </div>
-                <div class="grafica-card barras">
-                    <h3><i class="bi bi-bar-chart"></i> Movimientos Semanales</h3>
+            </div>
+
+            <div class="chart-card">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <div class="icon">
+                            <i class="bi bi-bar-chart-fill"></i>
+                        </div>
+                        <h3>Movimientos Semanales</h3>
+                    </div>
+                </div>
+                <div class="chart-container">
                     <canvas id="movementsChart"></canvas>
                 </div>
             </div>
-            <!-- FIN DEL CONTENIDO PRINCIPAL -->
-        </div>
+        </section>
     </main>
     <script src="../assets/js/script.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -446,10 +939,13 @@
                 datasets: [{
                     data: <?= json_encode($data_stock) ?>,
                     backgroundColor: [
-                        '#121866', '#232a7c', '#388e3c', '#1976d2', '#e53935', '#ffc107'
+                        '#667eea', '#764ba2', '#f093fb', '#f5576c', 
+                        '#4facfe', '#00f2fe', '#fa709a', '#fee140'
                     ],
-                    borderWidth: 2,
-                    borderColor: '#fff'
+                    borderWidth: 3,
+                    borderColor: '#fff',
+                    hoverBorderWidth: 4,
+                    hoverOffset: 10
                 }]
             },
             options: {
@@ -459,9 +955,28 @@
                     legend: {
                         position: 'bottom',
                         labels: {
-                            padding: 20,
-                            usePointStyle: true
+                            padding: 25,
+                            usePointStyle: true,
+                            pointStyle: 'circle',
+                            font: {
+                                size: 12,
+                                weight: '500'
+                            }
                         }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleColor: '#fff',
+                        bodyColor: '#fff',
+                        borderColor: '#667eea',
+                        borderWidth: 1,
+                        cornerRadius: 10,
+                        displayColors: true
+                    }
+                },
+                elements: {
+                    arc: {
+                        borderRadius: 5
                     }
                 }
             }
@@ -474,33 +989,76 @@
             data: {
                 labels: <?= json_encode($labels_movs) ?>,
                 datasets: [{
-                        label: 'Entradas',
-                        data: <?= json_encode($data_entradas) ?>,
-                    backgroundColor: '#43a047',
-                    borderColor: '#2e7d32',
-                    borderWidth: 1
+                    label: 'Entradas',
+                    data: <?= json_encode($data_entradas) ?>,
+                    backgroundColor: 'rgba(79, 172, 254, 0.8)',
+                    borderColor: '#4facfe',
+                    borderWidth: 2,
+                    borderRadius: 8,
+                    borderSkipped: false,
+                    hoverBackgroundColor: '#4facfe',
+                    hoverBorderColor: '#00f2fe'
                 }, {
-                        label: 'Salidas',
-                        data: <?= json_encode($data_salidas) ?>,
-                        backgroundColor: '#e53935',
-                    borderColor: '#b71c1c',
-                    borderWidth: 1
+                    label: 'Salidas',
+                    data: <?= json_encode($data_salidas) ?>,
+                    backgroundColor: 'rgba(245, 87, 108, 0.8)',
+                    borderColor: '#f5576c',
+                    borderWidth: 2,
+                    borderRadius: 8,
+                    borderSkipped: false,
+                    hoverBackgroundColor: '#f5576c',
+                    hoverBorderColor: '#f093fb'
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
                 scales: {
+                    x: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            font: {
+                                weight: '500'
+                            }
+                        }
+                    },
                     y: {
                         beginAtZero: true,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        },
                         ticks: {
-                            stepSize: 1
+                            stepSize: 1,
+                            font: {
+                                weight: '500'
+                            }
                         }
                     }
                 },
                 plugins: {
                     legend: {
-                        position: 'top'
+                        position: 'top',
+                        labels: {
+                            padding: 20,
+                            usePointStyle: true,
+                            font: {
+                                weight: '500'
+                            }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleColor: '#fff',
+                        bodyColor: '#fff',
+                        borderColor: '#667eea',
+                        borderWidth: 1,
+                        cornerRadius: 10
                     }
                 }
             }

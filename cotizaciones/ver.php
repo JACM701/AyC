@@ -636,7 +636,7 @@ $insumos->data_seek(0);
                 $ivaVal = floatval($cotizacion['condicion_iva']);
             }
             if ($ivaVal !== null && is_numeric($ivaVal) && $ivaVal > 0) {
-                $base = $cotizacion['subtotal'] - $cotizacion['descuento_monto'];
+                $base = $subtotal_real - $descuento_real; // USAR VALORES RECALCULADOS
                 if ($ivaVal <= 1) {
                     $ivaManual = $base * $ivaVal;
                 } else if ($ivaVal > 1 && $ivaVal <= 100) {
@@ -1276,3 +1276,4 @@ if (window.location.search.includes('imprimir=1')) {
 </script>
 </body>
 </html>
+
