@@ -10,7 +10,6 @@ function getPaquetes() {
 function savePaquetes(paquetes) {
     localStorage.setItem(PAQUETES_KEY, JSON.stringify(paquetes));
 }
-
 function addPaquete(paquete) {
     const paquetes = getPaquetes();
     paquetes.push(paquete);
@@ -32,6 +31,8 @@ function deletePaquete(index) {
 // Estructura de un paquete:
 // {
 //   nombre: 'Kit Cámaras',
+//   es_promocional: false,
+//   precio_personalizado: null,
 //   items: [
 //     { tipo_item: 'producto', product_id: 1, nombre: 'Cámara', tipo: 'principal', factor: 1 },
 //     { tipo_item: 'servicio', servicio_id: 2, nombre: 'Instalación', tipo: 'relacionado', factor: 1 },
@@ -74,6 +75,31 @@ window.renderPaqueteForm = function({productos, paquete, onSave, onCancel}) {
         <label class='form-label'>Nombre del paquete</label>
         <input type='text' class='form-control' id='paqNombre' value='${paquete?.nombre ? paquete.nombre.replace(/'/g, "&#39;") : ''}' placeholder='Ej: Kit cámaras 8ch'>
     </div>`;
+    
+    // Toggle para paquete promocional
+    html += `<div class='mb-3'>
+        <div class='form-check form-switch'>
+            <input class='form-check-input' type='checkbox' id='paqEsPromocional' ${paquete?.es_promocional ? 'checked' : ''}>
+            <label class='form-check-label' for='paqEsPromocional'>
+                <i class='bi bi-percent'></i> Es un paquete promocional (precio especial)
+            </label>
+        </div>
+    </div>`;
+    
+    // Campo de precio personalizado (solo visible si es promocional)
+    html += `<div class='mb-3' id='paqPrecioContainer' style='display: ${paquete?.es_promocional ? 'block' : 'none'}'>
+        <label class='form-label'>
+            <i class='bi bi-tag'></i> Precio promocional del paquete
+        </label>
+        <div class='input-group'>
+            <span class='input-group-text'>$</span>
+            <input type='number' class='form-control' id='paqPrecioPersonalizado' 
+                   value='${paquete?.precio_personalizado || ''}' 
+                   placeholder='0.00' step='0.01' min='0'>
+        </div>
+        <small class='text-muted'>Si está vacío, se usará la suma de los precios individuales</small>
+    </div>`;
+    
     html += `<div class='mb-2'><b>Ítems del paquete</b></div>`;
     html += `<table class='table table-bordered'><thead><tr><th>Tipo</th><th>Nombre</th><th>Tipo relación</th><th>Factor</th><th></th></tr></thead><tbody id='paqItemsTbody'>`;
     (paquete?.items || []).forEach((item, idx) => {
@@ -128,7 +154,19 @@ window.renderPaqueteForm = function({productos, paquete, onSave, onCancel}) {
         <button class='btn btn-success' id='btnGuardarPaquete'><i class='bi bi-check-circle'></i> Guardar</button>
         <button class='btn btn-secondary' id='btnCancelarPaquete'><i class='bi bi-x-circle'></i> Cancelar</button>
     </div>`;
+    
     return html;
+};
+
+// Función auxiliar para configurar el toggle promocional después del render
+window.configurarTogglePromocional = function() {
+    setTimeout(() => {
+        const toggle = document.getElementById('paqEsPromocional');
+        const container = document.getElementById('paqPrecioContainer');
+        if (toggle && container) {
+            container.style.display = toggle.checked ? 'block' : 'none';
+        }
+    }, 50);
 };
 
 window.removePaqueteItem = function(idx) {
@@ -159,6 +197,8 @@ window.editarPaquete = function(idx) {
     
     window._paqEdit = { 
         nombre: paquete.nombre, 
+        es_promocional: paquete.es_promocional || false,
+        precio_personalizado: paquete.precio_personalizado || null,
         items: [...paquete.items] 
     };
     window._paqEditIndex = idx;
@@ -169,6 +209,17 @@ window.editarPaquete = function(idx) {
         if (nombreInput && window._paqEdit) {
             window._paqEdit.nombre = nombreInput.value;
         }
+        // Guardar estado promocional antes de renderizar
+        const esPromocionalInput = document.getElementById('paqEsPromocional');
+        if (esPromocionalInput && window._paqEdit) {
+            window._paqEdit.es_promocional = esPromocionalInput.checked;
+        }
+        // Guardar precio personalizado antes de renderizar
+        const precioPersonalizadoInput = document.getElementById('paqPrecioPersonalizado');
+        if (precioPersonalizadoInput && window._paqEdit) {
+            window._paqEdit.precio_personalizado = precioPersonalizadoInput.value ? parseFloat(precioPersonalizadoInput.value) : null;
+        }
+        
         const panel = document.getElementById('paquetesPanel');
         panel.innerHTML = window.renderPaqueteForm({
             productos: productosArray.map(p => ({ product_id: p.product_id, product_name: p.product_name })),
@@ -176,6 +227,10 @@ window.editarPaquete = function(idx) {
             onSave: window.guardarPaqueteEditado,
             onCancel: renderPaquetesPanel
         });
+        
+        // Configurar toggle promocional
+        window.configurarTogglePromocional();
+        
         // Agregar producto o servicio al paquete
         if (typeof window._paqRender === 'function') {
             const oldRender = window._paqRender;
@@ -183,6 +238,14 @@ window.editarPaquete = function(idx) {
                 const nombreInput = document.getElementById('paqNombre');
                 if (nombreInput && window._paqEdit) {
                     window._paqEdit.nombre = nombreInput.value;
+                }
+                const esPromocionalInput = document.getElementById('paqEsPromocional');
+                if (esPromocionalInput && window._paqEdit) {
+                    window._paqEdit.es_promocional = esPromocionalInput.checked;
+                }
+                const precioPersonalizadoInput = document.getElementById('paqPrecioPersonalizado');
+                if (precioPersonalizadoInput && window._paqEdit) {
+                    window._paqEdit.precio_personalizado = precioPersonalizadoInput.value ? parseFloat(precioPersonalizadoInput.value) : null;
                 }
                 oldRender();
                 // Productos
@@ -211,6 +274,19 @@ window.editarPaquete = function(idx) {
                         window._paqRender();
                     };
                 }
+                // Insumos
+                const insSel = document.getElementById('paqInsumoSelect');
+                if (insSel) {
+                    insSel.onchange = function() {
+                        const iid = this.value;
+                        if (!iid) return;
+                        const ins = (window.insumosArray || []).find(i => i.insumo_id == iid);
+                        if (!ins) return;
+                        if (window._paqEdit.items.some(i => i.tipo_item === 'insumo' && i.insumo_id == ins.insumo_id)) return;
+                        window._paqEdit.items.push({ tipo_item: 'insumo', insumo_id: ins.insumo_id, nombre: ins.nombre, tipo: 'relacionado', factor: 1 });
+                        window._paqRender();
+                    };
+                }
             };
         }
         document.getElementById('btnGuardarPaquete').onclick = window.guardarPaqueteEditado;
@@ -231,10 +307,21 @@ window.editarPaquete = function(idx) {
 
 window.guardarPaqueteEditado = function() {
     window._paqEdit.nombre = document.getElementById('paqNombre').value.trim();
+    window._paqEdit.es_promocional = document.getElementById('paqEsPromocional').checked;
+    const precioInput = document.getElementById('paqPrecioPersonalizado');
+    window._paqEdit.precio_personalizado = precioInput && precioInput.value ? parseFloat(precioInput.value) : null;
+    
     if (!window._paqEdit.nombre || window._paqEdit.items.length === 0) {
         mostrarNotificacion('Ponle nombre y al menos un producto al paquete.', 'warning');
         return;
     }
+    
+    // Validar que si es promocional, tenga precio personalizado
+    if (window._paqEdit.es_promocional && (!window._paqEdit.precio_personalizado || window._paqEdit.precio_personalizado <= 0)) {
+        mostrarNotificacion('Los paquetes promocionales deben tener un precio personalizado válido.', 'warning');
+        return;
+    }
+    
     window.PaquetesCotizacion.updatePaquete(window._paqEditIndex, window._paqEdit);
     renderPaquetesPanel();
     mostrarNotificacion('Paquete actualizado correctamente.', 'success');
@@ -250,13 +337,24 @@ window.eliminarPaquete = function(idx) {
 
 // Función para crear nuevo paquete
 function nuevoPaquete() {
-    window._paqEdit = { nombre: '', items: [] };
+    window._paqEdit = { nombre: '', es_promocional: false, precio_personalizado: null, items: [] };
     window._paqRender = function() {
         // Guardar el nombre antes de renderizar
         const nombreInput = document.getElementById('paqNombre');
         if (nombreInput && window._paqEdit) {
             window._paqEdit.nombre = nombreInput.value;
         }
+        // Guardar estado promocional antes de renderizar
+        const esPromocionalInput = document.getElementById('paqEsPromocional');
+        if (esPromocionalInput && window._paqEdit) {
+            window._paqEdit.es_promocional = esPromocionalInput.checked;
+        }
+        // Guardar precio personalizado antes de renderizar
+        const precioPersonalizadoInput = document.getElementById('paqPrecioPersonalizado');
+        if (precioPersonalizadoInput && window._paqEdit) {
+            window._paqEdit.precio_personalizado = precioPersonalizadoInput.value ? parseFloat(precioPersonalizadoInput.value) : null;
+        }
+        
         const panel = document.getElementById('paquetesPanel');
         panel.innerHTML = window.renderPaqueteForm({
             productos: productosArray.map(p => ({ product_id: p.product_id, product_name: p.product_name })),
@@ -264,6 +362,10 @@ function nuevoPaquete() {
             onSave: guardarPaquete,
             onCancel: renderPaquetesPanel
         });
+        
+        // Configurar toggle promocional
+        window.configurarTogglePromocional();
+        
         // --- AGREGAR PRODUCTO ---
         const prodSel = document.getElementById('paqProductoSelect');
         if (prodSel) {
@@ -287,6 +389,19 @@ function nuevoPaquete() {
                 if (!serv) return;
                 if (window._paqEdit.items.some(i => i.tipo_item === 'servicio' && i.servicio_id == serv.servicio_id)) return;
                 window._paqEdit.items.push({ tipo_item: 'servicio', servicio_id: serv.servicio_id, nombre: serv.nombre, tipo: 'relacionado', factor: 1 });
+                window._paqRender();
+            };
+        }
+        // --- AGREGAR INSUMO ---
+        const insSel = document.getElementById('paqInsumoSelect');
+        if (insSel) {
+            insSel.onchange = function() {
+                const iid = this.value;
+                if (!iid) return;
+                const ins = (window.insumosArray || []).find(i => i.insumo_id == iid);
+                if (!ins) return;
+                if (window._paqEdit.items.some(i => i.tipo_item === 'insumo' && i.insumo_id == ins.insumo_id)) return;
+                window._paqEdit.items.push({ tipo_item: 'insumo', insumo_id: ins.insumo_id, nombre: ins.nombre, tipo: 'relacionado', factor: 1 });
                 window._paqRender();
             };
         }

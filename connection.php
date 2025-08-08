@@ -3,12 +3,11 @@
     if (session_status() === PHP_SESSION_NONE) {
         session_start();
     }
-
     // Database configuration
     $host = 'localhost';
     $db_user = 'root';
     $db_pass = '';
-    $db_name = 'inventory_management_system2';
+    $db_name = 'u393681165_AyCSGestor';
 
     // Create MySQLi connection
     $mysqli = new mysqli($host, $db_user, $db_pass, $db_name);

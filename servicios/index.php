@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$imagen) {
                     $imagen = '';
                 }
-                if ($nombre && $precio > 0 && !$error) {
+                if ($nombre && $precio >= 0 && !$error) {
                     $stmt = $mysqli->prepare("INSERT INTO servicios (nombre, descripcion, categoria, precio, imagen) VALUES (?, ?, ?, ?, ?)");
                     $stmt->bind_param('sssds', $nombre, $descripcion, $categoria, $precio, $imagen);
                     if ($stmt->execute()) {
@@ -94,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $log .= "imagen_final: $imagen\n";
                 file_put_contents(__DIR__ . '/servicios_debug.log', $log . "\n", FILE_APPEND);
                 // --- FIN LOG ---
-                if ($servicio_id && $nombre && $precio > 0 && !$error) {
+                if ($servicio_id && $nombre && $precio >= 0 && !$error) {
                     $stmt = $mysqli->prepare("UPDATE servicios SET nombre = ?, descripcion = ?, categoria = ?, precio = ?, imagen = ? WHERE servicio_id = ?");
                     $stmt->bind_param('sssdsi', $nombre, $descripcion, $categoria, $precio, $imagen, $servicio_id);
                     $sql_debug = $mysqli->real_escape_string("UPDATE servicios SET nombre = '$nombre', descripcion = '$descripcion', categoria = '$categoria', precio = $precio, imagen = '$imagen' WHERE servicio_id = $servicio_id");
@@ -260,7 +260,7 @@ $servicios = $mysqli->query("SELECT * FROM servicios WHERE is_active = 1 ORDER B
                             <input type="text" class="form-control" id="categoria" name="categoria" placeholder="ej: Instalación">
                         </div>
                         <div class="col-md-6">
-                            <label for="precio" class="form-label">Precio *</label>
+                            <label for="precio" class="form-label">Precio * <small class="text-muted">(0 para servicios gratuitos)</small></label>
                             <input type="number" class="form-control" id="precio" name="precio" min="0" step="0.01" required>
                         </div>
                         <div class="col-md-6">
