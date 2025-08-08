@@ -429,8 +429,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 
                 $stmt_cp = $mysqli->prepare("INSERT INTO cotizaciones_productos (cotizacion_id, product_id, cantidad, precio_unitario, precio_total) VALUES (?, ?, ?, ?, ?)");
+                $modo_venta = null;
+                $esBobina = isset($prod['tipo_gestion']) && $prod['tipo_gestion'] === 'bobina';
+                $modoPrecio = $prod['_modoPrecio'] ?? null;
+                if ($esBobina) {
+                    if ($modoPrecio === 'bobina' || $modoPrecio === 'metro') {
+                        $modo_venta = $modoPrecio;
+                    }
+                }
                 $precio_total = floatval($prod['precio']) * intval($prod['cantidad']);
-                $stmt_cp->bind_param('iiddd', $cotizacion_id, $product_id, $prod['cantidad'], $prod['precio'], $precio_total);
+                $stmt_cp = $mysqli->prepare("INSERT INTO cotizaciones_productos (cotizacion_id, product_id, cantidad, precio_unitario, precio_total, modo_venta) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_cp->bind_param('iiidds', $cotizacion_id, $product_id, $prod['cantidad'], $prod['precio'], $precio_total, $modo_venta);
                 $stmt_cp->execute();
                 $stmt_cp->close();
             }

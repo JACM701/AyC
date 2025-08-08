@@ -9,29 +9,48 @@ $estado_filtro = $_GET['estado'] ?? '';
 $cliente_filtro = $_GET['cliente'] ?? '';
 
 // Construir consulta con filtros
-$where_conditions = ["DATE(fecha_cotizacion) BETWEEN ? AND ?"];
+$where_conditions = ["DATE(c.fecha_cotizacion) BETWEEN ? AND ?"];
 $params = [$fecha_inicio, $fecha_fin];
 $param_types = 'ss';
 
 if ($estado_filtro) {
-    $where_conditions[] = "estado = ?";
+    $where_conditions[] = "est.nombre_estado = ?";
     $params[] = $estado_filtro;
     $param_types .= 's';
 }
 
 if ($cliente_filtro) {
-    $where_conditions[] = "cliente_nombre LIKE ?";
+    $where_conditions[] = "cl.nombre LIKE ?";
     $params[] = "%$cliente_filtro%";
     $param_types .= 's';
 }
 
 $where_clause = 'WHERE ' . implode(' AND ', $where_conditions);
 
-// Consulta principal usando la vista existente
+// Consulta principal usando JOINs directos en lugar de la vista problemática
 $query = "
-    SELECT * FROM v_cotizaciones_complete 
+    SELECT 
+        c.cotizacion_id,
+        c.numero_cotizacion,
+        c.fecha_cotizacion,
+        c.validez_dias,
+        c.subtotal,
+        c.descuento_porcentaje,
+        c.descuento_monto,
+        c.total,
+        c.condiciones_pago,
+        c.observaciones,
+        est.nombre_estado as estado,
+        cl.nombre as cliente_nombre,
+        u.username as usuario_nombre,
+        c.created_at,
+        c.updated_at
+    FROM cotizaciones c
+    LEFT JOIN est_cotizacion est ON c.estado_id = est.est_cot_id
+    LEFT JOIN clientes cl ON c.cliente_id = cl.cliente_id
+    LEFT JOIN users u ON c.user_id = u.user_id
     $where_clause
-    ORDER BY fecha_cotizacion DESC
+    ORDER BY c.fecha_cotizacion DESC
 ";
 
 $stmt = $mysqli->prepare($query);
@@ -45,13 +64,15 @@ $cotizaciones = $stmt->get_result();
 $stats_query = "
     SELECT 
         COUNT(*) as total_cotizaciones,
-        SUM(total) as valor_total,
-        AVG(total) as promedio_valor,
-        COUNT(CASE WHEN estado = 'Convertida' THEN 1 END) as convertidas,
-        COUNT(CASE WHEN estado = 'Aprobada' THEN 1 END) as aprobadas,
-        COUNT(CASE WHEN estado = 'Rechazada' THEN 1 END) as rechazadas,
-        COUNT(CASE WHEN estado = 'Enviada' THEN 1 END) as enviadas
-    FROM v_cotizaciones_complete 
+        SUM(c.total) as valor_total,
+        AVG(c.total) as promedio_valor,
+        COUNT(CASE WHEN est.nombre_estado = 'Convertida' THEN 1 END) as convertidas,
+        COUNT(CASE WHEN est.nombre_estado = 'Aprobada' THEN 1 END) as aprobadas,
+        COUNT(CASE WHEN est.nombre_estado = 'Rechazada' THEN 1 END) as rechazadas,
+        COUNT(CASE WHEN est.nombre_estado = 'Enviada' THEN 1 END) as enviadas
+    FROM cotizaciones c
+    LEFT JOIN est_cotizacion est ON c.estado_id = est.est_cot_id
+    LEFT JOIN clientes cl ON c.cliente_id = cl.cliente_id
     $where_clause
 ";
 
@@ -72,13 +93,15 @@ $tasa_aprobacion = $stats['total_cotizaciones'] > 0 ?
 // Top 5 clientes por valor
 $top_clientes_query = "
     SELECT 
-        cliente_nombre,
+        cl.nombre as cliente_nombre,
         COUNT(*) as total_cotizaciones,
-        SUM(total) as valor_total,
-        AVG(total) as promedio_valor
-    FROM v_cotizaciones_complete 
+        SUM(c.total) as valor_total,
+        AVG(c.total) as promedio_valor
+    FROM cotizaciones c
+    LEFT JOIN est_cotizacion est ON c.estado_id = est.est_cot_id
+    LEFT JOIN clientes cl ON c.cliente_id = cl.cliente_id
     $where_clause
-    GROUP BY cliente_nombre
+    GROUP BY cl.nombre
     ORDER BY valor_total DESC
     LIMIT 5
 ";
@@ -91,7 +114,7 @@ $stmt_clientes->execute();
 $top_clientes = $stmt_clientes->get_result();
 
 // Obtener estados disponibles para el filtro
-$estados_disponibles = $mysqli->query("SELECT DISTINCT estado FROM v_cotizaciones_complete WHERE estado IS NOT NULL ORDER BY estado");
+$estados_disponibles = $mysqli->query("SELECT DISTINCT nombre_estado as estado FROM est_cotizacion WHERE nombre_estado IS NOT NULL ORDER BY nombre_estado");
 
 // --- RESPUESTA AJAX SOLO TABLA ---
 if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {

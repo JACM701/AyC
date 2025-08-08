@@ -101,6 +101,13 @@
         $unit_measure = isset($_POST['unit_measure']) ? trim($_POST['unit_measure']) : null;
         if ($unit_measure === '' || $unit_measure === '0') $unit_measure = null;
         
+        // 🎯 NUEVO: Precio de venta por metro para bobinas
+        $precio_venta_metro = null;
+        if ($tipo_gestion === 'bobina' && isset($_POST['precio_venta_metro']) && $_POST['precio_venta_metro'] !== '') {
+            $precio_venta_metro = floatval($_POST['precio_venta_metro']);
+            if ($precio_venta_metro <= 0) $precio_venta_metro = null;
+        }
+        
         // Obtener margen de ganancia (por defecto 30%)
         $margen_ganancia = isset($_POST['margen_ganancia']) ? floatval($_POST['margen_ganancia']) : 30.0;
         if ($margen_ganancia < 0) $margen_ganancia = 30.0; // Valor por defecto si es negativo
@@ -629,6 +636,34 @@
                         </div>
                     </div>
                         </div>
+                        
+                        <!-- 🎯 NUEVO CAMPO: Precio de venta por metro para bobinas -->
+                        <div class="row mb-3" id="rowPrecioVentaMetro" style="display:none;">
+                            <div class="col-md-6">
+                                <label for="precio_venta_metro" class="form-label">
+                                    <i class="bi bi-currency-dollar"></i> Precio de venta por metro *
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input type="number" class="form-control" name="precio_venta_metro" id="precio_venta_metro" 
+                                           step="0.01" min="0" placeholder="7.00">
+                                    <span class="input-group-text">/metro</span>
+                                </div>
+                                <div class="form-text">
+                                    <i class="bi bi-info-circle"></i> Precio que cobrarás por metro de cable vendido
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="alert alert-info mt-2">
+                                    <i class="bi bi-lightbulb"></i> <strong>Ejemplos:</strong><br>
+                                    • Cat 5E: $7.00/metro<br>
+                                    • Cat 6: $8.50/metro<br>
+                                    • Coaxial: $4.50/metro<br>
+                                    • Alarma: $3.00/metro
+                                </div>
+                            </div>
+                        </div>
+                        
                         <div class="row mb-3" id="rowCantidadInicial" style="display:none;">
                             <div class="col-md-4">
                                 <label for="quantity" class="form-label">Cantidad inicial *</label>
@@ -936,6 +971,9 @@
 
             function actualizarBobina() {
                 const checked = document.querySelector('input[name="tipo_gestion"]:checked');
+                const rowPrecioVentaMetro = document.getElementById('rowPrecioVentaMetro');
+                const precioVentaMetroInput = document.getElementById('precio_venta_metro');
+                
                 if (checked && checked.value === 'bobina') {
                     if (cantidadInput) {
                         cantidadInput.disabled = false;
@@ -944,6 +982,13 @@
                     }
                     if (cantidadLabel) cantidadLabel.textContent = 'Metros de la bobina inicial *';
                     if (rowCantidadInicial) rowCantidadInicial.style.display = '';
+                    
+                    // 🎯 MOSTRAR campo precio por metro para bobinas
+                    if (rowPrecioVentaMetro) rowPrecioVentaMetro.style.display = '';
+                    if (precioVentaMetroInput) {
+                        precioVentaMetroInput.required = true;
+                        precioVentaMetroInput.disabled = false;
+                    }
                 } else {
                     if (cantidadInput) {
                         cantidadInput.disabled = false;
@@ -952,6 +997,14 @@
                     }
                     if (cantidadLabel) cantidadLabel.textContent = 'Cantidad inicial *';
                     if (rowCantidadInicial) rowCantidadInicial.style.display = '';
+                    
+                    // 🎯 OCULTAR campo precio por metro para productos normales
+                    if (rowPrecioVentaMetro) rowPrecioVentaMetro.style.display = 'none';
+                    if (precioVentaMetroInput) {
+                        precioVentaMetroInput.required = false;
+                        precioVentaMetroInput.disabled = true;
+                        precioVentaMetroInput.value = '';
+                    }
                 }
             }
 
