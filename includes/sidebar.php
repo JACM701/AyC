@@ -47,10 +47,6 @@ if (!isset($total_products)) {
                     <span class="nav-text">Cotizaciones</span>
                 </a>
 
-                <a href="../cotizaciones/historial_global.php" class="sidebar-historial-global<?php if ($current_script === 'historial_global.php') echo ' active'; ?>" title="Historial global">
-                    <i class="bi bi-clock-history"></i>
-                    <span class="nav-text">Historial global</span>
-                </a>
             </div>
         </div>
 
@@ -114,10 +110,7 @@ if (!isset($total_products)) {
                     <i class="bi bi-graph-up"></i>
                     <span class="nav-text">Reportes</span>
                 </a>
-                <a href="../cotizaciones/reporte_auditoria.php" class="sidebar-auditoria-cotizaciones<?php if ($current_script === 'reporte_auditoria.php') echo ' active'; ?>" title="Auditoría de cotizaciones">
-                    <i class="bi bi-shield-check"></i>
-                    <span class="nav-text">Auditoría de cotizaciones</span>
-                </a>
+
             </div>
         </div>
 
