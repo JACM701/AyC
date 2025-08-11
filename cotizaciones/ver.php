@@ -626,7 +626,33 @@ $insumos->data_seek(0);
 
         <table class="tabla-cotizacion">
             <?php
-            // Calcular IVA especial manual antes del tfoot
+            // 🎯 RECALCULAR TOTALES CORRECTOS DESDE LOS PRODUCTOS INDIVIDUALES
+            // Los totales almacenados en la BD pueden estar incorrectos por el bug anterior
+            $subtotal_recalculado = 0;
+            
+            // Recalcular desde productos
+            $productos_temp = $mysqli->query("SELECT precio_total FROM cotizaciones_productos WHERE cotizacion_id = $cotizacion_id");
+            while ($prod = $productos_temp->fetch_assoc()) {
+                $subtotal_recalculado += floatval($prod['precio_total']);
+            }
+            
+            // Recalcular desde servicios
+            $servicios_temp = $mysqli->query("SELECT precio_total FROM cotizaciones_servicios WHERE cotizacion_id = $cotizacion_id");
+            while ($serv = $servicios_temp->fetch_assoc()) {
+                $subtotal_recalculado += floatval($serv['precio_total']);
+            }
+            
+            // Recalcular desde insumos
+            $insumos_temp = $mysqli->query("SELECT precio_total FROM cotizaciones_insumos WHERE cotizacion_id = $cotizacion_id");
+            while ($ins = $insumos_temp->fetch_assoc()) {
+                $subtotal_recalculado += floatval($ins['precio_total']);
+            }
+            
+            // Usar subtotal recalculado si difiere significativamente del almacenado
+            $subtotal_correcto = $subtotal_recalculado;
+            $descuento_monto_correcto = $subtotal_correcto * ($cotizacion['descuento_porcentaje'] / 100);
+            
+            // Calcular IVA especial manual
             $ivaManual = 0;
             $ivaVal = null;
             // Extraer siempre el IVA especial desde observaciones si existe
@@ -636,7 +662,7 @@ $insumos->data_seek(0);
                 $ivaVal = floatval($cotizacion['condicion_iva']);
             }
             if ($ivaVal !== null && is_numeric($ivaVal) && $ivaVal > 0) {
-                $base = $cotizacion['subtotal'] - $cotizacion['descuento_monto'];
+                $base = $subtotal_correcto - $descuento_monto_correcto;
                 if ($ivaVal <= 1) {
                     $ivaManual = $base * $ivaVal;
                 } else if ($ivaVal > 1 && $ivaVal <= 100) {
@@ -645,6 +671,9 @@ $insumos->data_seek(0);
                     $ivaManual = $ivaVal;
                 }
             }
+            
+            // Total correcto
+            $total_correcto = $subtotal_correcto - $descuento_monto_correcto + $ivaManual;
             ?>
             <thead>
                 <tr>
@@ -782,30 +811,9 @@ $insumos->data_seek(0);
                         </td>
                         <td class="precio-total">
                             <?php
-                            // Verificar si el precio total necesita recálculo para cables/bobinas
+                            // 🎯 USAR EL PRECIO TOTAL ALMACENADO EN LA BASE DE DATOS
+                            // Este valor fue calculado correctamente cuando se guardó la cotización
                             $precio_total_mostrar = $producto['precio_total'];
-                            
-                            if ($es_cable) {
-                                $precio_unitario = $producto['precio_unitario'];
-                                $cantidad = $producto['cantidad'];
-                                $metros_por_bobina = 305;
-                                
-                                if ($precio_unitario > 50) {
-                                    // MODO BOBINAS COMPLETAS
-                                    // 🎯 PERMITIR FRACCIONES DE BOBINAS PARA CÁLCULO CORRECTO
-                                    $bobinas_completas = $cantidad / $metros_por_bobina;
-                                    $precio_total_recalculado = $precio_unitario * $bobinas_completas;
-                                } else {
-                                    // MODO POR METROS
-                                    $precio_total_recalculado = $precio_unitario * $cantidad;
-                                }
-                                
-                                // Usar el precio total recalculado si difiere significativamente del almacenado
-                                if (abs($precio_total_mostrar - $precio_total_recalculado) > 0.01) {
-                                    $precio_total_mostrar = $precio_total_recalculado;
-                                }
-                            }
-                            
                             echo '$' . number_format($precio_total_mostrar, 2);
                             ?>
                         </td>
@@ -921,10 +929,11 @@ $insumos->data_seek(0);
                 <div style="margin-top:10px; font-size:0.97rem; color:#888;">
                     <i class="bi bi-info-circle" style="color:#198754;"></i>
                     <?php
-                    $subtotal_base = $cotizacion['subtotal'];
-                    $descuento_monto = $cotizacion['descuento_monto'];
+                    // 🎯 USAR TOTALES RECALCULADOS CORRECTOS
+                    $subtotal_base = $subtotal_correcto;
+                    $descuento_monto = $descuento_monto_correcto;
                     $subtotal_con_descuento = $subtotal_base - $descuento_monto;
-                    $total_final = $cotizacion['total'];
+                    $total_final = $total_correcto;
                     $iva_calculado = $total_final - $subtotal_con_descuento;
                     
                     $mensaje = '';
@@ -959,7 +968,7 @@ $insumos->data_seek(0);
                             <tr>
                                 <td class="text-end fw-bold" style="padding: 12px;">IMPORTE</td>
                                 <td class="text-end" style="width: 120px; padding: 12px;">
-                                    <span class="fw-bold">$<?= number_format($cotizacion['subtotal'], 2) ?></span>
+                                    <span class="fw-bold">$<?= number_format($subtotal_correcto, 2) ?></span>
                                 </td>
                             </tr>
                             
@@ -968,7 +977,7 @@ $insumos->data_seek(0);
                             <tr>
                                 <td class="text-end fw-bold" style="padding: 12px; color: #dc3545;">DESCUENTO <?= $cotizacion['descuento_porcentaje'] ?>%</td>
                                 <td class="text-end" style="padding: 12px;">
-                                    <span class="fw-bold text-danger">-$<?= number_format($cotizacion['descuento_monto'], 2) ?></span>
+                                    <span class="fw-bold text-danger">-$<?= number_format($descuento_monto_correcto, 2) ?></span>
                                 </td>
                             </tr>
                             <?php endif; ?>
@@ -977,20 +986,20 @@ $insumos->data_seek(0);
                             <tr style="border-top: 1px solid #dee2e6;">
                                 <td class="text-end fw-bold" style="padding: 12px;">SUBTOTAL</td>
                                 <td class="text-end" style="padding: 12px;">
-                                    <span class="fw-bold">$<?= number_format($cotizacion['subtotal'] - $cotizacion['descuento_monto'], 2) ?></span>
+                                    <span class="fw-bold">$<?= number_format($subtotal_correcto - $descuento_monto_correcto, 2) ?></span>
                                 </td>
                             </tr>
                             
                             <!-- IVA ESPECIAL (si hay) -->
                             <?php 
-                            $subtotal_con_descuento = $cotizacion['subtotal'] - $cotizacion['descuento_monto'];
-                            $iva_especial_calculado = $cotizacion['total'] - $subtotal_con_descuento;
-                            if ($iva_especial_calculado > 0.01): 
+                            $subtotal_con_descuento_correcto = $subtotal_correcto - $descuento_monto_correcto;
+                            $iva_especial_calculado_correcto = $total_correcto - $subtotal_con_descuento_correcto;
+                            if ($iva_especial_calculado_correcto > 0.01): 
                             ?>
                             <tr>
                                 <td class="text-end fw-bold" style="padding: 12px; color:#198754;">IVA ESPECIAL</td>
                                 <td class="text-end" style="padding: 12px;">
-                                    <span class="fw-bold" style="color:#198754;">+$<?= number_format($iva_especial_calculado, 2) ?></span>
+                                    <span class="fw-bold" style="color:#198754;">+$<?= number_format($iva_especial_calculado_correcto, 2) ?></span>
                                 </td>
                             </tr>
                             <?php endif; ?>
@@ -999,7 +1008,7 @@ $insumos->data_seek(0);
                             <tr class="border-top" style="border-top: 2px solid #232a7c !important; background: #f8f9fa;">
                                 <td class="text-end fw-bold fs-5" style="padding: 15px; color: #232a7c;">TOTAL</td>
                                 <td class="text-end fw-bold fs-5" style="padding: 15px; color: #e53935;">
-                                    <span>$<?= number_format($cotizacion['total'], 2) ?></span>
+                                    <span>$<?= number_format($total_correcto, 2) ?></span>
                                 </td>
                             </tr>
                             
@@ -1023,7 +1032,7 @@ $insumos->data_seek(0);
                                 <td class="text-end fw-bold" style="padding: 12px; color: #155724;">GANANCIAS</td>
                                 <td class="text-end fw-bold" style="padding: 12px; color: #155724;">
                                     <?php
-                                    // Cálculo robusto para asegurar que los servicios se incluyan correctamente
+                                    // 🎯 USAR TOTAL CORRECTO PARA CÁLCULO DE GANANCIAS
                                     $ganancia_total = 0;
                                     $ganancia_servicios = 0;
                                     
@@ -1032,8 +1041,8 @@ $insumos->data_seek(0);
                                     $servicios->data_seek(0);
                                     $insumos->data_seek(0);
                                     
-                                    // MÉTODO 1: Cálculo simple base
-                                    $ganancia_simple = floatval($cotizacion['total']) - floatval($costo_total);
+                                    // MÉTODO 1: Cálculo con total correcto recalculado
+                                    $ganancia_simple = floatval($total_correcto) - floatval($costo_total);
                                     
                                     // MÉTODO 2: Verificar ganancia de servicios por separado
                                     while ($serv = $servicios->fetch_assoc()) {

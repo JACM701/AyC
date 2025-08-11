@@ -266,8 +266,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action']) && $_P
         }
     }
 
-    $stmt = $mysqli->prepare("INSERT INTO products (product_name, sku, price, cost_price, quantity, category_id, supplier_id, description, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param('ssdiiisss', $nombre, $sku, $precio, $costo, $cantidad, $categoria, $proveedor, $descripcion, $image_path);
+    $stmt = $mysqli->prepare("INSERT INTO products (product_name, sku, price, cost_price, quantity, category_id, supplier_id, description, image, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param('ssdiiisssi', $nombre, $sku, $precio, $costo, $cantidad, $categoria, $proveedor, $descripcion, $image_path, 0);
     $stmt->execute();
     $product_id = $stmt->insert_id;
     $stmt->close();
@@ -383,13 +383,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $observaciones = trim($observaciones);
         }
         
-        // Calcular totales
-        $subtotal = 0;
-        foreach ($productos as $prod) {
-            $subtotal += floatval($prod['precio']) * intval($prod['cantidad']);
+        // 🎯 USAR TOTALES CALCULADOS DEL FRONTEND (igual que crear.php)
+        if (isset($_POST['subtotal_frontend']) && isset($_POST['descuento_monto_frontend']) && isset($_POST['total_frontend'])) {
+            // Usar valores calculados por el frontend (CORRECTO)
+            $subtotal = floatval($_POST['subtotal_frontend']);
+            $descuento_monto = floatval($_POST['descuento_monto_frontend']);
+            $total = floatval($_POST['total_frontend']);
+        } else {
+            // Fallback: calcular en backend (solo si no hay valores del frontend)
+            $subtotal = 0;
+            foreach ($productos as $prod) {
+                // El frontend ya calcula correctamente cantidad * precio para todos los productos
+                // incluyendo bobinas, así que usamos esos valores directamente
+                $subtotal += floatval($prod['precio']) * floatval($prod['cantidad']);
+            }
+            foreach ($servicios as $serv) {
+                $subtotal += floatval($serv['precio']) * floatval($serv['cantidad']);
+            }
+            if ($insumos && is_array($insumos)) {
+                foreach ($insumos as $ins) {
+                    $cantidad = floatval($ins['cantidad'] ?? 1);
+                    $precio_unitario = floatval($ins['precio'] ?? 0);
+                    $subtotal += $cantidad * $precio_unitario;
+                }
+            }
+            $descuento_monto = $subtotal * $descuento_porcentaje / 100;
+            $total = $subtotal - $descuento_monto;
         }
-        $descuento_monto = $subtotal * $descuento_porcentaje / 100;
-        $total = $subtotal - $descuento_monto;
         
         // Actualizar cotización
         $stmt = $mysqli->prepare("UPDATE cotizaciones SET cliente_id = ?, fecha_cotizacion = ?, validez_dias = ?, subtotal = ?, descuento_porcentaje = ?, descuento_monto = ?, total = ?, condiciones_pago = ?, observaciones = ?, estado_id = ? WHERE cotizacion_id = ?");
@@ -1518,7 +1538,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (esBobina && prod._modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA) {
                 // Para bobinas en modo bobina: número de bobinas × precio por bobina
                 const bobinasCompletas = Math.round(cantidad / PRECIO_CONFIG.metrosPorBobina);
-                totalProducto = bobinasCompletas * (precio * PRECIO_CONFIG.metrosPorBobina);
+                totalProducto = bobinasCompletas * precio;
             } else {
                 // Para metros o productos normales: cantidad × precio
                 totalProducto = cantidad * precio;
@@ -1674,6 +1694,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         document.getElementById('productos_json').value = JSON.stringify(productos);
         document.getElementById('servicios_json').value = JSON.stringify(servicios);
         document.getElementById('insumos_json').value = JSON.stringify(insumos);
+        
+        // ENVIAR TOTALES CALCULADOS DEL FRONTEND AL BACKEND (igual que crear.php)
+        const totalesCalculados = calcularTotalesCompletos();
+        
+        // Crear campos hidden para enviar totales del frontend
+        let inputSubtotal = document.getElementById('subtotal_frontend');
+        if (!inputSubtotal) {
+            inputSubtotal = document.createElement('input');
+            inputSubtotal.type = 'hidden';
+            inputSubtotal.name = 'subtotal_frontend';
+            inputSubtotal.id = 'subtotal_frontend';
+            document.getElementById('formEditarCotizacion').appendChild(inputSubtotal);
+        }
+        inputSubtotal.value = totalesCalculados.subtotal;
+        
+        let inputDescuento = document.getElementById('descuento_monto_frontend');
+        if (!inputDescuento) {
+            inputDescuento = document.createElement('input');
+            inputDescuento.type = 'hidden';
+            inputDescuento.name = 'descuento_monto_frontend';
+            inputDescuento.id = 'descuento_monto_frontend';
+            document.getElementById('formEditarCotizacion').appendChild(inputDescuento);
+        }
+        inputDescuento.value = totalesCalculados.descuento_monto;
+        
+        let inputTotal = document.getElementById('total_frontend');
+        if (!inputTotal) {
+            inputTotal = document.createElement('input');
+            inputTotal.type = 'hidden';
+            inputTotal.name = 'total_frontend';
+            inputTotal.id = 'total_frontend';
+            document.getElementById('formEditarCotizacion').appendChild(inputTotal);
+        }
+        inputTotal.value = totalesCalculados.total;
     });
 
     // Alta rápida de productos
@@ -1809,6 +1863,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $('#buscador_insumo').val('');
         $('#sugerencias_insumos').hide();
     });
+
+    // Función para calcular totales completos (USAR LA MISMA LÓGICA QUE renderTablaProductos)
+    function calcularTotalesCompletos() {
+        let subtotal = 0;
+        
+        // Sumar productos - USAR LA MISMA LÓGICA EXACTA QUE renderTablaProductos
+        productosCotizacion.forEach(prod => {
+            const esBobina = prod.tipo_gestion === 'bobina';
+            const cantidad = parseFloat(prod.cantidad) || 1;
+            const precio = parseFloat(prod.precio) || 0;
+            
+            let sub;
+            if (esBobina && prod._modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA) {
+                // Para bobinas en modo POR_BOBINA: calcular bobinas completas
+                const bobinasCompletas = Math.round(cantidad / PRECIO_CONFIG.metrosPorBobina);
+                sub = bobinasCompletas * precio;
+            } else {
+                // Para productos normales o bobinas en modo metros
+                sub = cantidad * precio;
+            }
+            subtotal += sub;
+        });
+        
+        // Sumar servicios
+        serviciosCotizacion.forEach(serv => {
+            const cantidad = parseFloat(serv.cantidad) || 0;
+            const precio = parseFloat(serv.precio) || 0;
+            subtotal += cantidad * precio;
+        });
+        
+        // Sumar insumos
+        insumosCotizacion.forEach(ins => {
+            const cantidad = parseFloat(ins.cantidad) || 0;
+            const precio = parseFloat(ins.precio) || 0;
+            subtotal += cantidad * precio;
+        });
+        
+        const descuentoPorcentaje = parseFloat(document.getElementById('descuento_porcentaje').value) || 0;
+        const descuentoMonto = subtotal * descuentoPorcentaje / 100;
+        const total = subtotal - descuentoMonto;
+        
+        return {
+            subtotal: subtotal.toFixed(2),
+            descuento_monto: descuentoMonto.toFixed(2),
+            total: total.toFixed(2)
+        };
+    }
 
     // Evento de descuento
     document.getElementById('descuento_porcentaje').addEventListener('input', actualizarTotales);

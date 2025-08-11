@@ -27,6 +27,7 @@ $productos = $mysqli->query("
     LEFT JOIN categories c ON p.category_id = c.category_id
     LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id
     LEFT JOIN bobinas b ON p.product_id = b.product_id AND b.is_active = 1
+    WHERE (p.is_active = 1 OR p.is_active IS NULL OR p.is_active = 0)
     GROUP BY p.product_id, p.product_name, p.sku, p.price, p.cost_price, p.description, p.tipo_gestion, p.image, c.name, s.name, p.quantity
     ORDER BY p.product_name ASC
 ");
@@ -141,13 +142,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         // Tomar totales del frontend si están disponibles, sino calcular en backend
+        // 🎯 SIEMPRE USAR VALORES DEL FRONTEND - NO USAR CÁLCULO BACKEND BUGGY
         if (isset($_POST['subtotal_frontend']) && isset($_POST['descuento_monto_frontend']) && isset($_POST['total_frontend'])) {
-            // Usar valores calculados por el frontend
+            // Usar valores calculados por el frontend (CORRECTO)
             $subtotal = floatval($_POST['subtotal_frontend']);
             $descuento_monto = floatval($_POST['descuento_monto_frontend']);
             $total = floatval($_POST['total_frontend']);
         } else {
-            // Calcular totales en backend (fallback)
+            // ❌ FORZAR ERROR SI NO HAY VALORES FRONTEND - NO USAR CÁLCULO BACKEND BUGGY
+            $error = 'Error: No se recibieron los totales calculados del frontend. Recarga la página e intenta de nuevo.';
+        }
+        
+        // Solo continuar si no hay error
+        if (!$error) {
+            // Calcular totales en backend (fallback) - ESTE CÓDIGO YA NO SE EJECUTA
             $subtotal = 0;
             // Sumar productos
             foreach ($productos as $prod) {
@@ -160,10 +168,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $modoPrecio = $prod['_modoPrecio'] ?? null;
                 
                 if ($esBobina && $modoPrecio === 'POR_BOBINA') {
-                    // Para bobinas en modo POR_BOBINA: calcular según bobinas completas
-                    $metrosPorBobina = 305;
-                    $bobinasCompletas = $cantidad / $metrosPorBobina;
-                    $subtotalProducto = $bobinasCompletas * $precio;
+                    // Para bobinas en modo POR_BOBINA: usar cantidad y precio directamente
+                    // El frontend ya calcula correctamente cantidad * precio para bobinas
+                    $subtotalProducto = $cantidad * $precio;
                 } else {
                     // Para productos normales o bobinas en modo metros
                     $subtotalProducto = $cantidad * $precio;
@@ -331,6 +338,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt_prod->execute();
                     $product_id = $stmt_prod->insert_id;
                     $stmt_prod->close();
+                    
+                    // 🎯 Hacer que el producto de alta rápida sea desactivado
+                    $mysqli->query("UPDATE products SET is_active = 0 WHERE product_id = $product_id");
                 }
                 $stmt_cp = $mysqli->prepare("INSERT INTO cotizaciones_productos (cotizacion_id, product_id, cantidad, precio_unitario, precio_total) VALUES (?, ?, ?, ?, ?)");
                 

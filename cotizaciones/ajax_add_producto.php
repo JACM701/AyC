@@ -60,6 +60,9 @@ $stmt->execute();
 $product_id = $stmt->insert_id;
 $stmt->close();
 
+// 🎯 Hacer que el producto de alta rápida sea desactivado
+$mysqli->query("UPDATE products SET is_active = 0 WHERE product_id = $product_id");
+
 echo json_encode([
     'success' => true,
     'producto' => [
