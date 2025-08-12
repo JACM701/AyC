@@ -744,69 +744,17 @@ $insumos->data_seek(0);
                         </td>
                         <td>
                             <?php
-                            // 🎯 DETECTAR MODO ORIGINAL USANDO LA MISMA LÓGICA QUE CREAR.PHP
+                            // Mostrar solo la cantidad sin conversiones
                             $cantidad_mostrar = $producto['cantidad'];
-                            $unidad = '';
-                            
-                            // Detectar si es un cable/bobina usando tipo_gestion primero, luego nombre específico
-                            $tipo_gestion = $producto['tipo_gestion'] ?? '';
-                            $es_cable = ($tipo_gestion === 'bobina') || 
-                                       (stripos($producto['product_name'] ?? '', 'bobina') !== false) ||
-                                       (stripos($producto['product_name'] ?? '', 'cable utp') !== false) ||
-                                       (stripos($producto['product_name'] ?? '', 'saxxon out') !== false);
-                            
-                            if ($es_cable) {
-                                $metros_por_bobina = 305; // Misma constante que crear.php PRECIO_CONFIG
-                                $cantidad = $producto['cantidad'];
-                                $precio_unitario = $producto['precio_unitario'];
-                                
-                                // DETECTAR MODO ORIGINAL usando la misma heurística que crear.php
-                                // Si precio > 50, es precio por bobina completa (líneas 1579-1583)
-                                // Si precio <= 50, es precio por metro (líneas 1587-1590)
-                                    if ($precio_unitario > 50) {
-                                    // MODO BOBINAS COMPLETAS (como crear.php línea 1580)
-                                    // 🎯 PERMITIR FRACCIONES DE BOBINAS (1.5, 2.5, etc.)
-                                        $bobinas_completas = $cantidad / $metros_por_bobina;
-                                    // Redondear a 1 decimal para mostrar fracciones como 1.5
-                                        $cantidad_mostrar = round($bobinas_completas, 1);
-                                    $unidad = $cantidad_mostrar !== 1 ? ' bobinas' : ' bobina';
-                                        echo number_format($cantidad_mostrar, 1) . $unidad;
-                                    } else {
-                                    // MODO POR METROS (como crear.php línea 1587)
-                                        $cantidad_mostrar = $cantidad;
-                                        $unidad = ' m';
-                                        echo number_format($cantidad_mostrar, 2) . $unidad;
-                                    }
-                            } else {
-                                // Para productos normales (no bobinas/cables): mostrar solo enteros
-                                $cantidad_mostrar = round($producto['cantidad']);
-                                echo number_format($cantidad_mostrar, 0);
-                            }
+                            // Mostrar con 2 decimales para manejar cantidades fraccionarias
+                            echo number_format($cantidad_mostrar, 2);
                             ?>
                         </td>
                         <td>
                             <?php
-                            // 🎯 DETECTAR MODO ORIGINAL USANDO LA MISMA LÓGICA QUE CREAR.PHP
+                            // Mostrar solo el precio unitario sin unidades
                             $precio_mostrar = $producto['precio_unitario'];
-                            $precio_unidad = '';
-                            
-                            // Usar la misma detección de modo que en cantidad
-                            if ($es_cable) {
-                                $precio_unitario = $producto['precio_unitario'];
-                                
-                                // DETECTAR MODO ORIGINAL usando la misma heurística que crear.php
-                                // Si precio > 50, es precio por bobina completa (líneas 1579-1583)
-                                // Si precio <= 50, es precio por metro (líneas 1587-1590)
-                                if ($precio_unitario > 50) {
-                                    // MODO BOBINAS COMPLETAS - Precio está por bobina
-                                    $precio_unidad = ' /bobina';
-                                } else {
-                                    // MODO POR METROS - Precio está por metro
-                                    $precio_unidad = ' /m';
-                                }
-                            }
-                            
-                            echo '$' . number_format($precio_mostrar, 2) . $precio_unidad;
+                            echo '$' . number_format($precio_mostrar, 2);
                             ?>
                         </td>
                         <td class="precio-total">
@@ -821,21 +769,12 @@ $insumos->data_seek(0);
                             <?php
                             if (!empty($producto['cost_price'])) {
                                 $cantidad_para_costo = $producto['cantidad'];
-                                
-                                // Para cables/bobinas, el cost_price es por BOBINA COMPLETA (como en crear.php)
-                                if ($es_cable) {
-                                    $metros_por_bobina = 305;
-                                    // 🎯 PERMITIR FRACCIONES DE BOBINAS PARA CÁLCULO CORRECTO DEL COSTO
-                                    $bobinas_completas = $cantidad_para_costo / $metros_por_bobina;
-                                    $costo_total_producto = $producto['cost_price'] * $bobinas_completas;
-                                } else {
-                                    // Productos normales: cost_price por unidad
-                                    $costo_total_producto = $producto['cost_price'] * $cantidad_para_costo;
-                                }
-                                
+                                // Calcular costo total como precio unitario por cantidad
+                                $costo_total_producto = $producto['cost_price'] * $cantidad_para_costo;
+                                $costo_total += $costo_total_producto;
                                 echo '$' . number_format($costo_total_producto, 2);
                             } else {
-                                echo 'N/A';
+                                echo '-'; // No hay costo definido
                             }
                             ?>
                         </td>

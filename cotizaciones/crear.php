@@ -197,8 +197,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $observaciones = trim($observaciones);
             // Eliminar cualquier referencia anterior de descripciones
             $observaciones = preg_replace('/\[DESCRIPCIONES:[^\]]*\]/', '', $observaciones);
-            // Agregar las nuevas descripciones
-            $observaciones .= ' [DESCRIPCIONES:' . base64_encode(json_encode($descripcionesPersonalizadas)) . ']';
+            // Agregar las nuevas descripciones en un formato legible
+            $observaciones .= "\n\nDescripciones personalizadas:\n";
+            foreach ($descripcionesPersonalizadas as $product_id => $descripcion) {
+                $observaciones .= "- " . htmlspecialchars($descripcion) . "\n";
+            }
             $observaciones = trim($observaciones);
         }
 
@@ -217,8 +220,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $observaciones = trim($observaciones);
             // Eliminar cualquier referencia anterior de descripciones de insumos
             $observaciones = preg_replace('/\[DESCRIPCIONES_INSUMOS:[^\]]*\]/', '', $observaciones);
-            // Agregar las nuevas descripciones de insumos
-            $observaciones .= ' [DESCRIPCIONES_INSUMOS:' . base64_encode(json_encode($descripcionesPersonalizadasInsumos)) . ']';
+            // Agregar las descripciones de insumos en un formato legible
+            if (!empty($descripcionesPersonalizadasInsumos)) {
+                $observaciones .= "\n\nDescripciones de insumos:\n";
+                foreach ($descripcionesPersonalizadasInsumos as $insumo_id => $descripcion) {
+                    $observaciones .= "- " . htmlspecialchars($descripcion) . "\n";
+                }
+            }
             $observaciones = trim($observaciones);
         }
 
@@ -314,16 +322,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $modoPrecio = $prod['_modoPrecio'] ?? null;
                 
                 if ($esBobina && $modoPrecio === 'POR_BOBINA') {
-                    // Para bobinas en modo POR_BOBINA: SIEMPRE guardar cantidad = 305 y precio_total = subtotal del frontend
-                    $cantidad = 305;
-                    // Si el producto tiene 'subtotal' desde el frontend, úsalo como precio_total
+                    // Para bobinas en modo POR_BOBINA: precio_total SIEMPRE igual al subtotal del frontend
                     if (isset($prod['subtotal'])) {
                         $precio_total = floatval($prod['subtotal']);
                     } else {
                         $precio_total = $precio_unitario;
                     }
                     // DEBUG: Log para verificar cálculo
-                    error_log("🎯 INSERTAR BOBINA: MODO POR_BOBINA, cantidad = $cantidad, precio_total = \\${$precio_total}");
+                    error_log("🎯 INSERTAR BOBINA: MODO POR_BOBINA, cantidad = " . floatval($prod['cantidad']) . ", precio_total = \${$precio_total}");
                 } else {
                     // Para productos normales o bobinas en modo metros
                     $precio_total = $cantidad * $precio_unitario;
@@ -3211,14 +3217,19 @@ $(document).ready(function() {
         // Corregir el array antes de enviar: para bobinas en modo POR_BOBINA, precio_total debe ser igual a precio unitario
         const productosParaEnviar = productosCotizacion.map(prod => {
             if (prod.tipo_gestion === 'bobina' && prod._modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA) {
-                // En modo bobina, la cantidad debe ser metrosPorBobina y el precio es el de la bobina
+                // En modo bobina, enviar cantidad=1, precio=precio de la bobina, subtotal=precio de la bobina
                 return {
                     ...prod,
-                    cantidad: PRECIO_CONFIG.metrosPorBobina,
-                    precio: prod.precio // precio unitario = precio total
+                    cantidad: 1,
+                    precio: parseFloat(prod.precio) || 0,
+                    subtotal: parseFloat(prod.precio) || 0
                 };
             }
-            return prod;
+            // Para productos normales o bobinas por metro, calcular subtotal normal
+            return {
+                ...prod,
+                subtotal: (parseFloat(prod.cantidad) || 0) * (parseFloat(prod.precio) || 0)
+            };
         });
         formData.append('productos_json', JSON.stringify(productosParaEnviar));
         formData.append('servicios_json', JSON.stringify(serviciosCotizacion));
