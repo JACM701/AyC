@@ -763,20 +763,20 @@ $insumos->data_seek(0);
                                 // DETECTAR MODO ORIGINAL usando la misma heurística que crear.php
                                 // Si precio > 50, es precio por bobina completa (líneas 1579-1583)
                                 // Si precio <= 50, es precio por metro (líneas 1587-1590)
-                                if ($precio_unitario > 50) {
+                                    if ($precio_unitario > 50) {
                                     // MODO BOBINAS COMPLETAS (como crear.php línea 1580)
                                     // 🎯 PERMITIR FRACCIONES DE BOBINAS (1.5, 2.5, etc.)
-                                    $bobinas_completas = $cantidad / $metros_por_bobina;
+                                        $bobinas_completas = $cantidad / $metros_por_bobina;
                                     // Redondear a 1 decimal para mostrar fracciones como 1.5
-                                    $cantidad_mostrar = round($bobinas_completas, 1);
+                                        $cantidad_mostrar = round($bobinas_completas, 1);
                                     $unidad = $cantidad_mostrar !== 1 ? ' bobinas' : ' bobina';
-                                    echo number_format($cantidad_mostrar, 1) . $unidad;
-                                } else {
+                                        echo number_format($cantidad_mostrar, 1) . $unidad;
+                                    } else {
                                     // MODO POR METROS (como crear.php línea 1587)
-                                    $cantidad_mostrar = $cantidad;
-                                    $unidad = ' m';
-                                    echo number_format($cantidad_mostrar, 2) . $unidad;
-                                }
+                                        $cantidad_mostrar = $cantidad;
+                                        $unidad = ' m';
+                                        echo number_format($cantidad_mostrar, 2) . $unidad;
+                                    }
                             } else {
                                 // Para productos normales (no bobinas/cables): mostrar solo enteros
                                 $cantidad_mostrar = round($producto['cantidad']);

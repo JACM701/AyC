@@ -141,62 +141,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $descuento_porcentaje = floatval($_POST['descuento_porcentaje_frontend']);
         }
         
-        // Tomar totales del frontend si están disponibles, sino calcular en backend
-        // 🎯 SIEMPRE USAR VALORES DEL FRONTEND - NO USAR CÁLCULO BACKEND BUGGY
-        if (isset($_POST['subtotal_frontend']) && isset($_POST['descuento_monto_frontend']) && isset($_POST['total_frontend'])) {
-            // Usar valores calculados por el frontend (CORRECTO)
-            $subtotal = floatval($_POST['subtotal_frontend']);
-            $descuento_monto = floatval($_POST['descuento_monto_frontend']);
-            $total = floatval($_POST['total_frontend']);
-        } else {
-            // ❌ FORZAR ERROR SI NO HAY VALORES FRONTEND - NO USAR CÁLCULO BACKEND BUGGY
+        // Usar EXCLUSIVAMENTE los valores calculados por el frontend - SIN RECÁLCULOS
+        if (!isset($_POST['subtotal_frontend']) || !isset($_POST['descuento_monto_frontend']) || !isset($_POST['total_frontend'])) {
             $error = 'Error: No se recibieron los totales calculados del frontend. Recarga la página e intenta de nuevo.';
         }
         
+        // Usar los valores del frontend sin modificación
+        $subtotal = floatval($_POST['subtotal_frontend']);
+        $descuento_monto = floatval($_POST['descuento_monto_frontend']);
+        $total = floatval($_POST['total_frontend']);
+        
         // Solo continuar si no hay error
         if (!$error) {
-            // Calcular totales en backend (fallback) - ESTE CÓDIGO YA NO SE EJECUTA
-            $subtotal = 0;
-            // Sumar productos
-            foreach ($productos as $prod) {
-                // 🎯 CÁLCULO CORRECTO DEL SUBTOTAL PARA BOBINAS
-                $cantidad = floatval($prod['cantidad']); // Permitir decimales para bobinas
-                $precio = floatval($prod['precio']);
-                
-                // Verificar si es bobina y calcular según el modo
-                $esBobina = isset($prod['tipo_gestion']) && $prod['tipo_gestion'] === 'bobina';
-                $modoPrecio = $prod['_modoPrecio'] ?? null;
-                
-                if ($esBobina && $modoPrecio === 'POR_BOBINA') {
-                    // Para bobinas en modo POR_BOBINA: usar cantidad y precio directamente
-                    // El frontend ya calcula correctamente cantidad * precio para bobinas
-                    $subtotalProducto = $cantidad * $precio;
-                } else {
-                    // Para productos normales o bobinas en modo metros
-                    $subtotalProducto = $cantidad * $precio;
-                }
-                
-                $subtotal += $subtotalProducto;
-            }
-            // Sumar servicios
-            foreach ($servicios as $serv) {
-                $subtotal += floatval($serv['precio']) * floatval($serv['cantidad']);
-            }
-            // Sumar insumos
-            $insumos_json = $_POST['insumos_json'] ?? '';
-            $insumos = json_decode($insumos_json, true);
-            if ($insumos && is_array($insumos)) {
-                foreach ($insumos as $ins) {
-                    $cantidad = floatval($ins['cantidad'] ?? 1);
-                    $precio_unitario = floatval($ins['precio'] ?? 0);
-                    $subtotal += $cantidad * $precio_unitario;
-                }
-            }
-            $descuento_monto = $subtotal * $descuento_porcentaje / 100;
-            $total_sin_iva = $subtotal - $descuento_monto;
-            $iva_especial = isset($_POST['condicion_iva']) ? trim($_POST['condicion_iva']) : '';
+            // NO realizar cálculos en el backend - Usar solo los valores del frontend
+            $total_sin_iva = $total; // Usar el total del frontend directamente
             $iva_monto = 0;
-            $total = $total_sin_iva;
+        $iva_especial = isset($_POST['condicion_iva']) ? trim($_POST['condicion_iva']) : '';
             if ($iva_especial !== '' && is_numeric($iva_especial) && floatval($iva_especial) > 0) {
                 $iva_val = floatval($iva_especial);
                 if ($iva_val <= 1) {
@@ -354,13 +314,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $modoPrecio = $prod['_modoPrecio'] ?? null;
                 
                 if ($esBobina && $modoPrecio === 'POR_BOBINA') {
-                    // Para bobinas en modo POR_BOBINA: calcular precio total según bobinas completas
-                    $metrosPorBobina = 305; // Configuración estándar
-                    $bobinasCompletas = $cantidad / $metrosPorBobina;
-                    $precio_total = $bobinasCompletas * $precio_unitario;
-                    
+                    // Para bobinas en modo POR_BOBINA: SIEMPRE guardar cantidad = 305 y precio_total = subtotal del frontend
+                    $cantidad = 305;
+                    // Si el producto tiene 'subtotal' desde el frontend, úsalo como precio_total
+                    if (isset($prod['subtotal'])) {
+                        $precio_total = floatval($prod['subtotal']);
+                    } else {
+                        $precio_total = $precio_unitario;
+                    }
                     // DEBUG: Log para verificar cálculo
-                    error_log("🎯 INSERTAR BOBINA: {$cantidad}m ÷ {$metrosPorBobina}m = {$bobinasCompletas} bobinas × \${$precio_unitario} = \${$precio_total}");
+                    error_log("🎯 INSERTAR BOBINA: MODO POR_BOBINA, cantidad = $cantidad, precio_total = \\${$precio_total}");
                 } else {
                     // Para productos normales o bobinas en modo metros
                     $precio_total = $cantidad * $precio_unitario;
@@ -1271,6 +1234,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <input type="text" class="form-control" id="buscador_servicio" placeholder="Nombre del servicio...">
                 <div id="sugerencias_servicios" class="list-group mt-1"></div>
             </div>
+            <div class="mb-3">
+                <button type="button" class="btn btn-outline-primary" id="btnAltaRapidaServicio"><i class="bi bi-plus-circle"></i> Alta rápida de servicio</button>
+            </div>
+            <div id="altaRapidaServicioForm" style="display:none;">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label">Nombre</label>
+                        <input type="text" class="form-control" id="nuevo_nombre_servicio" placeholder="Ej: Instalación eléctrica">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Categoría</label>
+                        <input type="text" class="form-control" id="nuevo_categoria_servicio" placeholder="Ej: Instalación">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Precio</label>
+                        <input type="number" step="0.01" min="0" class="form-control" id="nuevo_precio_servicio" placeholder="0.00">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Descripción</label>
+                        <input type="text" class="form-control" id="nuevo_descripcion_servicio" placeholder="Descripción breve...">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Imagen</label>
+                        <input type="file" class="form-control" id="nuevo_imagen_servicio" accept="image/*">
+                    </div>
+                </div>
+                <div class="row g-3 align-items-end mt-2">
+                    <div class="col-md-3 d-flex align-items-center">
+                        <div class="form-check mt-4">
+                            <input class="form-check-input" type="checkbox" id="nuevo_agregar_cotizacion_servicio" checked>
+                            <label class="form-check-label" for="nuevo_agregar_cotizacion_servicio">Agregar a la cotización</label>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="button" class="btn btn-success" id="btnAgregarServicioRapido"><i class="bi bi-check-circle"></i> Agregar servicio</button>
+                    </div>
+                </div>
+            </div>
+            
             <div class="table-responsive mt-4">
                 <table class="table table-striped align-middle" id="tablaServiciosCotizacion">
                     <thead class="table-dark">
@@ -1614,12 +1616,10 @@ function recalcularTotales() {
             });
             
             if (esBobina && p._modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA) {
-                // Para bobinas en modo bobina: número de bobinas × precio por bobina
-                // Permitir fracciones de bobinas (ej: 1.5 bobinas)
-                const bobinasCompletas = cantidad / PRECIO_CONFIG.metrosPorBobina;
-                const subtotalCalculado = bobinasCompletas * precio;
-                console.log(`DEBUG Bobina POR_BOBINA: ${cantidad}m ÷ ${PRECIO_CONFIG.metrosPorBobina}m = ${bobinasCompletas} bobinas × $${precio} = $${subtotalCalculado}`);
-                subtotalProductos += subtotalCalculado;
+                // Para bobinas en modo bobina: el precio ya es el total por bobina
+                // No multiplicar por la cantidad, usar el precio directamente
+                console.log(`DEBUG Bobina POR_BOBINA: Precio fijo por bobina: $${precio}`);
+                subtotalProductos += precio;
             } else {
                 // Para metros o productos normales: cantidad × precio
                 const subtotalCalculado = cantidad * precio;
@@ -3034,6 +3034,103 @@ $(document).on('focus', '.precio-servicio-input', function() {
     // Permitir edición normal sin interferencias
 });
 
+// --- ALTA RÁPIDA DE SERVICIOS ---
+// Botón para mostrar/ocultar formulario de alta rápida de servicios
+$('#btnAltaRapidaServicio').on('click', function() {
+    $('#altaRapidaServicioForm').toggle();
+});
+
+// Función para manejar el botón de agregar servicio rápido
+$('#btnAgregarServicioRapido').on('click', function() {
+    console.log('🔥 Botón de agregar servicio clickeado');
+    
+    const nombre = $('#nuevo_nombre_servicio').val().trim();
+    const categoria = $('#nuevo_categoria_servicio').val().trim();
+    const precio = parseFloat($('#nuevo_precio_servicio').val()) || 0;
+    const descripcion = $('#nuevo_descripcion_servicio').val().trim();
+    const agregarCotizacion = $('#nuevo_agregar_cotizacion_servicio').is(':checked');
+    const imagenFile = $('#nuevo_imagen_servicio')[0] ? $('#nuevo_imagen_servicio')[0].files[0] : null;
+    
+    console.log('📝 Datos del formulario:', {nombre, categoria, precio, descripcion, agregarCotizacion});
+    
+    if (!nombre || precio <= 0) {
+        console.log('❌ Validación fallida:', {nombre, precio});
+        mostrarNotificacion('Completa nombre y precio (>0) para el servicio.', 'warning');
+        return;
+    }
+    
+    console.log('✅ Validación pasada, enviando AJAX...');
+    
+    let formData = new FormData();
+    formData.append('nombre', nombre);
+    formData.append('categoria', categoria);
+    formData.append('precio', precio);
+    formData.append('descripcion', descripcion);
+    if (imagenFile) formData.append('imagen', imagenFile);
+    
+    $.ajax({
+        url: 'ajax_add_servicio.php',
+        type: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        dataType: 'json',
+        success: function(res) {
+            console.log(' Respuesta del servidor:', res);
+            console.log(' Tipo de respuesta:', typeof res);
+            
+            if (!res) {
+                console.error(' La respuesta del servidor está vacía o es inválida');
+                mostrarNotificacion('Error: Respuesta inválida del servidor', 'danger');
+                return;
+            }
+            if (res && res.success && res.servicio_id) {
+                console.log(' Servicio creado exitosamente:', res);
+                // Agregar el nuevo servicio al array de servicios
+                const nuevoServicio = {
+                    servicio_id: res.servicio_id,
+                    nombre: nombre,
+                    categoria: categoria,
+                    descripcion: descripcion,
+                    precio: precio,
+                    imagen: res.imagen || '',
+                    is_active: 1 // Creado como desactivado
+                };
+                serviciosArray.push(nuevoServicio);
+                
+                // Si está marcado "Agregar a cotización", agregarlo a la tabla
+                if (agregarCotizacion) {
+                    agregarServicioATabla({
+                        servicio_id: res.servicio_id,
+                        nombre: nombre,
+                        categoria: categoria,
+                        descripcion: descripcion,
+                        precio: precio,
+                        cantidad: 1,
+                        imagen: res.imagen || ''
+                    });
+                    mostrarNotificacion('📋 Servicio creado y agregado a la cotización', 'success');
+                } else {
+                    mostrarNotificacion('✅ Servicio creado exitosamente como desactivado', 'success');
+                }
+                
+                // Limpiar formulario
+                $('#nuevo_nombre_servicio, #nuevo_categoria_servicio, #nuevo_precio_servicio, #nuevo_descripcion_servicio').val('');
+                $('#nuevo_imagen_servicio').val('');
+                $('#altaRapidaServicioForm').hide();
+                
+            } else {
+                mostrarNotificacion(res && res.message ? res.message : 'Error al crear servicio.', 'danger');
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('❌ Error en AJAX:', {xhr, status, error});
+            console.error('❌ Response text:', xhr.responseText);
+            mostrarNotificacion('Error de conexión al crear servicio: ' + error, 'danger');
+        }
+    });
+});
+
 // EVENTO SUBMIT CON AJAX
 $(document).ready(function() {
     // Asegurarse de que los campos ocultos existan
@@ -3111,8 +3208,19 @@ $(document).ready(function() {
         // Asegurarse de que el campo observaciones esté incluido
         formData.set('observaciones', $('#observaciones').val());
 
-        // Añadir los datos de las tablas que están en arrays de JS
-        formData.append('productos_json', JSON.stringify(productosCotizacion));
+        // Corregir el array antes de enviar: para bobinas en modo POR_BOBINA, precio_total debe ser igual a precio unitario
+        const productosParaEnviar = productosCotizacion.map(prod => {
+            if (prod.tipo_gestion === 'bobina' && prod._modoPrecio === PRECIO_CONFIG.modosPrecio.POR_BOBINA) {
+                // En modo bobina, la cantidad debe ser metrosPorBobina y el precio es el de la bobina
+                return {
+                    ...prod,
+                    cantidad: PRECIO_CONFIG.metrosPorBobina,
+                    precio: prod.precio // precio unitario = precio total
+                };
+            }
+            return prod;
+        });
+        formData.append('productos_json', JSON.stringify(productosParaEnviar));
         formData.append('servicios_json', JSON.stringify(serviciosCotizacion));
         formData.append('insumos_json', JSON.stringify(insumosCotizacion));
         
